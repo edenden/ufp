@@ -3,7 +3,7 @@
 #include "ufp_main.h"
 #include "ufp_mbx.h"
 
-void ufp_mbx_init_params(struct ixgbe_hw *hw)
+void ufp_mbx_init(struct ixgbe_hw *hw)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 

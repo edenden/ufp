@@ -7,7 +7,7 @@
 #include "ufp_main.h"
 #include "ufp_mac.h"
 
-s32 ufp_mac_init_ops(struct ufp_hw *hw)
+s32 ufp_mac_init(struct ufp_hw *hw)
 {
 	switch(hw->device_id){
 	case IXGBE_DEV_ID_82599_VF:

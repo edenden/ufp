@@ -96,7 +96,7 @@ struct ufp_mac_info {
 	u32  max_msix_vectors;
 };
 
-s32 ufp_mac_init_ops(struct ufp_hw *hw);
+s32 ufp_mac_init(struct ufp_hw *hw);
 s32 ufp_mac_reset(struct ufp_hw *hw);
 s32 ufp_mac_stop_adapter(struct ufp_hw *hw);
 s32 ufp_mac_set_rar(struct ufp_hw *hw, u8 *addr);

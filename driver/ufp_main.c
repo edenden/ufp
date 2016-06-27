@@ -548,8 +548,8 @@ static int __devinit ufp_hw_init(struct ufp_port *port)
 	hw->subsystem_vendor_id = pdev->subsystem_vendor;
 	hw->subsystem_device_id = pdev->subsystem_device;
 
-	ufp_hw_init_ops(hw);
-	ufp_mbx_init_params(hw);
+	ufp_mac_init(hw);
+	ufp_mbx_init(hw);
 
 	return 0;
 }
@@ -630,10 +630,10 @@ static int __devinit ufp_probe(struct pci_dev *pdev,
                 goto err_ioremap;
         }
 
-        /* ufp_hw INITIALIZATION */
-        err = ufp_hw_init(port);
-        if (err)
-                goto err_sw_init;
+	/* ufp_hw INITIALIZATION */
+	err = ufp_hw_init(port);
+	if (err)
+		goto err_hw_init;
 
 	pr_info("device[%u] %s initialized\n", port->id, pci_name(pdev));
 
@@ -644,7 +644,7 @@ static int __devinit ufp_probe(struct pci_dev *pdev,
 	return 0;
 
 err_miscdev_register:
-err_sw_init:
+err_hw_init:
 	ufp_dma_unmap_all(port);
 err_ioremap:
         ufp_port_free(port);
