@@ -258,16 +258,18 @@ static void ufp_set_ivar(struct ufp_port *port,
 static void ufp_negotiate_api(struct ufp_port *port)
 {
 	struct ufp_hw *hw = port->hw;
-	int api[] = { ixgbe_mbox_api_12,
-		      ixgbe_mbox_api_11,
-		      ixgbe_mbox_api_10,
-		      ixgbe_mbox_api_unknown };
+	enum ufp_mbx_api_rev api[] = {
+			ixgbe_mbox_api_12,
+			ixgbe_mbox_api_11,
+			ixgbe_mbox_api_10,
+			ixgbe_mbox_api_unknown
+	};
 	int err = 0, idx = 0;
 
 	spin_lock_bh(&port->mbx_lock);
 
 	while (api[idx] != ixgbe_mbox_api_unknown) {
-		err = ixgbevf_negotiate_api_version(hw, api[idx]);
+		err = hw->mac.ops.negotiate_api(hw, api[idx]);
 		if (!err)
 			break;
 		idx++;
@@ -476,7 +478,7 @@ static int ufp_up(struct ufp_port *port)
 		hw->mac.perm_addr[4], hw->mac.perm_addr[5]);
 
 	/* fetch queue configuration from the PF */
-	err = ufp_hw_get_queues(hw, &num_tcs, &def_q);
+	err = hw->mac.ops.get_queues(hw, &num_tcs, &def_q);
 
 	pr_info("Max RX queues: %d\n", hw->mac.max_rx_queues);
 	pr_info("Max TX queues: %d\n", hw->mac.max_tx_queues);
@@ -547,7 +549,7 @@ static int __devinit ufp_hw_init(struct ufp_port *port)
 	hw->subsystem_device_id = pdev->subsystem_device;
 
 	ufp_hw_init_ops(hw);
-	hw->mbx.ops.init_params(hw);
+	ufp_mbx_init_params(hw);
 
 	return 0;
 }

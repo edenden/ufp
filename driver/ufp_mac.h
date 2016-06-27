@@ -54,18 +54,13 @@
 #define IXGBE_VFRSSRK(x)	(0x3100 + ((x) * 4))
 #define IXGBE_VFRETA(x)	(0x3200 + ((x) * 4))
 
-struct ufp_hw;
-
 struct ufp_mac_operations {
-	/* MAC */
 	s32 (*reset_hw)(struct ufp_hw *);
 	s32 (*stop_adapter)(struct ufp_hw *);
-
-	/* Link */
+	s32 (*negotiate_api)(struct ufp_hw *, enum ufp_mbx_api_rev);
+	s32 (*get_queues)(struct ufp_hw *, u32 *, u32 *);
 	s32 (*check_link)(struct ufp_hw *, u32 *, u32 *);
-
-	/* RAR, Multicast, VLAN */
-	s32 (*set_rar)(struct ufp_hw *, u32, u8 *, u32, u32);
+	s32 (*set_rar)(struct ufp_hw *, u8 *);
 	s32 (*set_uc_addr)(struct ufp_hw *, u32, u8 *);
 	s32 (*update_mc_addr_list)(struct ufp_hw *, u8 *, u32, ufp_mc_addr_itr);
 	s32 (*update_xcast_mode)(struct ufp_hw *, struct net_device *, int);
@@ -101,46 +96,17 @@ struct ufp_mac_info {
 	u32  max_msix_vectors;
 };
 
-struct ufp_mbx_operations {
-	void (*init_params)(struct ufp_hw *hw);
-	s32  (*read)(struct ufp_hw *, u32 *, u16,  u16);
-	s32  (*write)(struct ufp_hw *, u32 *, u16, u16);
-	s32  (*read_posted)(struct ufp_hw *, u32 *, u16,  u16);
-	s32  (*write_posted)(struct ufp_hw *, u32 *, u16, u16);
-	s32  (*check_for_msg)(struct ufp_hw *, u16);
-	s32  (*check_for_ack)(struct ufp_hw *, u16);
-	s32  (*check_for_rst)(struct ufp_hw *, u16);
-};
-
-struct ufp_mbx_stats {
-	u32 msgs_tx;
-	u32 msgs_rx;
-
-	u32 acks;
-	u32 reqs;
-	u32 rsts;
-};
-
-struct ufp_mbx_info {
-	struct ufp_mbx_operations ops;
-	struct ufp_mbx_stats stats;
-	u32 timeout;
-	u32 udelay;
-	u32 v2p_mailbox;
-	u16 size;
-};
-
-struct ufp_hw {
-	void *back;
-	u8 __iomem *hw_addr;
-	struct ufp_mac_info mac;
-	struct ufp_mbx_info mbx;
-	u16 device_id;
-	u16 subsystem_vendor_id;
-	u16 subsystem_device_id;
-	u16 vendor_id;
-	u8  revision_id;
-	int api_version;
-};
+s32 ufp_mac_init_ops(struct ufp_hw *hw);
+s32 ufp_mac_reset(struct ufp_hw *hw);
+s32 ufp_mac_stop_adapter(struct ufp_hw *hw);
+s32 ufp_mac_set_rar(struct ufp_hw *hw, u8 *addr);
+s32 ufp_mac_update_mc_addr_list(struct ufp_hw *hw, u8 *mc_addr_list,
+	u32 mc_addr_count, ixgbe_mc_addr_itr next);
+s32 ufp_mac_set_vfta(struct ufp_hw *hw, u32 vlan, u32 vlan_on);
+s32 ufp_mac_set_uc_addr(struct ufp_hw *hw, u32 index, u8 *addr);
+s32 ufp_mac_check_mac_link(struct ufp_hw *hw, u32 *speed, u32 *link_up);
+void ufp_mac_set_rlpml(struct ufp_hw *hw, u16 max_size);
+s32 ufp_mac_negotiate_api_version(struct ufp_hw *hw, enum ufp_mbx_api_rev api);
+s32 ufp_mac_get_queues(struct ufp_hw *hw, u32 *num_tcs, u32 *default_tc);
 
 #endif /* _UFP_HW_H__ */

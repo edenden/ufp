@@ -1,8 +1,6 @@
 #ifndef _UFP_MBX_H_
 #define _UFP_MBX_H_
 
-#include "ixgbe_vf.h"
-
 #define IXGBE_VFMAILBOX_SIZE	16 /* 16 32 bit words - 64 bytes */
 #define IXGBE_ERR_MBX		-100
 
@@ -52,7 +50,7 @@
  * each element denotes a version of the API; existing numbers may not
  * change; any additions must go at the end
  */
-enum ixgbe_pfvf_api_rev {
+enum ufp_mbx_api_rev {
 	ixgbe_mbox_api_10,	/* API version 1.0, linux/freebsd VF driver */
 	ixgbe_mbox_api_20,	/* API version 2.0, solaris Phase1 VF driver */
 	ixgbe_mbox_api_11,	/* API version 1.1, linux/freebsd VF driver */
@@ -107,8 +105,35 @@ enum ixgbe_pfvf_api_rev {
 #define IXGBE_VF_MBX_INIT_TIMEOUT	2000 /* number of retries on mailbox */
 #define IXGBE_VF_MBX_INIT_DELAY		500  /* microseconds between retries */
 
-void ixgbe_init_mbx_ops_generic(struct ixgbe_hw *hw);
-void ixgbe_init_mbx_params_vf(struct ixgbe_hw *);
-void ixgbe_init_mbx_params_pf(struct ixgbe_hw *);
+struct ufp_mbx_operations {
+	void (*init_params)(struct ufp_hw *hw);
+	s32  (*read)(struct ufp_hw *, u32 *, u16,  u16);
+	s32  (*write)(struct ufp_hw *, u32 *, u16, u16);
+	s32  (*read_posted)(struct ufp_hw *, u32 *, u16,  u16);
+	s32  (*write_posted)(struct ufp_hw *, u32 *, u16, u16);
+	s32  (*check_for_msg)(struct ufp_hw *, u16);
+	s32  (*check_for_ack)(struct ufp_hw *, u16);
+	s32  (*check_for_rst)(struct ufp_hw *, u16);
+};
+
+struct ufp_mbx_stats {
+	u32 msgs_tx;
+	u32 msgs_rx;
+
+	u32 acks;
+	u32 reqs;
+	u32 rsts;
+};
+
+struct ufp_mbx_info {
+	struct ufp_mbx_operations ops;
+	struct ufp_mbx_stats stats;
+	u32 timeout;
+	u32 udelay;
+	u32 v2p_mailbox;
+	u16 size;
+};
+
+void ufp_mbx_init_params(struct ixgbe_hw *hw);
 
 #endif /* _UFP_MBX_H_ */

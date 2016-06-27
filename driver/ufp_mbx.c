@@ -75,8 +75,8 @@ out:
 	return countdown ? 0 : IXGBE_ERR_MBX;
 }
 
-static s32 ufp_mbx_read_posted(struct ixgbe_hw *hw, u32 *msg, u16 size,
-				 u16 mbx_id)
+static s32 ufp_mbx_read_posted(struct ixgbe_hw *hw, u32 *msg,
+	u16 size, u16 mbx_id)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	s32 ret_val = IXGBE_ERR_MBX;
@@ -93,8 +93,8 @@ out:
 	return ret_val;
 }
 
-static s32 ufp_mbx_write_posted(struct ixgbe_hw *hw, u32 *msg, u16 size,
-				  u16 mbx_id)
+static s32 ufp_mbx_write_posted(struct ixgbe_hw *hw, u32 *msg,
+	u16 size, u16 mbx_id)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	s32 ret_val = IXGBE_ERR_MBX;
@@ -190,8 +190,8 @@ static s32 ufp_mbx_obtain_lock(struct ixgbe_hw *hw)
 	return ret_val;
 }
 
-static s32 ufp_mbx_write(struct ixgbe_hw *hw, u32 *msg, u16 size,
-			      u16 mbx_id)
+static s32 ufp_mbx_write(struct ixgbe_hw *hw, u32 *msg,
+	u16 size, u16 mbx_id)
 {
 	s32 ret_val;
 	u16 i;
@@ -221,8 +221,8 @@ out_no_write:
 	return ret_val;
 }
 
-static s32 ufp_mbx_read(struct ixgbe_hw *hw, u32 *msg, u16 size,
-			     u16 mbx_id)
+static s32 ufp_mbx_read(struct ixgbe_hw *hw, u32 *msg,
+	u16 size, u16 mbx_id)
 {
 	s32 ret_val = 0;
 	u16 i;

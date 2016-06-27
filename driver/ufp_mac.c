@@ -5,9 +5,9 @@
 #include <linux/semaphore.h>
 
 #include "ufp_main.h"
-#include "ufp_hw.h"
+#include "ufp_mac.h"
 
-s32 ufp_hw_init_ops(struct ufp_hw *hw)
+s32 ufp_mac_init_ops(struct ufp_hw *hw)
 {
 	switch(hw->device_id){
 	case IXGBE_DEV_ID_82599_VF:
@@ -27,27 +27,22 @@ s32 ufp_hw_init_ops(struct ufp_hw *hw)
 		break;
 	}
 
-	/* MAC */
-	hw->mac.ops.reset_hw		= ufp_hw_reset;
-	hw->mac.ops.stop_adapter	= ufp_hw_stop_adapter;
-
-	/* Link */
-	hw->mac.ops.check_link		= ufp_hw_check_mac_link;
-
-	/* RAR, Multicast, VLAN */
-	hw->mac.ops.set_rar		= ufp_hw_set_rar;
-	hw->mac.ops.set_uc_addr		= ufp_hw_set_uc_addr;
-	hw->mac.ops.update_mc_addr_list	= ufp_hw_update_mc_addr_list;
-	hw->mac.ops.update_xcast_mode	= ufp_hw_update_xcast_mode;
-	hw->mac.ops.set_vfta		= ufp_hw_set_vfta;
-	hw->mac.ops.set_rlpml		= ufp_hw_set_rlpml;
-
-	hw->mbx.ops.init_params		= ufp_mbx_init_params;
+	hw->mac.ops.reset_hw		= ufp_mac_reset;
+	hw->mac.ops.stop_adapter	= ufp_mac_stop_adapter;
+	hw->mac.ops.negotiate_api	= ufp_mac_negotiate_api_version;
+	hw->mac.ops.get_queues		= ufp_mac_get_queues;
+	hw->mac.ops.check_link		= ufp_mac_check_mac_link;
+	hw->mac.ops.set_rar		= ufp_mac_set_rar;
+	hw->mac.ops.set_uc_addr		= ufp_mac_set_uc_addr;
+	hw->mac.ops.update_mc_addr_list	= ufp_mac_update_mc_addr_list;
+	hw->mac.ops.update_xcast_mode	= ufp_mac_update_xcast_mode;
+	hw->mac.ops.set_vfta		= ufp_mac_set_vfta;
+	hw->mac.ops.set_rlpml		= ufp_mac_set_rlpml;
 
 	return 0;
 }
 
-static void ufp_hw_clr_reg(struct ufp_hw *hw)
+static void ufp_mac_clr_reg(struct ufp_hw *hw)
 {
 	int i;
 	u32 vfsrrctl;
@@ -87,7 +82,7 @@ static void ufp_hw_clr_reg(struct ufp_hw *hw)
 	IXGBE_WRITE_FLUSH(hw);
 }
 
-s32 ufp_hw_reset(struct ufp_hw *hw)
+s32 ufp_mac_reset(struct ufp_hw *hw)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	u32 timeout = IXGBE_VF_INIT_TIMEOUT;
@@ -118,7 +113,7 @@ s32 ufp_hw_reset(struct ufp_hw *hw)
 		return IXGBE_ERR_RESET_FAILED;
 
 	/* Reset VF registers to initial values */
-	ufp_hw_clr_reg(hw);
+	ufp_mac_clr_reg(hw);
 
 	/* mailbox timeout can now become active */
 	mbx->timeout = IXGBE_VF_MBX_INIT_TIMEOUT;
@@ -150,7 +145,7 @@ s32 ufp_hw_reset(struct ufp_hw *hw)
 	return ret_val;
 }
 
-s32 ufp_hw_stop_adapter(struct ufp_hw *hw)
+s32 ufp_mac_stop_adapter(struct ufp_hw *hw)
 {
 	u32 reg_val;
 	u16 i;
@@ -181,7 +176,7 @@ s32 ufp_hw_stop_adapter(struct ufp_hw *hw)
 	return 0;
 }
 
-static s32 ufp_hw_mta_vector(struct ufp_hw *hw, u8 *mc_addr)
+static s32 ufp_mac_mta_vector(struct ufp_hw *hw, u8 *mc_addr)
 {
 	u32 vector = 0;
 
@@ -208,14 +203,12 @@ static s32 ufp_hw_mta_vector(struct ufp_hw *hw, u8 *mc_addr)
 	return vector;
 }
 
-s32 ufp_hw_set_rar(struct ufp_hw *hw, u32 index, u8 *addr, u32 vmdq,
-		     u32 enable_addr)
+s32 ufp_mac_set_rar(struct ufp_hw *hw, u8 *addr)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	u32 msgbuf[3];
 	u8 *msg_addr = (u8 *)(&msgbuf[1]);
 	s32 ret_val;
-	UNREFERENCED_3PARAMETER(vmdq, enable_addr, index);
 
 	memset(msgbuf, 0, 12);
 	msgbuf[0] = IXGBE_VF_SET_MAC_ADDR;
@@ -229,7 +222,7 @@ s32 ufp_hw_set_rar(struct ufp_hw *hw, u32 index, u8 *addr, u32 vmdq,
 	return ret_val;
 }
 
-s32 ufp_hw_update_mc_addr_list(struct ufp_hw *hw, u8 *mc_addr_list,
+s32 ufp_mac_update_mc_addr_list(struct ufp_hw *hw, u8 *mc_addr_list,
 	u32 mc_addr_count, ixgbe_mc_addr_itr next)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
@@ -238,8 +231,6 @@ s32 ufp_hw_update_mc_addr_list(struct ufp_hw *hw, u8 *mc_addr_list,
 	u32 vector;
 	u32 cnt, i;
 	u32 vmdq;
-
-	UNREFERENCED_1PARAMETER(clear);
 
 	/* Each entry in the list uses 1 16 bit word.  We have 30
 	 * 16 bit words available in our HW msg buffer (minus 1 for the
@@ -257,7 +248,7 @@ s32 ufp_hw_update_mc_addr_list(struct ufp_hw *hw, u8 *mc_addr_list,
 	msgbuf[0] |= cnt << IXGBE_VT_MSGINFO_SHIFT;
 
 	for (i = 0; i < cnt; i++) {
-		vector = ufp_hw_mta_vector(hw, next(hw, &mc_addr_list, &vmdq));
+		vector = ufp_mac_mta_vector(hw, next(hw, &mc_addr_list, &vmdq));
 		hw_dbg(hw, "Hash value = 0x%03X\n", vector);
 		vector_list[i] = (u16)vector;
 	}
@@ -265,7 +256,7 @@ s32 ufp_hw_update_mc_addr_list(struct ufp_hw *hw, u8 *mc_addr_list,
 	return mbx->ops.write_posted(hw, msgbuf, IXGBE_VFMAILBOX_SIZE, 0);
 }
 
-static s32 ufp_hw_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
+static s32 ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	u32 msgbuf[2];
@@ -296,7 +287,7 @@ static s32 ufp_hw_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
 	return 0;
 }
 
-s32 ufp_hw_set_vfta(struct ufp_hw *hw, u32 vlan, u32 vlan_on)
+s32 ufp_mac_set_vfta(struct ufp_hw *hw, u32 vlan, u32 vlan_on)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	u32 msgbuf[2];
@@ -317,7 +308,7 @@ s32 ufp_hw_set_vfta(struct ufp_hw *hw, u32 vlan, u32 vlan_on)
 	return ret_val | (msgbuf[0] & IXGBE_VT_MSGTYPE_NACK);
 }
 
-s32 ufp_hw_set_uc_addr(struct ufp_hw *hw, u32 index, u8 *addr)
+s32 ufp_mac_set_uc_addr(struct ufp_hw *hw, u32 index, u8 *addr)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	u32 msgbuf[3];
@@ -349,7 +340,7 @@ s32 ufp_hw_set_uc_addr(struct ufp_hw *hw, u32 index, u8 *addr)
 	return ret_val;
 }
 
-s32 ufp_hw_check_mac_link(struct ufp_hw *hw, u32 *speed, u32 *link_up)
+s32 ufp_mac_check_mac_link(struct ufp_hw *hw, u32 *speed, u32 *link_up)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	struct ixgbe_mac_info *mac = &hw->mac;
@@ -425,7 +416,7 @@ out:
 	return ret_val;
 }
 
-void ufp_hw_set_rlpml(struct ufp_hw *hw, u16 max_size)
+void ufp_mac_set_rlpml(struct ufp_hw *hw, u16 max_size)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	u32 msgbuf[2];
@@ -442,9 +433,9 @@ void ufp_hw_set_rlpml(struct ufp_hw *hw, u16 max_size)
 	return;
 }
 
-int ufp_hw_negotiate_api_version(struct ufp_hw *hw, int api)
+s32 ufp_mac_negotiate_api_version(struct ufp_hw *hw, enum ufp_mbx_api_rev api)
 {
-	int err;
+	s32 err;
 	u32 msg[3];
 
 	/* Negotiate the mailbox API version */
@@ -471,10 +462,9 @@ int ufp_hw_negotiate_api_version(struct ufp_hw *hw, int api)
 	return err;
 }
 
-int ufp_hw_get_queues(struct ufp_hw *hw, unsigned int *num_tcs,
-		       unsigned int *default_tc)
+s32 ufp_mac_get_queues(struct ufp_hw *hw, u32 *num_tcs, u32 *default_tc)
 {
-	int err;
+	s32 err;
 	u32 msg[5];
 
 	/* do nothing if API doesn't support ixgbevf_get_queues */
