@@ -664,7 +664,6 @@ static int __devinit ufp_probe(struct pci_dev *pdev,
 	return 0;
 
 err_miscdev_register:
-err_hw_init:
 	ufp_dma_unmap_all(port);
 err_ioremap:
 	ufp_hw_free(port);
