@@ -134,6 +134,7 @@ struct ufp_mbx_info {
 	u16 size;
 };
 
-void ufp_mbx_init(struct ixgbe_hw *hw);
+int ufp_mbx_init(struct ufp_hw *hw);
+void ufp_mbx_free(struct ufp_hw *hw);
 
 #endif /* _UFP_MBX_H_ */

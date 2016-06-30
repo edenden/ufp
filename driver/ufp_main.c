@@ -114,6 +114,9 @@ static void ufp_port_free(struct ufp_port *port)
 	list_del(&port->list);
 	up(&dev_sem);
 
+	ufp_mac_free(port->hw);
+	ufp_mbx_free(port->hw);
+
 	kfree(port->hw);
 	kfree(port);
 	return;
@@ -548,10 +551,27 @@ static int __devinit ufp_hw_init(struct ufp_port *port)
 	hw->subsystem_vendor_id = pdev->subsystem_vendor;
 	hw->subsystem_device_id = pdev->subsystem_device;
 
-	ufp_mac_init(hw);
-	ufp_mbx_init(hw);
+	err = ufp_mac_init(port->hw);
+	if(err < 0)
+		goto err_mac_init;
+
+	err = ufp_mbx_init(port->hw);
+	if(err < 0)
+		goto err_mbx_init;
 
 	return 0;
+
+err_mbx_init:
+	ufp_mac_free(port->hw);
+err_mac_init:
+	return -1;
+}
+
+static void __devexit ufp_hw_free(struct ufp_port *port)
+{
+	ufp_mac_free(port->hw);
+	ufp_mbx_free(port->hw);
+	return;
 }
 
 static int __devinit ufp_probe(struct pci_dev *pdev,
@@ -607,6 +627,11 @@ static int __devinit ufp_probe(struct pci_dev *pdev,
         port->pdev = pdev;
         hw->back = port;
 
+	/* ufp_hw INITIALIZATION */
+	err = ufp_hw_init(port);
+	if (err)
+		goto err_hw_init;
+
 	/*
 	 * call save state here in standalone driver because it relies on
 	 * port struct to exist.
@@ -630,11 +655,6 @@ static int __devinit ufp_probe(struct pci_dev *pdev,
                 goto err_ioremap;
         }
 
-	/* ufp_hw INITIALIZATION */
-	err = ufp_hw_init(port);
-	if (err)
-		goto err_hw_init;
-
 	pr_info("device[%u] %s initialized\n", port->id, pci_name(pdev));
 
 	err = ufp_miscdev_register(port);
@@ -647,6 +667,8 @@ err_miscdev_register:
 err_hw_init:
 	ufp_dma_unmap_all(port);
 err_ioremap:
+	ufp_hw_free(port);
+err_hw_init:
         ufp_port_free(port);
 err_alloc:
 	pci_disable_pcie_error_reporting(pdev);
@@ -670,6 +692,7 @@ static void __devexit ufp_remove(struct pci_dev *pdev)
         ufp_dma_unmap_all(port);
 
 	pr_info("device[%u] %s removed\n", port->id, pci_name(pdev));
+	ufp_hw_free(port);
 	ufp_port_free(port);
 
 	pci_disable_pcie_error_reporting(pdev);

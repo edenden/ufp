@@ -19,17 +19,20 @@ enum ufp_irq_type {
 	IXMAP_IRQ_TX,
 };
 
+struct ufp_mac_info;
+struct ufp_mbx_info;
+
 struct ufp_hw {
-	void *back;
-	u8 __iomem *hw_addr;
-	struct ufp_mac_info mac;
-	struct ufp_mbx_info mbx;
-	u16 device_id;
-	u16 subsystem_vendor_id;
-	u16 subsystem_device_id;
-	u16 vendor_id;
-	u8  revision_id;
-	int api_version;
+	void			*back;
+	u8 __iomem		*hw_addr;
+	struct ufp_mac_info	*mac;
+	struct ufp_mbx_info	*mbx;
+	u16			device_id;
+	u16			subsystem_vendor_id;
+	u16			subsystem_device_id;
+	u16			vendor_id;
+	u8			revision_id;
+	int			api_version;
 };
 
 struct ufp_port {

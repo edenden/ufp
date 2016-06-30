@@ -1,5 +1,5 @@
-#ifndef _UFP_HW_H__
-#define _UFP_HW_H__
+#ifndef _UFP_MAC_H__
+#define _UFP_MAC_H__
 
 #define IXGBE_VF_IRQ_CLEAR_MASK	7
 #define IXGBE_VF_MAX_TX_QUEUES	8
@@ -57,7 +57,7 @@
 struct ufp_mac_operations {
 	s32 (*reset_hw)(struct ufp_hw *);
 	s32 (*stop_adapter)(struct ufp_hw *);
-	s32 (*negotiate_api)(struct ufp_hw *, enum ufp_mbx_api_rev);
+	s32 (*negotiate_api)(struct ufp_hw *, u32);
 	s32 (*get_queues)(struct ufp_hw *, u32 *, u32 *);
 	s32 (*check_link)(struct ufp_hw *, u32 *, u32 *);
 	s32 (*set_rar)(struct ufp_hw *, u8 *);
@@ -84,29 +84,17 @@ enum ufp_mac_type {
 
 struct ufp_mac_info {
 	struct ufp_mac_operations ops;
-	u8 perm_addr[6];
-
 	enum ufp_mac_type type;
 
+	u8 perm_addr[6];
 	s32  mc_filter_type;
-
 	u32 get_link_status;
 	u32  max_tx_queues;
 	u32  max_rx_queues;
 	u32  max_msix_vectors;
 };
 
-s32 ufp_mac_init(struct ufp_hw *hw);
-s32 ufp_mac_reset(struct ufp_hw *hw);
-s32 ufp_mac_stop_adapter(struct ufp_hw *hw);
-s32 ufp_mac_set_rar(struct ufp_hw *hw, u8 *addr);
-s32 ufp_mac_update_mc_addr_list(struct ufp_hw *hw, u8 *mc_addr_list,
-	u32 mc_addr_count, ixgbe_mc_addr_itr next);
-s32 ufp_mac_set_vfta(struct ufp_hw *hw, u32 vlan, u32 vlan_on);
-s32 ufp_mac_set_uc_addr(struct ufp_hw *hw, u32 index, u8 *addr);
-s32 ufp_mac_check_mac_link(struct ufp_hw *hw, u32 *speed, u32 *link_up);
-void ufp_mac_set_rlpml(struct ufp_hw *hw, u16 max_size);
-s32 ufp_mac_negotiate_api_version(struct ufp_hw *hw, enum ufp_mbx_api_rev api);
-s32 ufp_mac_get_queues(struct ufp_hw *hw, u32 *num_tcs, u32 *default_tc);
+int ufp_mac_init(struct ufp_hw *hw);
+void ufp_mac_free(struct ufp_hw *hw);
 
-#endif /* _UFP_HW_H__ */
+#endif /* _UFP_MAC_H__ */

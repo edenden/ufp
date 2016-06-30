@@ -7,39 +7,67 @@
 #include "ufp_main.h"
 #include "ufp_mac.h"
 
-s32 ufp_mac_init(struct ufp_hw *hw)
+static s32 ufp_mac_reset(struct ufp_hw *hw);
+static s32 ufp_mac_stop_adapter(struct ufp_hw *hw);
+static s32 ufp_mac_set_rar(struct ufp_hw *hw, u8 *addr);
+static s32 ufp_mac_update_mc_addr_list(struct ufp_hw *hw, u8 *mc_addr_list,
+	u32 mc_addr_count, ixgbe_mc_addr_itr next);
+static s32 ufp_mac_set_vfta(struct ufp_hw *hw, u32 vlan, u32 vlan_on);
+static s32 ufp_mac_set_uc_addr(struct ufp_hw *hw, u32 index, u8 *addr);
+static s32 ufp_mac_check_mac_link(struct ufp_hw *hw, u32 *speed, u32 *link_up);
+static void ufp_mac_set_rlpml(struct ufp_hw *hw, u16 max_size);
+static s32 ufp_mac_negotiate_api_version(struct ufp_hw *hw, u32 api);
+static s32 ufp_mac_get_queues(struct ufp_hw *hw, u32 *num_tcs, u32 *default_tc);
+
+int ufp_mac_init(struct ufp_hw *hw)
 {
+	struct ufp_mac_info *mac;
+
+	mac = kzalloc(sizeof(struct ufp_mac_info), GFP_KERNEL);
+	if(!mac){
+		return -1;
+	}
+
+	mac->ops.reset_hw		= ufp_mac_reset;
+	mac->ops.stop_adapter		= ufp_mac_stop_adapter;
+	mac->ops.negotiate_api		= ufp_mac_negotiate_api_version;
+	mac->ops.get_queues		= ufp_mac_get_queues;
+	mac->ops.check_link		= ufp_mac_check_mac_link;
+	mac->ops.set_rar		= ufp_mac_set_rar;
+	mac->ops.set_uc_addr		= ufp_mac_set_uc_addr;
+	mac->ops.update_mc_addr_list	= ufp_mac_update_mc_addr_list;
+	mac->ops.update_xcast_mode	= ufp_mac_update_xcast_mode;
+	mac->ops.set_vfta		= ufp_mac_set_vfta;
+	mac->ops.set_rlpml		= ufp_mac_set_rlpml;
+
 	switch(hw->device_id){
 	case IXGBE_DEV_ID_82599_VF:
-		hw->mac.type = ixgbe_mac_82599_vf;
+		mac->type = ixgbe_mac_82599_vf;
 		break;
 	case IXGBE_DEV_ID_X540_VF:
-		hw->mac.type = ixgbe_mac_X540_vf;
+		mac->type = ixgbe_mac_X540_vf;
 		break;
 	case IXGBE_DEV_ID_X550_VF:
-		hw->mac.type = ixgbe_mac_X550_vf;
+		mac->type = ixgbe_mac_X550_vf;
 		break;
 	case IXGBE_DEV_ID_X550EM_X_VF:
-		hw->mac.type = ixgbe_mac_X550EM_x_vf;
+		mac->type = ixgbe_mac_X550EM_x_vf;
 		break;
 	default:
-		hw->mac.type = ixgbe_mac_unknown;
+		mac->type = ixgbe_mac_unknown;
 		break;
 	}
 
-	hw->mac.ops.reset_hw		= ufp_mac_reset;
-	hw->mac.ops.stop_adapter	= ufp_mac_stop_adapter;
-	hw->mac.ops.negotiate_api	= ufp_mac_negotiate_api_version;
-	hw->mac.ops.get_queues		= ufp_mac_get_queues;
-	hw->mac.ops.check_link		= ufp_mac_check_mac_link;
-	hw->mac.ops.set_rar		= ufp_mac_set_rar;
-	hw->mac.ops.set_uc_addr		= ufp_mac_set_uc_addr;
-	hw->mac.ops.update_mc_addr_list	= ufp_mac_update_mc_addr_list;
-	hw->mac.ops.update_xcast_mode	= ufp_mac_update_xcast_mode;
-	hw->mac.ops.set_vfta		= ufp_mac_set_vfta;
-	hw->mac.ops.set_rlpml		= ufp_mac_set_rlpml;
-
+	hw->mac = mac;
 	return 0;
+}
+
+void ufp_mac_free(struct ufp_hw *hw)
+{
+	kfree(hw->mac);
+	hw->mac = NULL;
+
+	return;
 }
 
 static void ufp_mac_clr_reg(struct ufp_hw *hw)
@@ -433,7 +461,7 @@ void ufp_mac_set_rlpml(struct ufp_hw *hw, u16 max_size)
 	return;
 }
 
-s32 ufp_mac_negotiate_api_version(struct ufp_hw *hw, enum ufp_mbx_api_rev api)
+s32 ufp_mac_negotiate_api_version(struct ufp_hw *hw, u32 api)
 {
 	s32 err;
 	u32 msg[3];

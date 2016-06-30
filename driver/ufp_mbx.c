@@ -3,9 +3,14 @@
 #include "ufp_main.h"
 #include "ufp_mbx.h"
 
-void ufp_mbx_init(struct ixgbe_hw *hw)
+int ufp_mbx_init(struct ufp_hw *hw)
 {
-	struct ixgbe_mbx_info *mbx = &hw->mbx;
+	struct ufp_mbx_info *mbx;
+
+	mbx = kzalloc(sizeof(struct ufp_mbx_info), GFP_KERNEL);
+	if(!mbx){
+		return -1;
+	}
 
 	/* start mailbox as timed out and let the reset_hw call set the timeout
 	 * value to begin communications */
@@ -27,9 +32,20 @@ void ufp_mbx_init(struct ixgbe_hw *hw)
 	mbx->stats.reqs		= 0;
 	mbx->stats.acks		= 0;
 	mbx->stats.rsts		= 0;
+
+	hw->mbx = mbx;
+	return 0;
 }
 
-static s32 ufp_mbx_poll_for_msg(struct ixgbe_hw *hw, u16 mbx_id)
+void ufp_mbx_free(struct ufp_hw *hw)
+{
+	kfree(hw->mbx);
+	hw->mbx = NULL;
+
+	return;
+}
+
+static s32 ufp_mbx_poll_for_msg(struct ufp_hw *hw, u16 mbx_id)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	int countdown = mbx->timeout;
@@ -52,7 +68,7 @@ out:
 	return countdown ? 0 : IXGBE_ERR_MBX;
 }
 
-static s32 ufp_mbx_poll_for_ack(struct ixgbe_hw *hw, u16 mbx_id)
+static s32 ufp_mbx_poll_for_ack(struct ufp_hw *hw, u16 mbx_id)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	int countdown = mbx->timeout;
@@ -75,7 +91,7 @@ out:
 	return countdown ? 0 : IXGBE_ERR_MBX;
 }
 
-static s32 ufp_mbx_read_posted(struct ixgbe_hw *hw, u32 *msg,
+static s32 ufp_mbx_read_posted(struct ufp_hw *hw, u32 *msg,
 	u16 size, u16 mbx_id)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
@@ -93,7 +109,7 @@ out:
 	return ret_val;
 }
 
-static s32 ufp_mbx_write_posted(struct ixgbe_hw *hw, u32 *msg,
+static s32 ufp_mbx_write_posted(struct ufp_hw *hw, u32 *msg,
 	u16 size, u16 mbx_id)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
@@ -113,7 +129,7 @@ out:
 	return ret_val;
 }
 
-static u32 ufp_mbx_read_v2p_mailbox(struct ixgbe_hw *hw)
+static u32 ufp_mbx_read_v2p_mailbox(struct ufp_hw *hw)
 {
 	u32 v2p_mailbox = IXGBE_READ_REG(hw, IXGBE_VFMAILBOX);
 
@@ -123,7 +139,7 @@ static u32 ufp_mbx_read_v2p_mailbox(struct ixgbe_hw *hw)
 	return v2p_mailbox;
 }
 
-static s32 ufp_mbx_check_for_bit(struct ixgbe_hw *hw, u32 mask)
+static s32 ufp_mbx_check_for_bit(struct ufp_hw *hw, u32 mask)
 {
 	u32 v2p_mailbox = ufp_mbx_read_v2p_mailbox(hw);
 	s32 ret_val = IXGBE_ERR_MBX;
@@ -136,7 +152,7 @@ static s32 ufp_mbx_check_for_bit(struct ixgbe_hw *hw, u32 mask)
 	return ret_val;
 }
 
-static s32 ufp_mbx_check_for_msg(struct ixgbe_hw *hw, u16 mbx_id)
+static s32 ufp_mbx_check_for_msg(struct ufp_hw *hw, u16 mbx_id)
 {
 	s32 ret_val = IXGBE_ERR_MBX;
 
@@ -149,7 +165,7 @@ static s32 ufp_mbx_check_for_msg(struct ixgbe_hw *hw, u16 mbx_id)
 	return ret_val;
 }
 
-static s32 ufp_mbx_check_for_ack(struct ixgbe_hw *hw, u16 mbx_id)
+static s32 ufp_mbx_check_for_ack(struct ufp_hw *hw, u16 mbx_id)
 {
 	s32 ret_val = IXGBE_ERR_MBX;
 
@@ -162,7 +178,7 @@ static s32 ufp_mbx_check_for_ack(struct ixgbe_hw *hw, u16 mbx_id)
 	return ret_val;
 }
 
-static s32 ufp_mbx_check_for_rst(struct ixgbe_hw *hw, u16 mbx_id)
+static s32 ufp_mbx_check_for_rst(struct ufp_hw *hw, u16 mbx_id)
 {
 	s32 ret_val = IXGBE_ERR_MBX;
 
@@ -176,7 +192,7 @@ static s32 ufp_mbx_check_for_rst(struct ixgbe_hw *hw, u16 mbx_id)
 	return ret_val;
 }
 
-static s32 ufp_mbx_obtain_lock(struct ixgbe_hw *hw)
+static s32 ufp_mbx_obtain_lock(struct ufp_hw *hw)
 {
 	s32 ret_val = IXGBE_ERR_MBX;
 
@@ -190,7 +206,7 @@ static s32 ufp_mbx_obtain_lock(struct ixgbe_hw *hw)
 	return ret_val;
 }
 
-static s32 ufp_mbx_write(struct ixgbe_hw *hw, u32 *msg,
+static s32 ufp_mbx_write(struct ufp_hw *hw, u32 *msg,
 	u16 size, u16 mbx_id)
 {
 	s32 ret_val;
@@ -221,7 +237,7 @@ out_no_write:
 	return ret_val;
 }
 
-static s32 ufp_mbx_read(struct ixgbe_hw *hw, u32 *msg,
+static s32 ufp_mbx_read(struct ufp_hw *hw, u32 *msg,
 	u16 size, u16 mbx_id)
 {
 	s32 ret_val = 0;
