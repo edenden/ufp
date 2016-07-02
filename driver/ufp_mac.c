@@ -7,17 +7,16 @@
 #include "ufp_main.h"
 #include "ufp_mac.h"
 
-static s32 ufp_mac_reset(struct ufp_hw *hw);
-static s32 ufp_mac_stop_adapter(struct ufp_hw *hw);
-static s32 ufp_mac_set_rar(struct ufp_hw *hw, u8 *addr);
-static s32 ufp_mac_update_mc_addr_list(struct ufp_hw *hw, u8 *mc_addr_list,
-	u32 mc_addr_count, ixgbe_mc_addr_itr next);
-static s32 ufp_mac_set_vfta(struct ufp_hw *hw, u32 vlan, u32 vlan_on);
-static s32 ufp_mac_set_uc_addr(struct ufp_hw *hw, u32 index, u8 *addr);
-static s32 ufp_mac_check_mac_link(struct ufp_hw *hw, u32 *speed, u32 *link_up);
-static void ufp_mac_set_rlpml(struct ufp_hw *hw, u16 max_size);
-static s32 ufp_mac_negotiate_api_version(struct ufp_hw *hw, u32 api);
-static s32 ufp_mac_get_queues(struct ufp_hw *hw, u32 *num_tcs, u32 *default_tc);
+static int32_t ufp_mac_reset(struct ufp_hw *hw);
+static int32_t ufp_mac_stop_adapter(struct ufp_hw *hw);
+static int32_t ufp_mac_set_rar(struct ufp_hw *hw, uint8_t *addr);
+static int32_t ufp_mac_set_vfta(struct ufp_hw *hw, uint32_t vlan, uint32_t vlan_on);
+static int32_t ufp_mac_check_mac_link(struct ufp_hw *hw, uint32_t *speed,
+	uint32_t *link_up);
+static void ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size);
+static int32_t ufp_mac_negotiate_api_version(struct ufp_hw *hw, uint32_t api);
+static int32_t ufp_mac_get_queues(struct ufp_hw *hw, uint32_t *num_tcs,
+	uint32_t *default_tc);
 
 int ufp_mac_init(struct ufp_hw *hw)
 {
@@ -34,8 +33,6 @@ int ufp_mac_init(struct ufp_hw *hw)
 	mac->ops.get_queues		= ufp_mac_get_queues;
 	mac->ops.check_link		= ufp_mac_check_mac_link;
 	mac->ops.set_rar		= ufp_mac_set_rar;
-	mac->ops.set_uc_addr		= ufp_mac_set_uc_addr;
-	mac->ops.update_mc_addr_list	= ufp_mac_update_mc_addr_list;
 	mac->ops.update_xcast_mode	= ufp_mac_update_xcast_mode;
 	mac->ops.set_vfta		= ufp_mac_set_vfta;
 	mac->ops.set_rlpml		= ufp_mac_set_rlpml;
@@ -73,9 +70,9 @@ void ufp_mac_free(struct ufp_hw *hw)
 static void ufp_mac_clr_reg(struct ufp_hw *hw)
 {
 	int i;
-	u32 vfsrrctl;
-	u32 ufpca_rxctrl;
-	u32 ufpca_txctrl;
+	uint32_t vfsrrctl;
+	uint32_t ufpca_rxctrl;
+	uint32_t ufpca_txctrl;
 
 	/* VRSRRCTL default values (BSIZEPACKET = 2048, BSIZEHEADER = 256) */
 	vfsrrctl = 0x100 << IXGBE_SRRCTL_BSIZEHDRSIZE_SHIFT;
@@ -110,13 +107,13 @@ static void ufp_mac_clr_reg(struct ufp_hw *hw)
 	IXGBE_WRITE_FLUSH(hw);
 }
 
-s32 ufp_mac_reset(struct ufp_hw *hw)
+static int32_t ufp_mac_reset(struct ufp_hw *hw)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	u32 timeout = IXGBE_VF_INIT_TIMEOUT;
-	s32 ret_val = IXGBE_ERR_INVALID_MAC_ADDR;
-	u32 msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
-	u8 *addr = (u8 *)(&msgbuf[1]);
+	uint32_t timeout = IXGBE_VF_INIT_TIMEOUT;
+	int32_t ret_val = IXGBE_ERR_INVALID_MAC_ADDR;
+	uint32_t msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
+	uint8_t *addr = (uint8_t *)(&msgbuf[1]);
 
 	/* Call adapter stop to disable tx/rx and clear interrupts */
 	hw->mac.ops.stop_adapter(hw);
@@ -173,10 +170,10 @@ s32 ufp_mac_reset(struct ufp_hw *hw)
 	return ret_val;
 }
 
-s32 ufp_mac_stop_adapter(struct ufp_hw *hw)
+static int32_t ufp_mac_stop_adapter(struct ufp_hw *hw)
 {
-	u32 reg_val;
-	u16 i;
+	uint32_t reg_val;
+	uint16_t i;
 
 	/* Clear interrupt mask to stop from interrupts being generated */
 	IXGBE_VFWRITE_REG(hw, IXGBE_VTEIMC, IXGBE_VF_IRQ_CLEAR_MASK);
@@ -204,39 +201,12 @@ s32 ufp_mac_stop_adapter(struct ufp_hw *hw)
 	return 0;
 }
 
-static s32 ufp_mac_mta_vector(struct ufp_hw *hw, u8 *mc_addr)
-{
-	u32 vector = 0;
-
-	switch (hw->mac.mc_filter_type) {
-	case 0:   /* use bits [47:36] of the address */
-		vector = ((mc_addr[4] >> 4) | (((u16)mc_addr[5]) << 4));
-		break;
-	case 1:   /* use bits [46:35] of the address */
-		vector = ((mc_addr[4] >> 3) | (((u16)mc_addr[5]) << 5));
-		break;
-	case 2:   /* use bits [45:34] of the address */
-		vector = ((mc_addr[4] >> 2) | (((u16)mc_addr[5]) << 6));
-		break;
-	case 3:   /* use bits [43:32] of the address */
-		vector = ((mc_addr[4]) | (((u16)mc_addr[5]) << 8));
-		break;
-	default:  /* Invalid mc_filter_type */
-		hw_dbg(hw, "MC filter type param set incorrectly\n");
-		break;
-	}
-
-	/* vector can only be 12-bits or boundary will be exceeded */
-	vector &= 0xFFF;
-	return vector;
-}
-
-s32 ufp_mac_set_rar(struct ufp_hw *hw, u8 *addr)
+static int32_t ufp_mac_set_rar(struct ufp_hw *hw, uint8_t *addr)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	u32 msgbuf[3];
-	u8 *msg_addr = (u8 *)(&msgbuf[1]);
-	s32 ret_val;
+	uint32_t msgbuf[3];
+	uint8_t *msg_addr = (uint8_t *)(&msgbuf[1]);
+	int32_t ret_val;
 
 	memset(msgbuf, 0, 12);
 	msgbuf[0] = IXGBE_VF_SET_MAC_ADDR;
@@ -250,45 +220,11 @@ s32 ufp_mac_set_rar(struct ufp_hw *hw, u8 *addr)
 	return ret_val;
 }
 
-s32 ufp_mac_update_mc_addr_list(struct ufp_hw *hw, u8 *mc_addr_list,
-	u32 mc_addr_count, ixgbe_mc_addr_itr next)
+static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	u32 msgbuf[IXGBE_VFMAILBOX_SIZE];
-	u16 *vector_list = (u16 *)&msgbuf[1];
-	u32 vector;
-	u32 cnt, i;
-	u32 vmdq;
-
-	/* Each entry in the list uses 1 16 bit word.  We have 30
-	 * 16 bit words available in our HW msg buffer (minus 1 for the
-	 * msg type).  That's 30 hash values if we pack 'em right.  If
-	 * there are more than 30 MC addresses to add then punt the
-	 * extras for now and then add code to handle more than 30 later.
-	 * It would be unusual for a server to request that many multi-cast
-	 * addresses except for in large enterprise network environments.
-	 */
-
-	hw_dbg(hw, "MC Addr Count = %d\n", mc_addr_count);
-
-	cnt = (mc_addr_count > 30) ? 30 : mc_addr_count;
-	msgbuf[0] = IXGBE_VF_SET_MULTICAST;
-	msgbuf[0] |= cnt << IXGBE_VT_MSGINFO_SHIFT;
-
-	for (i = 0; i < cnt; i++) {
-		vector = ufp_mac_mta_vector(hw, next(hw, &mc_addr_list, &vmdq));
-		hw_dbg(hw, "Hash value = 0x%03X\n", vector);
-		vector_list[i] = (u16)vector;
-	}
-
-	return mbx->ops.write_posted(hw, msgbuf, IXGBE_VFMAILBOX_SIZE, 0);
-}
-
-static s32 ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
-{
-	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	u32 msgbuf[2];
-	s32 err;
+	uint32_t msgbuf[2];
+	int32_t err;
 
 	switch (hw->api_version) {
 	case ixgbe_mbox_api_12:
@@ -315,11 +251,11 @@ static s32 ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
 	return 0;
 }
 
-s32 ufp_mac_set_vfta(struct ufp_hw *hw, u32 vlan, u32 vlan_on)
+static int32_t ufp_mac_set_vfta(struct ufp_hw *hw, uint32_t vlan, uint32_t vlan_on)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	u32 msgbuf[2];
-	s32 ret_val;
+	uint32_t msgbuf[2];
+	int32_t ret_val;
 
 	msgbuf[0] = IXGBE_VF_SET_VLAN;
 	msgbuf[1] = vlan;
@@ -336,45 +272,14 @@ s32 ufp_mac_set_vfta(struct ufp_hw *hw, u32 vlan, u32 vlan_on)
 	return ret_val | (msgbuf[0] & IXGBE_VT_MSGTYPE_NACK);
 }
 
-s32 ufp_mac_set_uc_addr(struct ufp_hw *hw, u32 index, u8 *addr)
-{
-	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	u32 msgbuf[3];
-	u8 *msg_addr = (u8 *)(&msgbuf[1]);
-	s32 ret_val;
-
-	memset(msgbuf, 0, sizeof(msgbuf));
-	/*
-	 * If index is one then this is the start of a new list and needs
-	 * indication to the PF so it can do it's own list management.
-	 * If it is zero then that tells the PF to just clear all of
-	 * this VF's macvlans and there is no new list.
-	 */
-	msgbuf[0] |= index << IXGBE_VT_MSGINFO_SHIFT;
-	msgbuf[0] |= IXGBE_VF_SET_MACVLAN;
-	if (addr)
-		memcpy(msg_addr, addr, 6);
-	ret_val = mbx->ops.write_posted(hw, msgbuf, 3, 0);
-
-	if (!ret_val)
-		ret_val = mbx->ops.read_posted(hw, msgbuf, 3, 0);
-
-	msgbuf[0] &= ~IXGBE_VT_MSGTYPE_CTS;
-
-	if (!ret_val)
-		if (msgbuf[0] == (IXGBE_VF_SET_MACVLAN | IXGBE_VT_MSGTYPE_NACK))
-			ret_val = IXGBE_ERR_OUT_OF_MEM;
-
-	return ret_val;
-}
-
-s32 ufp_mac_check_mac_link(struct ufp_hw *hw, u32 *speed, u32 *link_up)
+static int32_t ufp_mac_check_mac_link(struct ufp_hw *hw, uint32_t *speed,
+	uint32_t *link_up)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	struct ixgbe_mac_info *mac = &hw->mac;
-	s32 ret_val = 0;
-	u32 links_reg;
-	u32 in_msg = 0;
+	int32_t ret_val = 0;
+	uint32_t links_reg;
+	uint32_t in_msg = 0;
 
 	/* If we were hit with a reset drop the link */
 	if (!mbx->ops.check_for_rst(hw, 0) || !mbx->timeout)
@@ -444,16 +349,16 @@ out:
 	return ret_val;
 }
 
-void ufp_mac_set_rlpml(struct ufp_hw *hw, u16 max_size)
+static void ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	u32 msgbuf[2];
-	u32 retmsg[IXGBE_VFMAILBOX_SIZE];
+	uint32_t msgbuf[2];
+	uint32_t retmsg[IXGBE_VFMAILBOX_SIZE];
 
 	msgbuf[0] = IXGBE_VF_SET_LPE;
 	msgbuf[1] = max_size;
 
-        s32 retval = mbx->ops.write_posted(hw, msgbuf, 2, 0);
+        int32_t retval = mbx->ops.write_posted(hw, msgbuf, 2, 0);
 
 	if (!retval)
 		mbx->ops.read_posted(hw, retmsg, 2, 0);
@@ -461,10 +366,10 @@ void ufp_mac_set_rlpml(struct ufp_hw *hw, u16 max_size)
 	return;
 }
 
-s32 ufp_mac_negotiate_api_version(struct ufp_hw *hw, u32 api)
+static int32_t ufp_mac_negotiate_api_version(struct ufp_hw *hw, uint32_t api)
 {
-	s32 err;
-	u32 msg[3];
+	int32_t err;
+	uint32_t msg[3];
 
 	/* Negotiate the mailbox API version */
 	msg[0] = IXGBE_VF_API_NEGOTIATE;
@@ -490,10 +395,11 @@ s32 ufp_mac_negotiate_api_version(struct ufp_hw *hw, u32 api)
 	return err;
 }
 
-s32 ufp_mac_get_queues(struct ufp_hw *hw, u32 *num_tcs, u32 *default_tc)
+static int32_t ufp_mac_get_queues(struct ufp_hw *hw, uint32_t *num_tcs,
+	uint32_t *default_tc)
 {
-	s32 err;
-	u32 msg[5];
+	int32_t err;
+	uint32_t msg[5];
 
 	/* do nothing if API doesn't support ixgbevf_get_queues */
 	switch (hw->api_version) {

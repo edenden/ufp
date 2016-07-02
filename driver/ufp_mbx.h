@@ -106,32 +106,31 @@ enum ufp_mbx_api_rev {
 #define IXGBE_VF_MBX_INIT_DELAY		500  /* microseconds between retries */
 
 struct ufp_mbx_operations {
-	void (*init_params)(struct ufp_hw *hw);
-	s32  (*read)(struct ufp_hw *, u32 *, u16,  u16);
-	s32  (*write)(struct ufp_hw *, u32 *, u16, u16);
-	s32  (*read_posted)(struct ufp_hw *, u32 *, u16,  u16);
-	s32  (*write_posted)(struct ufp_hw *, u32 *, u16, u16);
-	s32  (*check_for_msg)(struct ufp_hw *, u16);
-	s32  (*check_for_ack)(struct ufp_hw *, u16);
-	s32  (*check_for_rst)(struct ufp_hw *, u16);
+	int32_t  (*read)(struct ufp_hw *, uint32_t *, uint16_t,  uint16_t);
+	int32_t  (*write)(struct ufp_hw *, uint32_t *, uint16_t, uint16_t);
+	int32_t  (*read_posted)(struct ufp_hw *, uint32_t *, uint16_t,  uint16_t);
+	int32_t  (*write_posted)(struct ufp_hw *, uint32_t *, uint16_t, uint16_t);
+	int32_t  (*check_for_msg)(struct ufp_hw *, uint16_t);
+	int32_t  (*check_for_ack)(struct ufp_hw *, uint16_t);
+	int32_t  (*check_for_rst)(struct ufp_hw *, uint16_t);
 };
 
 struct ufp_mbx_stats {
-	u32 msgs_tx;
-	u32 msgs_rx;
+	uint32_t msgs_tx;
+	uint32_t msgs_rx;
 
-	u32 acks;
-	u32 reqs;
-	u32 rsts;
+	uint32_t acks;
+	uint32_t reqs;
+	uint32_t rsts;
 };
 
 struct ufp_mbx_info {
 	struct ufp_mbx_operations ops;
 	struct ufp_mbx_stats stats;
-	u32 timeout;
-	u32 udelay;
-	u32 v2p_mailbox;
-	u16 size;
+	uint32_t timeout;
+	uint32_t udelay;
+	uint32_t v2p_mailbox;
+	uint16_t size;
 };
 
 int ufp_mbx_init(struct ufp_hw *hw);

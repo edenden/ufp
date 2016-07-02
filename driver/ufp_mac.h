@@ -55,17 +55,15 @@
 #define IXGBE_VFRETA(x)	(0x3200 + ((x) * 4))
 
 struct ufp_mac_operations {
-	s32 (*reset_hw)(struct ufp_hw *);
-	s32 (*stop_adapter)(struct ufp_hw *);
-	s32 (*negotiate_api)(struct ufp_hw *, u32);
-	s32 (*get_queues)(struct ufp_hw *, u32 *, u32 *);
-	s32 (*check_link)(struct ufp_hw *, u32 *, u32 *);
-	s32 (*set_rar)(struct ufp_hw *, u8 *);
-	s32 (*set_uc_addr)(struct ufp_hw *, u32, u8 *);
-	s32 (*update_mc_addr_list)(struct ufp_hw *, u8 *, u32, ufp_mc_addr_itr);
-	s32 (*update_xcast_mode)(struct ufp_hw *, struct net_device *, int);
-	s32 (*set_vfta)(struct ufp_hw *, u32, u32);
-	s32 (*set_rlpml)(struct ufp_hw *, u16);
+	int32_t (*reset_hw)(struct ufp_hw *);
+	int32_t (*stop_adapter)(struct ufp_hw *);
+	int32_t (*negotiate_api)(struct ufp_hw *, uint32_t);
+	int32_t (*get_queues)(struct ufp_hw *, uint32_t *, uint32_t *);
+	int32_t (*check_link)(struct ufp_hw *, uint32_t *, uint32_t *);
+	int32_t (*set_rar)(struct ufp_hw *, uint8_t *);
+	int32_t (*update_xcast_mode)(struct ufp_hw *, struct net_device *, int);
+	int32_t (*set_vfta)(struct ufp_hw *, uint32_t, uint32_t);
+	int32_t (*set_rlpml)(struct ufp_hw *, uint16_t);
 };
 
 enum ufp_mac_type {
@@ -83,15 +81,15 @@ enum ufp_mac_type {
 };
 
 struct ufp_mac_info {
-	struct ufp_mac_operations ops;
-	enum ufp_mac_type type;
+	struct ufp_mac_operations	ops;
+	enum ufp_mac_type		type;
 
-	u8 perm_addr[6];
-	s32  mc_filter_type;
-	u32 get_link_status;
-	u32  max_tx_queues;
-	u32  max_rx_queues;
-	u32  max_msix_vectors;
+	uint8_t				perm_addr[6];
+	int32_t				mc_filter_type;
+	uint32_t			get_link_status;
+	uint32_t			max_tx_queues;
+	uint32_t			max_rx_queues;
+	uint32_t			max_msix_vectors;
 };
 
 int ufp_mac_init(struct ufp_hw *hw);
