@@ -13,7 +13,8 @@ static int32_t ufp_mac_set_rar(struct ufp_hw *hw, uint8_t *addr);
 static int32_t ufp_mac_set_vfta(struct ufp_hw *hw, uint32_t vlan, uint32_t vlan_on);
 static int32_t ufp_mac_check_mac_link(struct ufp_hw *hw, uint32_t *speed,
 	uint32_t *link_up);
-static void ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size);
+static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode);
+static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size);
 static int32_t ufp_mac_negotiate_api_version(struct ufp_hw *hw, uint32_t api);
 static int32_t ufp_mac_get_queues(struct ufp_hw *hw, uint32_t *num_tcs,
 	uint32_t *default_tc);
@@ -349,21 +350,22 @@ out:
 	return ret_val;
 }
 
-static void ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size)
+static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
 	uint32_t msgbuf[2];
 	uint32_t retmsg[IXGBE_VFMAILBOX_SIZE];
+	int32_t err;
 
 	msgbuf[0] = IXGBE_VF_SET_LPE;
 	msgbuf[1] = max_size;
 
-        int32_t retval = mbx->ops.write_posted(hw, msgbuf, 2, 0);
+        err = mbx->ops.write_posted(hw, msgbuf, 2, 0);
 
-	if (!retval)
+	if (!err)
 		mbx->ops.read_posted(hw, retmsg, 2, 0);
 
-	return;
+	return err;
 }
 
 static int32_t ufp_mac_negotiate_api_version(struct ufp_hw *hw, uint32_t api)

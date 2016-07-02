@@ -61,7 +61,7 @@ struct ufp_mac_operations {
 	int32_t (*get_queues)(struct ufp_hw *, uint32_t *, uint32_t *);
 	int32_t (*check_link)(struct ufp_hw *, uint32_t *, uint32_t *);
 	int32_t (*set_rar)(struct ufp_hw *, uint8_t *);
-	int32_t (*update_xcast_mode)(struct ufp_hw *, struct net_device *, int);
+	int32_t (*update_xcast_mode)(struct ufp_hw *, int);
 	int32_t (*set_vfta)(struct ufp_hw *, uint32_t, uint32_t);
 	int32_t (*set_rlpml)(struct ufp_hw *, uint16_t);
 };
