@@ -106,27 +106,18 @@ enum ufp_mbx_api_rev {
 #define IXGBE_VF_MBX_INIT_DELAY		500  /* microseconds between retries */
 
 struct ufp_mbx_operations {
-	int32_t  (*read)(struct ufp_hw *, uint32_t *, uint16_t,  uint16_t);
-	int32_t  (*write)(struct ufp_hw *, uint32_t *, uint16_t, uint16_t);
-	int32_t  (*read_posted)(struct ufp_hw *, uint32_t *, uint16_t,  uint16_t);
-	int32_t  (*write_posted)(struct ufp_hw *, uint32_t *, uint16_t, uint16_t);
-	int32_t  (*check_for_msg)(struct ufp_hw *, uint16_t);
-	int32_t  (*check_for_ack)(struct ufp_hw *, uint16_t);
-	int32_t  (*check_for_rst)(struct ufp_hw *, uint16_t);
-};
-
-struct ufp_mbx_stats {
-	uint32_t msgs_tx;
-	uint32_t msgs_rx;
-
-	uint32_t acks;
-	uint32_t reqs;
-	uint32_t rsts;
+	int32_t  (*read)(struct ufp_hw *, uint32_t *, uint16_t);
+	int32_t  (*write)(struct ufp_hw *, uint32_t *, uint16_t);
+	int32_t  (*read_posted)(struct ufp_hw *, uint32_t *, uint16_t);
+	int32_t  (*write_posted)(struct ufp_hw *, uint32_t *, uint16_t);
+	int32_t  (*check_for_msg)(struct ufp_hw *);
+	int32_t  (*check_for_ack)(struct ufp_hw *);
+	int32_t  (*check_for_rst)(struct ufp_hw *);
 };
 
 struct ufp_mbx_info {
 	struct ufp_mbx_operations ops;
-	struct ufp_mbx_stats stats;
+
 	uint32_t timeout;
 	uint32_t udelay;
 	uint32_t v2p_mailbox;

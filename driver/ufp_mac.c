@@ -127,7 +127,7 @@ static int32_t ufp_mac_reset(struct ufp_hw *hw)
 	msleep(50);
 
 	/* we cannot reset while the RSTI / RSTD bits are asserted */
-	while (!mbx->ops.check_for_rst(hw, 0) && timeout) {
+	while (!mbx->ops.check_for_rst(hw) && timeout) {
 		timeout--;
 		udelay(5);
 	}
@@ -142,7 +142,7 @@ static int32_t ufp_mac_reset(struct ufp_hw *hw)
 	mbx->timeout = IXGBE_VF_MBX_INIT_TIMEOUT;
 
 	msgbuf[0] = IXGBE_VF_RESET;
-	mbx->ops.write_posted(hw, msgbuf, 1, 0);
+	mbx->ops.write_posted(hw, msgbuf, 1);
 
 	msleep(10);
 
@@ -151,8 +151,7 @@ static int32_t ufp_mac_reset(struct ufp_hw *hw)
 	 * also set up the mc_filter_type which is piggy backed
 	 * on the mac address in word 3
 	 */
-	err = mbx->ops.read_posted(hw, msgbuf,
-			IXGBE_VF_PERMADDR_MSG_LEN, 0);
+	err = mbx->ops.read_posted(hw, msgbuf, IXGBE_VF_PERMADDR_MSG_LEN);
 	if (err)
 		goto err_read_mac_addr;
 
@@ -220,11 +219,11 @@ static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
 	msgbuf[0] = IXGBE_VF_UPDATE_XCAST_MODE;
 	msgbuf[1] = xcast_mode;
 
-	err = mbx->ops.write_posted(hw, msgbuf, 2, 0);
+	err = mbx->ops.write_posted(hw, msgbuf, 2);
 	if (err)
 		return err;
 
-	err = mbx->ops.read_posted(hw, msgbuf, 2, 0);
+	err = mbx->ops.read_posted(hw, msgbuf, 2);
 	if (err)
 		return err;
 
@@ -245,7 +244,7 @@ static int32_t ufp_mac_check_mac_link(struct ufp_hw *hw, uint32_t *speed,
 	uint32_t in_msg = 0;
 
 	/* If we were hit with a reset drop the link */
-	if (!mbx->ops.check_for_rst(hw, 0) || !mbx->timeout)
+	if (!mbx->ops.check_for_rst(hw) || !mbx->timeout)
 		mac->get_link_status = true;
 
 	if (!mac->get_link_status)
@@ -286,7 +285,7 @@ static int32_t ufp_mac_check_mac_link(struct ufp_hw *hw, uint32_t *speed,
 	/* if the read failed it could just be a mailbox collision, best wait
 	 * until we are called again and don't report an error
 	 */
-	if (mbx->ops.read(hw, &in_msg, 1, 0))
+	if (mbx->ops.read(hw, &in_msg, 1))
 		goto out;
 
 	if (!(in_msg & IXGBE_VT_MSGTYPE_CTS)) {
@@ -322,11 +321,11 @@ static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size)
 	msgbuf[0] = IXGBE_VF_SET_LPE;
 	msgbuf[1] = max_size;
 
-        err = mbx->ops.write_posted(hw, msgbuf, 2, 0);
+        err = mbx->ops.write_posted(hw, msgbuf, 2);
 	if(err)
 		goto err_write;
 
-	err = mbx->ops.read_posted(hw, retmsg, 2, 0);
+	err = mbx->ops.read_posted(hw, retmsg, 2);
 	if(err)
 		goto err_read;
 
@@ -348,11 +347,11 @@ static int32_t ufp_mac_negotiate_api_version(struct ufp_hw *hw, uint32_t api)
 	msg[1] = api;
 	msg[2] = 0;
 
-	err = mbx->ops.write_posted(hw, msg, 3, 0);
+	err = mbx->ops.write_posted(hw, msg, 3);
 	if(err)
 		goto err_write;
 
-	err = mbx->ops.read_posted(hw, msg, 3, 0);
+	err = mbx->ops.read_posted(hw, msg, 3);
 	if(err)
 		goto err_read;
 
@@ -390,11 +389,11 @@ static int32_t ufp_mac_get_queues(struct ufp_hw *hw, uint32_t *num_tcs,
 	/* Fetch queue configuration from the PF */
 	msg[0] = IXGBE_VF_GET_QUEUES;
 	msg[1] = msg[2] = msg[3] = msg[4] = 0;
-	err = mbx->ops.write_posted(hw, msg, 5, 0);
+	err = mbx->ops.write_posted(hw, msg, 5);
 	if(err)
 		goto err_write;
 
-	err = mbx->ops.read_posted(hw, msg, 5, 0);
+	err = mbx->ops.read_posted(hw, msg, 5);
 	if(err)
 		goto err_read;
 
