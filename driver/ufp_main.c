@@ -122,8 +122,7 @@ static void ufp_port_free(struct ufp_port *port)
 	return;
 }
 
-static inline uint32_t ufp_read_reg(struct ufp_hw *hw,
-        uint32_t reg)
+uint32_t ufp_read_reg(struct ufp_hw *hw, uint32_t reg)
 {
 	uint32_t value;
 	uint8_t __iomem *reg_addr;
@@ -135,8 +134,8 @@ static inline uint32_t ufp_read_reg(struct ufp_hw *hw,
 	return value;
 }
 
-static inline void ufp_write_reg(struct ufp_hw *hw,
-        uint32_t reg, uint32_t value)
+void ufp_write_reg(struct ufp_hw *hw, uint32_t reg,
+	uint32_t value)
 {
 	uint8_t __iomem *reg_addr;
 
@@ -145,6 +144,12 @@ static inline void ufp_write_reg(struct ufp_hw *hw,
 		return;
 
 	writel(value, reg_addr + reg);
+}
+
+void ufp_write_flush(struct ufp_hw *hw)
+{
+	ufp_read_reg(hw, IXGBE_VFSTATUS);
+	return;
 }
 
 static irqreturn_t ufp_interrupt(int irqnum, void *data)
@@ -462,7 +467,7 @@ static inline void ufp_interrupt_disable(struct ufp_port *port)
 	IXGBE_WRITE_REG(hw, IXGBE_VTEIMC, ~0);
 	IXGBE_WRITE_REG(hw, IXGBE_VTEIAC, 0);
 
-	IXGBE_WRITE_FLUSH(hw);
+	ufp_write_flush(hw);
 
 	for (vector = 0; vector < port->num_q_vectors; vector++)
 		synchronize_irq(port->msix_entries[vector].vector);

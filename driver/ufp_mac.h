@@ -54,15 +54,51 @@
 #define IXGBE_VFRSSRK(x)	(0x3100 + ((x) * 4))
 #define IXGBE_VFRETA(x)	(0x3200 + ((x) * 4))
 
+#define IXGBE_VF_INIT_TIMEOUT		200 /* Number of retries to clear RSTI */
+
+/* SRRCTL bit definitions */
+#define IXGBE_SRRCTL_BSIZEPKT_SHIFT	10	/* so many KBs */
+#define IXGBE_SRRCTL_BSIZEHDRSIZE_SHIFT	2	/* 64byte resolution (>> 6)
+						 * + at bit 8 offset (<< 8)
+						 *  = (<< 2) */
+
+/* Direct Cache Access (DCA) definitions */
+#define IXGBE_DCA_RXCTRL_DESC_RRO_EN	(1 << 9) /* Rx rd Desc Relax Order */
+#define IXGBE_DCA_RXCTRL_DATA_WRO_EN	(1 << 13) /* Rx wr data Relax Order */
+#define IXGBE_DCA_RXCTRL_HEAD_WRO_EN	(1 << 15) /* Rx wr header RO */
+
+#define IXGBE_DCA_TXCTRL_DESC_RRO_EN	(1 << 9) /* Tx rd Desc Relax Order */
+#define IXGBE_DCA_TXCTRL_DESC_WRO_EN	(1 << 11) /* Tx Desc writeback RO bit */
+#define IXGBE_DCA_TXCTRL_DATA_RRO_EN	(1 << 13) /* Tx rd data Relax Order */
+
+/* CTRL Bit Masks */
+#define IXGBE_CTRL_RST			0x04000000 /* Reset (SW) */
+
+/* Transmit Config masks */
+#define IXGBE_TXDCTL_SWFLSH		0x04000000 /* Tx Desc. wr-bk flushing */
+
+/* Receive Config masks */
+#define IXGBE_RXDCTL_ENABLE		0x02000000 /* Ena specific Rx Queue */
+
+/* LINKS Bit Masks */
+#define IXGBE_LINKS_UP			0x40000000
+
+#define IXGBE_LINKS_SPEED_82599		0x30000000
+#define IXGBE_LINKS_SPEED_10G_82599	0x30000000
+#define IXGBE_LINKS_SPEED_1G_82599	0x20000000
+#define IXGBE_LINKS_SPEED_100_82599	0x10000000
+
+#define IXGBE_LINK_SPEED_100_FULL	0x0008
+#define IXGBE_LINK_SPEED_1GB_FULL	0x0020
+#define IXGBE_LINK_SPEED_10GB_FULL	0x0080
+
 struct ufp_mac_operations {
 	int32_t (*reset_hw)(struct ufp_hw *);
 	int32_t (*stop_adapter)(struct ufp_hw *);
 	int32_t (*negotiate_api)(struct ufp_hw *, uint32_t);
 	int32_t (*get_queues)(struct ufp_hw *, uint32_t *, uint32_t *);
 	int32_t (*check_link)(struct ufp_hw *, uint32_t *, uint32_t *);
-	int32_t (*set_rar)(struct ufp_hw *, uint8_t *);
 	int32_t (*update_xcast_mode)(struct ufp_hw *, int);
-	int32_t (*set_vfta)(struct ufp_hw *, uint32_t, uint32_t);
 	int32_t (*set_rlpml)(struct ufp_hw *, uint16_t);
 };
 

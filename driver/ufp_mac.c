@@ -1,16 +1,14 @@
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/pci.h>
-#include <linux/miscdevice.h>
-#include <linux/semaphore.h>
+#include <linux/delay.h>
 
 #include "ufp_main.h"
+#include "ufp_mbx.h"
 #include "ufp_mac.h"
 
 static int32_t ufp_mac_reset(struct ufp_hw *hw);
 static int32_t ufp_mac_stop_adapter(struct ufp_hw *hw);
-static int32_t ufp_mac_set_rar(struct ufp_hw *hw, uint8_t *addr);
-static int32_t ufp_mac_set_vfta(struct ufp_hw *hw, uint32_t vlan, uint32_t vlan_on);
 static int32_t ufp_mac_check_mac_link(struct ufp_hw *hw, uint32_t *speed,
 	uint32_t *link_up);
 static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode);
@@ -33,9 +31,7 @@ int ufp_mac_init(struct ufp_hw *hw)
 	mac->ops.negotiate_api		= ufp_mac_negotiate_api_version;
 	mac->ops.get_queues		= ufp_mac_get_queues;
 	mac->ops.check_link		= ufp_mac_check_mac_link;
-	mac->ops.set_rar		= ufp_mac_set_rar;
 	mac->ops.update_xcast_mode	= ufp_mac_update_xcast_mode;
-	mac->ops.set_vfta		= ufp_mac_set_vfta;
 	mac->ops.set_rlpml		= ufp_mac_set_rlpml;
 
 	switch(hw->device_id){
@@ -105,27 +101,28 @@ static void ufp_mac_clr_reg(struct ufp_hw *hw)
 		ufp_write_reg(hw, IXGBE_VFDCA_TXCTRL(i), ufpca_txctrl);
 	}
 
-	IXGBE_WRITE_FLUSH(hw);
+	ufp_write_flush(hw);
 }
 
 static int32_t ufp_mac_reset(struct ufp_hw *hw)
 {
-	struct ixgbe_mbx_info *mbx = &hw->mbx;
+	struct ufp_mbx_info *mbx = hw->mbx;
+	struct ufp_mac_info *mac = hw->mac;
 	uint32_t timeout = IXGBE_VF_INIT_TIMEOUT;
-	int32_t ret_val = IXGBE_ERR_INVALID_MAC_ADDR;
+	int32_t err;
 	uint32_t msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
 	uint8_t *addr = (uint8_t *)(&msgbuf[1]);
 
 	/* Call adapter stop to disable tx/rx and clear interrupts */
-	hw->mac.ops.stop_adapter(hw);
+	mac->ops.stop_adapter(hw);
 
 	/* reset the api version */
 	hw->api_version = ixgbe_mbox_api_10;
 
-	hw_dbg(hw, "Issuing a function level reset to MAC\n");
+	pr_info("Issuing a function level reset to MAC\n");
 
-	IXGBE_VFWRITE_REG(hw, IXGBE_VFCTRL, IXGBE_CTRL_RST);
-	IXGBE_WRITE_FLUSH(hw);
+	ufp_write_reg(hw, IXGBE_VFCTRL, IXGBE_CTRL_RST);
+	ufp_write_flush(hw);
 
 	msleep(50);
 
@@ -136,7 +133,7 @@ static int32_t ufp_mac_reset(struct ufp_hw *hw)
 	}
 
 	if (!timeout)
-		return IXGBE_ERR_RESET_FAILED;
+		goto err_reset_failed;
 
 	/* Reset VF registers to initial values */
 	ufp_mac_clr_reg(hw);
@@ -154,76 +151,62 @@ static int32_t ufp_mac_reset(struct ufp_hw *hw)
 	 * also set up the mc_filter_type which is piggy backed
 	 * on the mac address in word 3
 	 */
-	ret_val = mbx->ops.read_posted(hw, msgbuf,
+	err = mbx->ops.read_posted(hw, msgbuf,
 			IXGBE_VF_PERMADDR_MSG_LEN, 0);
-	if (ret_val)
-		return ret_val;
+	if (err)
+		goto err_read_mac_addr;
 
 	if (msgbuf[0] != (IXGBE_VF_RESET | IXGBE_VT_MSGTYPE_ACK) &&
 	    msgbuf[0] != (IXGBE_VF_RESET | IXGBE_VT_MSGTYPE_NACK))
-		return IXGBE_ERR_INVALID_MAC_ADDR;
+		goto err_read_mac_addr;
 
 	if (msgbuf[0] == (IXGBE_VF_RESET | IXGBE_VT_MSGTYPE_ACK))
-		memcpy(hw->mac.perm_addr, addr, IXGBE_ETH_LENGTH_OF_ADDRESS);
+		memcpy(mac->perm_addr, addr, 6);
 
-	hw->mac.mc_filter_type = msgbuf[IXGBE_VF_MC_TYPE_WORD];
+	mac->mc_filter_type = msgbuf[IXGBE_VF_MC_TYPE_WORD];
 
-	return ret_val;
+	return 0;
+
+err_read_mac_addr:
+err_reset_failed:
+	return -1;
 }
 
 static int32_t ufp_mac_stop_adapter(struct ufp_hw *hw)
 {
+	struct ufp_mac_info *mac = hw->mac;
 	uint32_t reg_val;
 	uint16_t i;
 
 	/* Clear interrupt mask to stop from interrupts being generated */
-	IXGBE_VFWRITE_REG(hw, IXGBE_VTEIMC, IXGBE_VF_IRQ_CLEAR_MASK);
+	ufp_write_reg(hw, IXGBE_VTEIMC, IXGBE_VF_IRQ_CLEAR_MASK);
 
 	/* Clear any pending interrupts, flush previous writes */
-	IXGBE_VFREAD_REG(hw, IXGBE_VTEICR);
+	ufp_read_reg(hw, IXGBE_VTEICR);
 
 	/* Disable the transmit unit.  Each queue must be disabled. */
-	for (i = 0; i < hw->mac.max_tx_queues; i++)
-		IXGBE_VFWRITE_REG(hw, IXGBE_VFTXDCTL(i), IXGBE_TXDCTL_SWFLSH);
+	for (i = 0; i < mac->max_tx_queues; i++)
+		ufp_write_reg(hw, IXGBE_VFTXDCTL(i), IXGBE_TXDCTL_SWFLSH);
 
 	/* Disable the receive unit by stopping each queue */
-	for (i = 0; i < hw->mac.max_rx_queues; i++) {
-		reg_val = IXGBE_VFREAD_REG(hw, IXGBE_VFRXDCTL(i));
+	for (i = 0; i < mac->max_rx_queues; i++) {
+		reg_val = ufp_read_reg(hw, IXGBE_VFRXDCTL(i));
 		reg_val &= ~IXGBE_RXDCTL_ENABLE;
-		IXGBE_VFWRITE_REG(hw, IXGBE_VFRXDCTL(i), reg_val);
+		ufp_write_reg(hw, IXGBE_VFRXDCTL(i), reg_val);
 	}
 	/* Clear packet split and pool config */
 	ufp_write_reg(hw, IXGBE_VFPSRTYPE, 0);
 
 	/* flush all queues disables */
-	IXGBE_WRITE_FLUSH(hw);
+	ufp_write_flush(hw);
 	msleep(2);
 
 	return 0;
 }
 
-static int32_t ufp_mac_set_rar(struct ufp_hw *hw, uint8_t *addr)
-{
-	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	uint32_t msgbuf[3];
-	uint8_t *msg_addr = (uint8_t *)(&msgbuf[1]);
-	int32_t ret_val;
-
-	memset(msgbuf, 0, 12);
-	msgbuf[0] = IXGBE_VF_SET_MAC_ADDR;
-	memcpy(msg_addr, addr, 6);
-	ret_val = mbx->ops.write_posted(hw, msgbuf, 3, 0);
-
-	if (!ret_val)
-		ret_val = mbx->ops.read_posted(hw, msgbuf, 3, 0);
-
-	msgbuf[0] &= ~IXGBE_VT_MSGTYPE_CTS;
-	return ret_val;
-}
-
 static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
 {
-	struct ixgbe_mbx_info *mbx = &hw->mbx;
+	struct ufp_mbx_info *mbx = hw->mbx;
 	uint32_t msgbuf[2];
 	int32_t err;
 
@@ -252,32 +235,11 @@ static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
 	return 0;
 }
 
-static int32_t ufp_mac_set_vfta(struct ufp_hw *hw, uint32_t vlan, uint32_t vlan_on)
-{
-	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	uint32_t msgbuf[2];
-	int32_t ret_val;
-
-	msgbuf[0] = IXGBE_VF_SET_VLAN;
-	msgbuf[1] = vlan;
-	/* Setting the 8 bit field MSG INFO to TRUE indicates "add" */
-	msgbuf[0] |= vlan_on << IXGBE_VT_MSGINFO_SHIFT;
-
-	ret_val = mbx->ops.write_posted(hw, msgbuf, 2, 0);
-	if (!ret_val)
-		ret_val = mbx->ops.read_posted(hw, msgbuf, 1, 0);
-
-	if (!ret_val && (msgbuf[0] & IXGBE_VT_MSGTYPE_ACK))
-		return 0;
-
-	return ret_val | (msgbuf[0] & IXGBE_VT_MSGTYPE_NACK);
-}
-
 static int32_t ufp_mac_check_mac_link(struct ufp_hw *hw, uint32_t *speed,
 	uint32_t *link_up)
 {
-	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	struct ixgbe_mac_info *mac = &hw->mac;
+	struct ufp_mbx_info *mbx = hw->mbx;
+	struct ufp_mac_info *mac = hw->mac;
 	int32_t ret_val = 0;
 	uint32_t links_reg;
 	uint32_t in_msg = 0;
@@ -352,7 +314,7 @@ out:
 
 static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size)
 {
-	struct ixgbe_mbx_info *mbx = &hw->mbx;
+	struct ufp_mbx_info *mbx = hw->mbx;
 	uint32_t msgbuf[2];
 	uint32_t retmsg[IXGBE_VFMAILBOX_SIZE];
 	int32_t err;
@@ -361,15 +323,23 @@ static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size)
 	msgbuf[1] = max_size;
 
         err = mbx->ops.write_posted(hw, msgbuf, 2, 0);
+	if(err)
+		goto err_write;
 
-	if (!err)
-		mbx->ops.read_posted(hw, retmsg, 2, 0);
+	err = mbx->ops.read_posted(hw, retmsg, 2, 0);
+	if(err)
+		goto err_read;
 
-	return err;
+	return 0;
+
+err_read:
+err_write:
+	return -1;
 }
 
 static int32_t ufp_mac_negotiate_api_version(struct ufp_hw *hw, uint32_t api)
 {
+	struct ufp_mbx_info *mbx = hw->mbx;
 	int32_t err;
 	uint32_t msg[3];
 
@@ -377,29 +347,35 @@ static int32_t ufp_mac_negotiate_api_version(struct ufp_hw *hw, uint32_t api)
 	msg[0] = IXGBE_VF_API_NEGOTIATE;
 	msg[1] = api;
 	msg[2] = 0;
-	err = hw->mbx.ops.write_posted(hw, msg, 3, 0);
 
-	if (!err)
-		err = hw->mbx.ops.read_posted(hw, msg, 3, 0);
+	err = mbx->ops.write_posted(hw, msg, 3, 0);
+	if(err)
+		goto err_write;
 
-	if (!err) {
-		msg[0] &= ~IXGBE_VT_MSGTYPE_CTS;
+	err = mbx->ops.read_posted(hw, msg, 3, 0);
+	if(err)
+		goto err_read;
 
-		/* Store value and return 0 on success */
-		if (msg[0] == (IXGBE_VF_API_NEGOTIATE | IXGBE_VT_MSGTYPE_ACK)) {
-			hw->api_version = api;
-			return 0;
-		}
+	msg[0] &= ~IXGBE_VT_MSGTYPE_CTS;
 
-		err = IXGBE_ERR_INVALID_ARGUMENT;
-	}
+	if (msg[0] != (IXGBE_VF_API_NEGOTIATE | IXGBE_VT_MSGTYPE_ACK))
+		goto err_invalid_argument;
 
-	return err;
+	hw->api_version = api;
+	return 0;
+
+err_invalid_argument:
+err_read:
+err_write:
+	return -1;
 }
 
 static int32_t ufp_mac_get_queues(struct ufp_hw *hw, uint32_t *num_tcs,
 	uint32_t *default_tc)
 {
+	struct ufp_mbx_info *mbx = hw->mbx;
+	struct ufp_mac_info *mac = hw->mac;
+
 	int32_t err;
 	uint32_t msg[5];
 
@@ -414,43 +390,49 @@ static int32_t ufp_mac_get_queues(struct ufp_hw *hw, uint32_t *num_tcs,
 	/* Fetch queue configuration from the PF */
 	msg[0] = IXGBE_VF_GET_QUEUES;
 	msg[1] = msg[2] = msg[3] = msg[4] = 0;
-	err = hw->mbx.ops.write_posted(hw, msg, 5, 0);
+	err = mbx->ops.write_posted(hw, msg, 5, 0);
+	if(err)
+		goto err_write;
 
-	if (!err)
-		err = hw->mbx.ops.read_posted(hw, msg, 5, 0);
+	err = mbx->ops.read_posted(hw, msg, 5, 0);
+	if(err)
+		goto err_read;
 
-	if (!err) {
-		msg[0] &= ~IXGBE_VT_MSGTYPE_CTS;
+	msg[0] &= ~IXGBE_VT_MSGTYPE_CTS;
 
-		/*
-		 * if we we didn't get an ACK there must have been
-		 * some sort of mailbox error so we should treat it
-		 * as such
-		 */
-		if (msg[0] != (IXGBE_VF_GET_QUEUES | IXGBE_VT_MSGTYPE_ACK))
-			return IXGBE_ERR_MBX;
+	/*
+	 * if we we didn't get an ACK there must have been
+	 * some sort of mailbox error so we should treat it
+	 * as such
+	 */
+	if (msg[0] != (IXGBE_VF_GET_QUEUES | IXGBE_VT_MSGTYPE_ACK))
+		goto err_get_queues;
 
-		/* record and validate values from message */
-		hw->mac.max_tx_queues = msg[IXGBE_VF_TX_QUEUES];
-		if (hw->mac.max_tx_queues == 0 ||
-		    hw->mac.max_tx_queues > IXGBE_VF_MAX_TX_QUEUES)
-			hw->mac.max_tx_queues = IXGBE_VF_MAX_TX_QUEUES;
+	/* record and validate values from message */
+	mac->max_tx_queues = msg[IXGBE_VF_TX_QUEUES];
+	if(mac->max_tx_queues == 0 ||
+	mac->max_tx_queues > IXGBE_VF_MAX_TX_QUEUES)
+		mac->max_tx_queues = IXGBE_VF_MAX_TX_QUEUES;
 
-		hw->mac.max_rx_queues = msg[IXGBE_VF_RX_QUEUES];
-		if (hw->mac.max_rx_queues == 0 ||
-		    hw->mac.max_rx_queues > IXGBE_VF_MAX_RX_QUEUES)
-			hw->mac.max_rx_queues = IXGBE_VF_MAX_RX_QUEUES;
+	mac->max_rx_queues = msg[IXGBE_VF_RX_QUEUES];
+	if(mac->max_rx_queues == 0 ||
+	mac->max_rx_queues > IXGBE_VF_MAX_RX_QUEUES)
+		mac->max_rx_queues = IXGBE_VF_MAX_RX_QUEUES;
 
-		*num_tcs = msg[IXGBE_VF_TRANS_VLAN];
-		/* in case of unknown state assume we cannot tag frames */
-		if (*num_tcs > hw->mac.max_rx_queues)
-			*num_tcs = 1;
+	*num_tcs = msg[IXGBE_VF_TRANS_VLAN];
+	/* in case of unknown state assume we cannot tag frames */
+	if (*num_tcs > mac->max_rx_queues)
+		*num_tcs = 1;
 
-		*default_tc = msg[IXGBE_VF_DEF_QUEUE];
-		/* default to queue 0 on out-of-bounds queue number */
-		if (*default_tc >= hw->mac.max_tx_queues)
-			*default_tc = 0;
-	}
+	*default_tc = msg[IXGBE_VF_DEF_QUEUE];
+	/* default to queue 0 on out-of-bounds queue number */
+	if (*default_tc >= mac->max_tx_queues)
+		*default_tc = 0;
 
-	return err;
+	return 0;
+
+err_get_queues:
+err_read:
+err_write:
+	return -1;
 }

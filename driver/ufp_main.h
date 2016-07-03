@@ -1,9 +1,9 @@
 #ifndef _UFP_MAIN_H
 #define _UFP_MAIN_H
 
-#include <linux/if_ether.h>
 #include <linux/types.h>
-#include <asm/page.h>
+#include <linux/miscdevice.h>
+#include <linux/semaphore.h>
 
 /* common prefix used by pr_<> macros */
 #undef pr_fmt
@@ -75,5 +75,10 @@ struct ufp_irq {
 #define IXGBE_DEV_ID_X540_VF                    0x1515
 #define IXGBE_DEV_ID_X550_VF                    0x1565
 #define IXGBE_DEV_ID_X550EM_X_VF                0x15A8
+
+uint32_t ufp_read_reg(struct ufp_hw *hw, uint32_t reg);
+void ufp_write_reg(struct ufp_hw *hw, uint32_t reg,
+	uint32_t value);
+void ufp_write_flush(struct ufp_hw *hw);
 
 #endif /* _UFP_MAIN_H */
