@@ -51,6 +51,7 @@ static struct vm_operations_struct ufp_mmap_ops = {
 
 int ufp_miscdev_register(struct ufp_device *device)
 {
+	struct pci_dev *pdev = device->pdev;
 	char *miscdev_name;
 	int err;
 
@@ -58,7 +59,14 @@ int ufp_miscdev_register(struct ufp_device *device)
 	if(!miscdev_name){
 		goto err_alloc_name;
 	}
-	snprintf(miscdev_name, MISCDEV_NAME_SIZE, "ixgbe%d", device->id);
+
+#ifdef CONFIG_NUMA
+	snprintf(miscdev_name, MISCDEV_NAME_SIZE, "ufp!%d:%d",
+		dev_to_node(&pdev->dev), device->id);
+#else
+	snprintf(miscdev_name, MISCDEV_NAME_SIZE, "ufp!0:%d",
+		device->id);
+#endif
 
 	device->miscdev.minor = MISC_DYNAMIC_MINOR;
 	device->miscdev.name = miscdev_name;
@@ -134,6 +142,7 @@ static int ufp_cmd_info(struct ufp_device *device,
 	void __user *argp)
 {
 	struct ufp_info_req req;
+	struct pci_dev *pdev = device->pdev;
 	int err = 0;
 
 	req.mmio_base = device->iobase;
@@ -141,6 +150,9 @@ static int ufp_cmd_info(struct ufp_device *device,
 
 	req.num_rx_queues = device->num_rx_queues;
 	req.num_tx_queues = device->num_tx_queues;
+
+	req.device_id = pdev->device;
+	req.vendor_id = pdev->vendor;
 
 	if (copy_to_user(argp, &req, sizeof(req))) {
 		err = -EFAULT;

@@ -11,6 +11,9 @@ struct ufp_info_req {
 
 	__u32			num_rx_queues;
 	__u32			num_tx_queues;
+
+	__u16			device_id;
+	__u16			vendor_id;
 };
 
 #define IXMAP_UP		_IOW('E', 202, int)

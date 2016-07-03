@@ -5,13 +5,14 @@
 #include <linux/netdevice.h>
 #include <linux/string.h>
 #include <linux/eventfd.h>
+#include <linux/numa.h>
 
 #include "ufp_main.h"
 #include "ufp_dma.h"
 #include "ufp_fops.h"
 
-static int ufp_alloc_enid(void);
-static struct ufp_device *ufp_device_alloc(void);
+static int ufp_alloc_enid(unsigned int node_id);
+static struct ufp_device *ufp_device_alloc(struct pci_dev *pdev);
 static void ufp_device_free(struct ufp_device *device);
 static irqreturn_t ufp_interrupt(int irqnum, void *data);
 static struct ufp_irq *ufp_irq_alloc(struct msix_entry *entry);
@@ -19,8 +20,6 @@ static void ufp_irq_free(struct ufp_irq *irq);
 static void ufp_free_msix(struct ufp_device *device);
 static int ufp_configure_msix(struct ufp_device *device);
 static inline void ufp_interrupt_disable(struct ufp_device *device);
-static int ufp_hw_init(struct ufp_device *device);
-static void ufp_hw_free(struct ufp_device *device);
 static int ufp_probe(struct pci_dev *pdev,
 	const struct pci_device_id *ent);
 static void ufp_remove(struct pci_dev *pdev);
@@ -69,8 +68,7 @@ static struct pci_driver ufp_driver = {
 	.err_handler	= &ufp_err_handler
 };
 
-static LIST_HEAD(dev_list);
-static DEFINE_SEMAPHORE(dev_sem);
+static struct ufp_device_list_head *heads;
 
 int ufp_device_inuse(struct ufp_device *device)
 {
@@ -92,51 +90,66 @@ void ufp_device_put(struct ufp_device *device)
 	return;
 }
 
-static int ufp_alloc_enid(void)
+static int ufp_alloc_enid(unsigned int node_id)
 {
 	struct ufp_device *device;
 	unsigned int id = 0;
 
-	list_for_each_entry(device, &dev_list, list) {
+	list_for_each_entry(device, &heads[node_id].head, list) {
 		id++;
 	}
 
 	return id;
 }
 
-static struct ufp_device *ufp_device_alloc(void)
+static struct ufp_device *ufp_device_alloc(struct pci_dev *pdev)
 {
 	struct ufp_device *device;
+	unsigned int node_id;
 
 	device = kzalloc(sizeof(struct ufp_device), GFP_KERNEL);
 	if (!device){
 		return NULL;
 	}
 
-	device->hw = kzalloc(sizeof(struct ufp_hw), GFP_KERNEL);
-	if(!device->hw){
-		return NULL;
-	}
-
+	pci_set_drvdata(pdev, device);
+	device->pdev = pdev;
 	atomic_set(&device->refcount, 0);
 	sema_init(&device->sem, 1);
 
+	device->iobase = pci_resource_start(pdev, 0);
+	device->iolen  = pci_resource_len(pdev, 0);
+
 	/* Add to global list */
-	down(&dev_sem);
-	device->id = ufp_alloc_enid();
-	list_add(&device->list, &dev_list);
-	up(&dev_sem);
+#ifdef CONFIG_NUMA
+	node_id = dev_to_node(&pdev->dev);
+#else
+	node_id = 0;
+#endif
+
+	down(&heads[node_id].sem);
+	device->id = ufp_alloc_enid(node_id);
+	list_add(&device->list, &heads[node_id].head);
+	up(&heads[node_id].sem);
 
 	return device;
 }
 
 static void ufp_device_free(struct ufp_device *device)
 {
-	down(&dev_sem);
-	list_del(&device->list);
-	up(&dev_sem);
+	struct pci_dev *pdev = device->pdev;
+	unsigned int node_id;
 
-	kfree(device->hw);
+#ifdef CONFIG_NUMA
+	node_id = dev_to_node(&pdev->dev);
+#else   
+	node_id = 0;
+#endif
+
+	down(&heads[node_id].sem);
+	list_del(&device->list);
+	up(&heads[node_id].sem);
+
 	kfree(device);
 	return;
 }
@@ -413,31 +426,10 @@ int ufp_down(struct ufp_device *device)
         return 0;
 }
 
-static int ufp_hw_init(struct ufp_device *device)
-{
-	struct ufp_hw *hw = device->hw;
-	struct pci_dev *pdev = device->pdev;
-
-	/* PCI config space info */
-	hw->vendor_id = pdev->vendor;
-	hw->device_id = pdev->device;
-	pci_read_config_byte(pdev, PCI_REVISION_ID, &hw->revision_id);
-	hw->subsystem_vendor_id = pdev->subsystem_vendor;
-	hw->subsystem_device_id = pdev->subsystem_device;
-
-	return 0;
-}
-
-static void ufp_hw_free(struct ufp_device *device)
-{
-	return;
-}
-
 static int ufp_probe(struct pci_dev *pdev,
 	const struct pci_device_id *ent)
 {
 	struct ufp_device *device;
-	struct ufp_hw	*hw;
 	int pci_using_dac, err;
 
 	pr_info("probing device %s\n", pci_name(pdev));
@@ -475,29 +467,17 @@ static int ufp_probe(struct pci_dev *pdev,
 	pci_enable_pcie_error_reporting(pdev);
 	pci_set_master(pdev);
 
-        device = ufp_device_alloc();
+        device = ufp_device_alloc(pdev);
         if (!device) {
                 err = -ENOMEM;
                 goto err_alloc;
         }
-        hw = device->hw;
-
-        pci_set_drvdata(pdev, device);
-        device->pdev = pdev;
-
-	/* ufp_hw INITIALIZATION */
-	err = ufp_hw_init(device);
-	if (err)
-		goto err_hw_init;
 
 	/*
 	 * call save state here in standalone driver because it relies on
 	 * device struct to exist.
 	 */
         pci_save_state(pdev);
-
-        device->iobase = pci_resource_start(pdev, 0);
-        device->iolen  = pci_resource_len(pdev, 0);
 
         if(pci_using_dac){
                 device->dma_mask = DMA_BIT_MASK(64);
@@ -507,8 +487,8 @@ static int ufp_probe(struct pci_dev *pdev,
 
         /* setup for userland pci register access */
         INIT_LIST_HEAD(&device->areas);
-        hw->hw_addr = ufp_dma_map_iobase(device);
-        if (!hw->hw_addr) {
+        device->hw_addr = ufp_dma_map_iobase(device);
+        if (!device->hw_addr) {
                 err = -EIO;
                 goto err_ioremap;
         }
@@ -524,8 +504,6 @@ static int ufp_probe(struct pci_dev *pdev,
 err_miscdev_register:
 	ufp_dma_unmap_all(device);
 err_ioremap:
-	ufp_hw_free(device);
-err_hw_init:
         ufp_device_free(device);
 err_alloc:
 	pci_disable_pcie_error_reporting(pdev);
@@ -549,7 +527,6 @@ static void ufp_remove(struct pci_dev *pdev)
         ufp_dma_unmap_all(device);
 
 	pr_info("device[%u] %s removed\n", device->id, pci_name(pdev));
-	ufp_hw_free(device);
 	ufp_device_free(device);
 
 	pci_disable_pcie_error_reporting(pdev);
@@ -583,7 +560,7 @@ static void ufp_io_resume(struct pci_dev *pdev)
 
 static int __init ufp_module_init(void)
 {
-	int err;
+	int i, err;
 
 	pr_info("%s - version %s\n",
 		ufp_driver_desc, ufp_driver_ver);
@@ -591,13 +568,30 @@ static int __init ufp_module_init(void)
 	pr_info("%s\n", ufp_copyright[1]);
 	pr_info("%s\n", ufp_copyright[2]);
 
+	heads = kcalloc(MAX_NUMNODES, sizeof(struct ufp_device_list_head),
+		GFP_KERNEL);
+        if (!heads){
+		err = -1;
+		goto out;
+        }
+
+	for(i = 0; i < MAX_NUMNODES; i++){
+		INIT_LIST_HEAD(&heads[i].head);
+		sema_init(&heads[i].sem, 1);
+	}
+
 	err = pci_register_driver(&ufp_driver);
+
+out:
 	return err;
 }
 
 static void __exit ufp_module_exit(void)
 {
 	pci_unregister_driver(&ufp_driver);
+	kfree(heads);
+
+	return;
 }
 
 module_init(ufp_module_init);

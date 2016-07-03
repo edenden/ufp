@@ -264,7 +264,6 @@ static struct list_head *ufp_dma_area_whereto(struct ufp_device *device,
 static void ufp_dma_area_free(struct ufp_device *device,
 	struct ufp_dma_area *area)
 {
-	struct ufp_hw *hw = device->hw;
 	struct pci_dev *pdev = device->pdev;
 	struct page **pages;
 	struct sg_table *sgt;
@@ -275,7 +274,7 @@ static void ufp_dma_area_free(struct ufp_device *device,
 
 	if (atomic_dec_and_test(&area->refcount)){
 		if(area->addr_dma == device->iobase){
-			iounmap(hw->hw_addr);
+			iounmap(device->hw_addr);
 		}else{
 			pages = area->pages;
 			sgt = area->sgt;

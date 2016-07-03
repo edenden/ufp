@@ -16,13 +16,9 @@ enum ufp_irq_type {
 	IXMAP_IRQ_TX,
 };
 
-struct ufp_hw {
-	u8 __iomem		*hw_addr; /* unused */
-	u16			device_id;
-	u16			subsystem_vendor_id;
-	u16			subsystem_device_id;
-	u16			vendor_id;
-	u8			revision_id;
+struct ufp_device_list_head {
+	struct list_head	head;
+	struct semaphore	sem;
 };
 
 struct ufp_device {
@@ -40,7 +36,7 @@ struct ufp_device {
 	struct pci_dev		*pdev;
 	unsigned long		iobase;
 	unsigned long		iolen;
-	struct ufp_hw		*hw;
+	u8 __iomem		*hw_addr; /* unused */
 
 	struct msix_entry	*msix_entries;
 	u32			num_q_vectors;
