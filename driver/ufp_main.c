@@ -11,7 +11,6 @@
 #include "ufp_dma.h"
 #include "ufp_fops.h"
 
-static int ufp_alloc_enid(unsigned int node_id);
 static struct ufp_device *ufp_device_alloc(struct pci_dev *pdev);
 static void ufp_device_free(struct ufp_device *device);
 static irqreturn_t ufp_interrupt(int irqnum, void *data);
@@ -19,7 +18,7 @@ static struct ufp_irq *ufp_irq_alloc(struct msix_entry *entry);
 static void ufp_irq_free(struct ufp_irq *irq);
 static void ufp_free_msix(struct ufp_device *device);
 static int ufp_configure_msix(struct ufp_device *device);
-static inline void ufp_interrupt_disable(struct ufp_device *device);
+static void ufp_interrupt_disable(struct ufp_device *device);
 static int ufp_probe(struct pci_dev *pdev,
 	const struct pci_device_id *ent);
 static void ufp_remove(struct pci_dev *pdev);
@@ -68,8 +67,6 @@ static struct pci_driver ufp_driver = {
 	.err_handler	= &ufp_err_handler
 };
 
-static struct ufp_device_list_head *heads;
-
 int ufp_device_inuse(struct ufp_device *device)
 {
 	unsigned ref = atomic_read(&device->refcount);
@@ -90,22 +87,9 @@ void ufp_device_put(struct ufp_device *device)
 	return;
 }
 
-static int ufp_alloc_enid(unsigned int node_id)
-{
-	struct ufp_device *device;
-	unsigned int id = 0;
-
-	list_for_each_entry(device, &heads[node_id].head, list) {
-		id++;
-	}
-
-	return id;
-}
-
 static struct ufp_device *ufp_device_alloc(struct pci_dev *pdev)
 {
 	struct ufp_device *device;
-	unsigned int node_id;
 
 	device = kzalloc(sizeof(struct ufp_device), GFP_KERNEL);
 	if (!device){
@@ -120,36 +104,11 @@ static struct ufp_device *ufp_device_alloc(struct pci_dev *pdev)
 	device->iobase = pci_resource_start(pdev, 0);
 	device->iolen  = pci_resource_len(pdev, 0);
 
-	/* Add to global list */
-#ifdef CONFIG_NUMA
-	node_id = dev_to_node(&pdev->dev);
-#else
-	node_id = 0;
-#endif
-
-	down(&heads[node_id].sem);
-	device->id = ufp_alloc_enid(node_id);
-	list_add(&device->list, &heads[node_id].head);
-	up(&heads[node_id].sem);
-
 	return device;
 }
 
 static void ufp_device_free(struct ufp_device *device)
 {
-	struct pci_dev *pdev = device->pdev;
-	unsigned int node_id;
-
-#ifdef CONFIG_NUMA
-	node_id = dev_to_node(&pdev->dev);
-#else   
-	node_id = 0;
-#endif
-
-	down(&heads[node_id].sem);
-	list_del(&device->list);
-	up(&heads[node_id].sem);
-
 	kfree(device);
 	return;
 }
@@ -173,7 +132,7 @@ static struct ufp_irq *ufp_irq_alloc(struct msix_entry *entry)
 {
 	struct ufp_irq *irq;
 
-	/* XXX: To supdevice NUMA-aware allocation, use kzalloc_node() */
+	/* XXX: To support NUMA-aware allocation, use kzalloc_node() */
 	irq = kzalloc(sizeof(struct ufp_irq), GFP_KERNEL);
 	if(!irq){
 		return NULL;
@@ -255,10 +214,10 @@ static void ufp_free_msix(struct ufp_device *device)
 
         kfree(device->tx_irq);
         kfree(device->rx_irq);
+	device->num_q_vectors = 0;
         pci_disable_msix(device->pdev);
         kfree(device->msix_entries);
         device->msix_entries = NULL;
-        device->num_q_vectors = 0;
 
         return;
 }
@@ -372,6 +331,7 @@ err_alloc_irq_rx:
 err_alloc_irq_array_tx:
 	kfree(device->rx_irq);
 err_alloc_irq_array_rx:
+	device->num_q_vectors = 0;
 err_pci_enable_msix:
 	pci_disable_msix(device->pdev);
 	kfree(device->msix_entries);
@@ -380,12 +340,14 @@ err_allocate_msix_entries:
 	return -1;
 }
 
-static inline void ufp_interrupt_disable(struct ufp_device *device)
+static void ufp_interrupt_disable(struct ufp_device *device)
 {
 	int vector;
 
 	for (vector = 0; vector < device->num_q_vectors; vector++)
 		synchronize_irq(device->msix_entries[vector].vector);
+
+	return;
 }
 
 int ufp_up(struct ufp_device *device)
@@ -412,7 +374,7 @@ err_num_queues:
 	return -1;
 }
 
-int ufp_down(struct ufp_device *device)
+void ufp_down(struct ufp_device *device)
 {
         ufp_interrupt_disable(device);
 
@@ -423,7 +385,7 @@ int ufp_down(struct ufp_device *device)
         ufp_free_msix(device);
         device->up = 0;
 
-        return 0;
+	return;
 }
 
 static int ufp_probe(struct pci_dev *pdev,
@@ -493,7 +455,7 @@ static int ufp_probe(struct pci_dev *pdev,
                 goto err_ioremap;
         }
 
-	pr_info("device[%u] %s initialized\n", device->id, pci_name(pdev));
+	pr_info("device %s initialized\n", pci_name(pdev));
 
 	err = ufp_miscdev_register(device);
 	if(err < 0)
@@ -526,7 +488,7 @@ static void ufp_remove(struct pci_dev *pdev)
         ufp_miscdev_deregister(device);
         ufp_dma_unmap_all(device);
 
-	pr_info("device[%u] %s removed\n", device->id, pci_name(pdev));
+	pr_info("device %s removed\n", pci_name(pdev));
 	ufp_device_free(device);
 
 	pci_disable_pcie_error_reporting(pdev);
@@ -560,7 +522,7 @@ static void ufp_io_resume(struct pci_dev *pdev)
 
 static int __init ufp_module_init(void)
 {
-	int i, err;
+	int err;
 
 	pr_info("%s - version %s\n",
 		ufp_driver_desc, ufp_driver_ver);
@@ -568,29 +530,13 @@ static int __init ufp_module_init(void)
 	pr_info("%s\n", ufp_copyright[1]);
 	pr_info("%s\n", ufp_copyright[2]);
 
-	heads = kcalloc(MAX_NUMNODES, sizeof(struct ufp_device_list_head),
-		GFP_KERNEL);
-        if (!heads){
-		err = -1;
-		goto out;
-        }
-
-	for(i = 0; i < MAX_NUMNODES; i++){
-		INIT_LIST_HEAD(&heads[i].head);
-		sema_init(&heads[i].sem, 1);
-	}
-
 	err = pci_register_driver(&ufp_driver);
-
-out:
 	return err;
 }
 
 static void __exit ufp_module_exit(void)
 {
 	pci_unregister_driver(&ufp_driver);
-	kfree(heads);
-
 	return;
 }
 

@@ -16,19 +16,10 @@ enum ufp_irq_type {
 	IXMAP_IRQ_TX,
 };
 
-struct ufp_device_list_head {
-	struct list_head	head;
-	struct semaphore	sem;
-};
-
 struct ufp_device {
-	struct list_head	list;
 	struct list_head	areas;
-	unsigned int		id;
 	unsigned int		up;
-
 	struct miscdevice	miscdev;
-
 	struct semaphore	sem;
 	atomic_t		refcount;
 
@@ -58,7 +49,7 @@ struct ufp_irq {
 #define IXGBE_DEV_ID_X550EM_X_VF                0x15A8
 
 int ufp_up(struct ufp_device *device);
-int ufp_down(struct ufp_device *device);
+void ufp_down(struct ufp_device *device);
 int ufp_irq_assign(struct ufp_device *device, enum ufp_irq_type type,
 	u32 queue_idx, int event_fd, u32 *vector, u16 *entry);
 int ufp_device_inuse(struct ufp_device *device);

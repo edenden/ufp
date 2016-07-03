@@ -60,13 +60,7 @@ int ufp_miscdev_register(struct ufp_device *device)
 		goto err_alloc_name;
 	}
 
-#ifdef CONFIG_NUMA
-	snprintf(miscdev_name, MISCDEV_NAME_SIZE, "ufp!%d:%d",
-		dev_to_node(&pdev->dev), device->id);
-#else
-	snprintf(miscdev_name, MISCDEV_NAME_SIZE, "ufp!0:%d",
-		device->id);
-#endif
+	snprintf(miscdev_name, MISCDEV_NAME_SIZE, "ufp!%s", pci_name(pdev));
 
 	device->miscdev.minor = MISC_DYNAMIC_MINOR;
 	device->miscdev.name = miscdev_name;
