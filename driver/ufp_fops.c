@@ -15,11 +15,11 @@
 #include "ufp_dma.h"
 #include "ufp_fops.h"
 
-static int ufp_cmd_up(struct ufp_port *port, void __user *argp);
-static int ufp_cmd_down(struct ufp_port *port, unsigned long arg);
-static int ufp_cmd_info(struct ufp_port *port, void __user *argp);
-static int ufp_cmd_map(struct ufp_port *port, void __user *argp);
-static int ufp_cmd_unmap(struct ufp_port *port, void __user *argp);
+static int ufp_cmd_up(struct ufp_device *device, void __user *argp);
+static int ufp_cmd_down(struct ufp_device *device, unsigned long arg);
+static int ufp_cmd_info(struct ufp_device *device, void __user *argp);
+static int ufp_cmd_map(struct ufp_device *device, void __user *argp);
+static int ufp_cmd_unmap(struct ufp_device *device, void __user *argp);
 static ssize_t ufp_read(struct file *file, char __user *buf,
 	size_t count, loff_t *pos);
 static ssize_t ufp_write(struct file *file, const char __user *buf,
@@ -49,7 +49,7 @@ static struct vm_operations_struct ufp_mmap_ops = {
 	.fault		= ufp_vm_fault
 };
 
-int ufp_miscdev_register(struct ufp_port *port)
+int ufp_miscdev_register(struct ufp_device *device)
 {
 	char *miscdev_name;
 	int err;
@@ -58,42 +58,42 @@ int ufp_miscdev_register(struct ufp_port *port)
 	if(!miscdev_name){
 		goto err_alloc_name;
 	}
-	snprintf(miscdev_name, MISCDEV_NAME_SIZE, "ixgbe%d", port->id);
+	snprintf(miscdev_name, MISCDEV_NAME_SIZE, "ixgbe%d", device->id);
 
-	port->miscdev.minor = MISC_DYNAMIC_MINOR;
-	port->miscdev.name = miscdev_name;
-	port->miscdev.fops = &ufp_fops;
-	err = misc_register(&port->miscdev);
+	device->miscdev.minor = MISC_DYNAMIC_MINOR;
+	device->miscdev.name = miscdev_name;
+	device->miscdev.fops = &ufp_fops;
+	err = misc_register(&device->miscdev);
 	if (err) {
 		pr_err("failed to register misc device\n");
 		goto err_misc_register;
 	}
 
-	pr_info("misc device registered as %s\n", port->miscdev.name);
+	pr_info("misc device registered as %s\n", device->miscdev.name);
 	return 0;
 
 err_misc_register:
-        kfree(port->miscdev.name);
+        kfree(device->miscdev.name);
 err_alloc_name:
 	return -1;
 }
 
-void ufp_miscdev_deregister(struct ufp_port *port)
+void ufp_miscdev_deregister(struct ufp_device *device)
 {
-	misc_deregister(&port->miscdev);
+	misc_deregister(&device->miscdev);
 
-	pr_info("misc device %s unregistered\n", port->miscdev.name);
-	kfree(port->miscdev.name);
+	pr_info("misc device %s unregistered\n", device->miscdev.name);
+	kfree(device->miscdev.name);
 
 	return;
 }
 
-static int ufp_cmd_up(struct ufp_port *port, void __user *argp)
+static int ufp_cmd_up(struct ufp_device *device, void __user *argp)
 {
 	struct ufp_up_req req;
 	int err = 0;
 
-	if(port->up){
+	if(device->up){
 		return -EALREADY;
 	}
 
@@ -102,10 +102,10 @@ static int ufp_cmd_up(struct ufp_port *port, void __user *argp)
 
 	pr_info("open req\n");
 
-	port->num_rx_queues = req.num_rx_queues;
-	port->num_tx_queues = req.num_tx_queues;
+	device->num_rx_queues = req.num_rx_queues;
+	device->num_tx_queues = req.num_tx_queues;
 
-	err = ufp_up(port);
+	err = ufp_up(device);
 	if (err){
 		err = -EINVAL;
 		goto err_up_complete;
@@ -117,30 +117,30 @@ err_up_complete:
 	return err;
 }
 
-static int ufp_cmd_down(struct ufp_port *port,
+static int ufp_cmd_down(struct ufp_device *device,
 	unsigned long arg)
 {
-	if(!port->up){
+	if(!device->up){
 		return -EALREADY;
 	}
 
 	pr_info("down req\n");
-	ufp_down(port);
+	ufp_down(device);
 
 	return 0;
 }
 
-static int ufp_cmd_info(struct ufp_port *port,
+static int ufp_cmd_info(struct ufp_device *device,
 	void __user *argp)
 {
 	struct ufp_info_req req;
 	int err = 0;
 
-	req.mmio_base = port->iobase;
-	req.mmio_size = port->iolen;
+	req.mmio_base = device->iobase;
+	req.mmio_size = device->iolen;
 
-	req.num_rx_queues = port->num_rx_queues;
-	req.num_tx_queues = port->num_tx_queues;
+	req.num_rx_queues = device->num_rx_queues;
+	req.num_tx_queues = device->num_tx_queues;
 
 	if (copy_to_user(argp, &req, sizeof(req))) {
 		err = -EFAULT;
@@ -151,7 +151,7 @@ out:
 	return err;
 }
 
-static int ufp_cmd_map(struct ufp_port *port,
+static int ufp_cmd_map(struct ufp_device *device,
 	void __user *argp)
 {
 	struct ufp_map_req req;
@@ -163,7 +163,7 @@ static int ufp_cmd_map(struct ufp_port *port,
 	if (!req.size)
 		return -EINVAL;
 
-	addr_dma = ufp_dma_map(port, req.addr_virtual,
+	addr_dma = ufp_dma_map(device, req.addr_virtual,
 			req.size, req.cache);
 	if(!addr_dma)
 		return -EFAULT;
@@ -171,14 +171,14 @@ static int ufp_cmd_map(struct ufp_port *port,
 	req.addr_dma = addr_dma;
 
 	if (copy_to_user(argp, &req, sizeof(req))) {
-		ufp_dma_unmap(port, req.addr_dma);
+		ufp_dma_unmap(device, req.addr_dma);
 		return -EFAULT;
 	}
 
 	return 0;
 }
 
-static int ufp_cmd_unmap(struct ufp_port *port,
+static int ufp_cmd_unmap(struct ufp_device *device,
 	void __user *argp)
 {
 	struct ufp_unmap_req req;
@@ -187,14 +187,14 @@ static int ufp_cmd_unmap(struct ufp_port *port,
 	if (copy_from_user(&req, argp, sizeof(req)))
 		return -EFAULT;
 
-	ret = ufp_dma_unmap(port, req.addr_dma);
+	ret = ufp_dma_unmap(device, req.addr_dma);
 	if(ret != 0)
 		return ret;
 
 	return 0;
 }
 
-static int ufp_cmd_irq(struct ufp_port *port,
+static int ufp_cmd_irq(struct ufp_device *device,
 	void __user *argp)
 {
 	struct ufp_irq_req req;
@@ -203,7 +203,7 @@ static int ufp_cmd_irq(struct ufp_port *port,
 	if (copy_from_user(&req, argp, sizeof(req)))
 		return -EFAULT;
 
-	ret = ufp_irq_assign(port, req.type, req.queue_idx,
+	ret = ufp_irq_assign(device, req.type, req.queue_idx,
 		req.event_fd, &req.vector, &req.entry);
 	if(ret != 0)
 		return ret;
@@ -229,43 +229,43 @@ static ssize_t ufp_write(struct file * file, const char __user * buf,
 
 static int ufp_open(struct inode *inode, struct file * file)
 {
-	struct ufp_port *port;
+	struct ufp_device *device;
 	struct miscdevice *miscdev = file->private_data;
 	int err;
 
-	port = container_of(miscdev, struct ufp_port, miscdev);
+	device = container_of(miscdev, struct ufp_device, miscdev);
 	pr_info("open req miscdev=%p\n", miscdev);
 
-	down(&port->sem);
+	down(&device->sem);
 
 	// Only one process is alowed to open
-	if (ufp_port_inuse(port)) {
+	if (ufp_device_inuse(device)) {
 		err = -EBUSY;
 		goto out;
 	}
 
-	ufp_port_get(port);
-	file->private_data = port;
+	ufp_device_get(device);
+	file->private_data = device;
 	err = 0;
 
 out:
-	up(&port->sem);
+	up(&device->sem);
 	return err;
 }
 
 static int ufp_close(struct inode *inode, struct file *file)
 {
-	struct ufp_port *port = file->private_data;
-	if (!port)
+	struct ufp_device *device = file->private_data;
+	if (!device)
 		return 0;
 
-	pr_info("close port=%p\n", port);
+	pr_info("close device=%p\n", device);
 
-	down(&port->sem);
-	ufp_cmd_down(port, 0);
-	up(&port->sem);
+	down(&device->sem);
+	ufp_cmd_down(device, 0);
+	up(&device->sem);
 
-	ufp_port_put(port);
+	ufp_device_put(device);
 	return 0;
 }
 
@@ -284,7 +284,7 @@ static int ufp_vm_fault(struct vm_area_struct *area, struct vm_fault *fdata)
 
 static int ufp_mmap(struct file *file, struct vm_area_struct *vma)
 {
-	struct ufp_port *port = file->private_data;
+	struct ufp_device *device = file->private_data;
 	struct ufp_dma_area *area;
 
 	unsigned long start = vma->vm_start;
@@ -292,16 +292,16 @@ static int ufp_mmap(struct file *file, struct vm_area_struct *vma)
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 	unsigned long pfn;
 
-	if (!port)
+	if (!device)
 		return -ENODEV;
 
-	pr_info("mmap port %p start %lu size %lu\n", port, start, size);
+	pr_info("mmap device %p start %lu size %lu\n", device, start, size);
 
 	/* Currently no area used except offset=0 for pci registers */
 	if(offset != 0)
 		return -EINVAL;
 
-	area = ufp_dma_area_lookup(port, port->iobase);
+	area = ufp_dma_area_lookup(device, device->iobase);
 	if (!area)
 		return -ENOENT;
 
@@ -336,38 +336,38 @@ static int ufp_mmap(struct file *file, struct vm_area_struct *vma)
 
 static long ufp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	struct ufp_port *port = file->private_data;
+	struct ufp_device *device = file->private_data;
 	void __user * argp = (void __user *) arg;
 	int err;
 
-	if(!port)
+	if(!device)
 		return -EBADFD;
 
-	down(&port->sem);
+	down(&device->sem);
 
 	switch (cmd) {
 	case IXMAP_INFO:
-		err = ufp_cmd_info(port, argp);
+		err = ufp_cmd_info(device, argp);
 		break;
 
 	case IXMAP_UP:
-		err = ufp_cmd_up(port, argp);
+		err = ufp_cmd_up(device, argp);
 		break;
 
 	case IXMAP_MAP:
-		err = ufp_cmd_map(port, argp);
+		err = ufp_cmd_map(device, argp);
 		break;
 
 	case IXMAP_UNMAP:
-		err = ufp_cmd_unmap(port, argp);
+		err = ufp_cmd_unmap(device, argp);
 		break;
 
 	case IXMAP_DOWN:
-		err = ufp_cmd_down(port, arg);
+		err = ufp_cmd_down(device, arg);
 		break;
 
 	case IXMAP_IRQ:
-		err = ufp_cmd_irq(port, argp);
+		err = ufp_cmd_irq(device, argp);
 		break;
 
 	default:
@@ -375,7 +375,7 @@ static long ufp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	};
 
-	up(&port->sem);
+	up(&device->sem);
 
 	return err;
 }

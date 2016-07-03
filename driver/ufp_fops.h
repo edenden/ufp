@@ -45,7 +45,7 @@ struct ufp_irq_req {
 	__u16			entry;
 };
 
-int ufp_miscdev_register(struct ufp_port *port);
-void ufp_miscdev_deregister(struct ufp_port *port);
+int ufp_miscdev_register(struct ufp_device *device);
+void ufp_miscdev_deregister(struct ufp_device *device);
 
 #endif /* _UFP_FOPS_H */

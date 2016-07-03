@@ -9,7 +9,6 @@
 #include <linux/sysctl.h>
 #include <linux/wait.h>
 #include <linux/miscdevice.h>
-#include <linux/ioport.h>
 #include <linux/pci.h>
 #include <linux/file.h>
 #include <linux/scatterlist.h>
@@ -22,9 +21,9 @@
 #include "ufp_main.h"
 #include "ufp_dma.h"
 
-static struct list_head *ufp_dma_area_whereto(struct ufp_port *port,
+static struct list_head *ufp_dma_area_whereto(struct ufp_device *device,
 	unsigned long addr_dma, unsigned long size);
-static void ufp_dma_area_free(struct ufp_port *port,
+static void ufp_dma_area_free(struct ufp_device *device,
 	struct ufp_dma_area *area);
 
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(3,6,0) )
@@ -34,18 +33,18 @@ static int sg_alloc_table_from_pages(struct sg_table *sgt,
 	gfp_t gfp_mask);
 #endif /* < 3.6.0 */
 
-u8 __iomem *ufp_dma_map_iobase(struct ufp_port *port)
+u8 __iomem *ufp_dma_map_iobase(struct ufp_device *device)
 {
 	struct list_head *where;
 	struct ufp_dma_area *area;
-	unsigned long addr_dma = port->iobase;
+	unsigned long addr_dma = device->iobase;
 	u8 __iomem *hw_addr;
 
-	hw_addr = ioremap(port->iobase, port->iolen);
+	hw_addr = ioremap(device->iobase, device->iolen);
 	if (!hw_addr)
 		goto err_ioremap;
 
-	where = ufp_dma_area_whereto(port, addr_dma, port->iolen);
+	where = ufp_dma_area_whereto(device, addr_dma, device->iolen);
 	if(!where)
 		goto err_area_whereto;
 
@@ -54,7 +53,7 @@ u8 __iomem *ufp_dma_map_iobase(struct ufp_port *port)
 		goto err_alloc_area;
 
 	atomic_set(&area->refcount, 1);
-	area->size = port->iolen;
+	area->size = device->iolen;
 	area->cache = IXGBE_DMA_CACHE_DISABLE;
 	area->addr_dma = addr_dma;
 	area->direction = DMA_BIDIRECTIONAL;
@@ -70,12 +69,12 @@ err_ioremap:
 	return NULL;
 }
 
-dma_addr_t ufp_dma_map(struct ufp_port *port,
+dma_addr_t ufp_dma_map(struct ufp_device *device,
 		unsigned long addr_virtual, unsigned long size, u8 cache)
 {
 	struct ufp_dma_area *area;
 	struct list_head *where;
-	struct pci_dev *pdev = port->pdev;
+	struct pci_dev *pdev = device->pdev;
 	struct page **pages;
 	struct sg_table *sgt;
 	struct scatterlist *sg;
@@ -144,7 +143,7 @@ dma_addr_t ufp_dma_map(struct ufp_port *port,
 	}
 
 	addr_dma = sg_dma_address(sgt->sgl);
-        where = ufp_dma_area_whereto(port, addr_dma, size);
+        where = ufp_dma_area_whereto(device, addr_dma, size);
         if (!where)
 		goto err_area_whereto;
 
@@ -185,38 +184,38 @@ err_alloc_pages:
 	return 0;
 }
 
-int ufp_dma_unmap(struct ufp_port *port, unsigned long addr_dma)
+int ufp_dma_unmap(struct ufp_device *device, unsigned long addr_dma)
 {
 	struct ufp_dma_area *area;
 
-	area = ufp_dma_area_lookup(port, addr_dma);
+	area = ufp_dma_area_lookup(device, addr_dma);
 	if (!area)
 		return -ENOENT;
 
 	list_del(&area->list);
-	ufp_dma_area_free(port, area);
+	ufp_dma_area_free(device, area);
 
 	return 0;
 }
 
-void ufp_dma_unmap_all(struct ufp_port *port)
+void ufp_dma_unmap_all(struct ufp_device *device)
 {
 	struct ufp_dma_area *area, *temp;
 
-	list_for_each_entry_safe(area, temp, &port->areas, list) {
+	list_for_each_entry_safe(area, temp, &device->areas, list) {
 		list_del(&area->list);
-		ufp_dma_area_free(port, area);
+		ufp_dma_area_free(device, area);
 	}
 
 	return;
 }
 
-struct ufp_dma_area *ufp_dma_area_lookup(struct ufp_port *port,
+struct ufp_dma_area *ufp_dma_area_lookup(struct ufp_device *device,
 	unsigned long addr_dma)
 {
 	struct ufp_dma_area *area;
 
-	list_for_each_entry(area, &port->areas, list) {
+	list_for_each_entry(area, &device->areas, list) {
 		if (area->addr_dma == addr_dma)
 			return area;
 	}
@@ -224,7 +223,7 @@ struct ufp_dma_area *ufp_dma_area_lookup(struct ufp_port *port,
 	return NULL;
 }
 
-static struct list_head *ufp_dma_area_whereto(struct ufp_port *port,
+static struct list_head *ufp_dma_area_whereto(struct ufp_device *device,
 	unsigned long addr_dma, unsigned long size)
 {
 	unsigned long start_new, end_new;
@@ -237,9 +236,9 @@ static struct list_head *ufp_dma_area_whereto(struct ufp_port *port,
 
 	start_new = addr_dma;
 	end_new   = start_new + size;
-	last  = &port->areas;
+	last  = &device->areas;
 
-	list_for_each_entry(area, &port->areas, list) {
+	list_for_each_entry(area, &device->areas, list) {
 		start_area = area->addr_dma;
 		end_area   = start_area + area->size;
 
@@ -262,11 +261,11 @@ static struct list_head *ufp_dma_area_whereto(struct ufp_port *port,
 	return last;
 }
 
-static void ufp_dma_area_free(struct ufp_port *port,
+static void ufp_dma_area_free(struct ufp_device *device,
 	struct ufp_dma_area *area)
 {
-	struct ufp_hw *hw = port->hw;
-	struct pci_dev *pdev = port->pdev;
+	struct ufp_hw *hw = device->hw;
+	struct pci_dev *pdev = device->pdev;
 	struct page **pages;
 	struct sg_table *sgt;
 	unsigned int i, npages;
@@ -275,7 +274,7 @@ static void ufp_dma_area_free(struct ufp_port *port,
 		(void *)area->addr_dma, (void *)(area->addr_dma + area->size), area->size);
 
 	if (atomic_dec_and_test(&area->refcount)){
-		if(area->addr_dma == port->iobase){
+		if(area->addr_dma == device->iobase){
 			iounmap(hw->hw_addr);
 		}else{
 			pages = area->pages;

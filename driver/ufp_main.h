@@ -25,7 +25,7 @@ struct ufp_hw {
 	u8			revision_id;
 };
 
-struct ufp_port {
+struct ufp_device {
 	struct list_head	list;
 	struct list_head	areas;
 	unsigned int		id;
@@ -61,12 +61,12 @@ struct ufp_irq {
 #define IXGBE_DEV_ID_X550_VF                    0x1565
 #define IXGBE_DEV_ID_X550EM_X_VF                0x15A8
 
-int ufp_up(struct ufp_port *port);
-int ufp_down(struct ufp_port *port);
-int ufp_irq_assign(struct ufp_port *port, enum ufp_irq_type type,
+int ufp_up(struct ufp_device *device);
+int ufp_down(struct ufp_device *device);
+int ufp_irq_assign(struct ufp_device *device, enum ufp_irq_type type,
 	u32 queue_idx, int event_fd, u32 *vector, u16 *entry);
-int ufp_port_inuse(struct ufp_port *port);
-void ufp_port_get(struct ufp_port *port);
-void ufp_port_put(struct ufp_port *port);
+int ufp_device_inuse(struct ufp_device *device);
+void ufp_device_get(struct ufp_device *device);
+void ufp_device_put(struct ufp_device *device);
 
 #endif /* _UFP_MAIN_H */

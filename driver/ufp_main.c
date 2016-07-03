@@ -11,16 +11,16 @@
 #include "ufp_fops.h"
 
 static int ufp_alloc_enid(void);
-static struct ufp_port *ufp_port_alloc(void);
-static void ufp_port_free(struct ufp_port *port);
+static struct ufp_device *ufp_device_alloc(void);
+static void ufp_device_free(struct ufp_device *device);
 static irqreturn_t ufp_interrupt(int irqnum, void *data);
 static struct ufp_irq *ufp_irq_alloc(struct msix_entry *entry);
 static void ufp_irq_free(struct ufp_irq *irq);
-static void ufp_free_msix(struct ufp_port *port);
-static int ufp_configure_msix(struct ufp_port *port);
-static inline void ufp_interrupt_disable(struct ufp_port *port);
-static int ufp_hw_init(struct ufp_port *port);
-static void ufp_hw_free(struct ufp_port *port);
+static void ufp_free_msix(struct ufp_device *device);
+static int ufp_configure_msix(struct ufp_device *device);
+static inline void ufp_interrupt_disable(struct ufp_device *device);
+static int ufp_hw_init(struct ufp_device *device);
+static void ufp_hw_free(struct ufp_device *device);
 static int ufp_probe(struct pci_dev *pdev,
 	const struct pci_device_id *ent);
 static void ufp_remove(struct pci_dev *pdev);
@@ -72,72 +72,72 @@ static struct pci_driver ufp_driver = {
 static LIST_HEAD(dev_list);
 static DEFINE_SEMAPHORE(dev_sem);
 
-int ufp_port_inuse(struct ufp_port *port)
+int ufp_device_inuse(struct ufp_device *device)
 {
-	unsigned ref = atomic_read(&port->refcount);
+	unsigned ref = atomic_read(&device->refcount);
 	if (!ref)
 		return 0;
 	return 1;
 }
 
-void ufp_port_get(struct ufp_port *port)
+void ufp_device_get(struct ufp_device *device)
 {
-	atomic_inc(&port->refcount);
+	atomic_inc(&device->refcount);
 	return;
 }
 
-void ufp_port_put(struct ufp_port *port)
+void ufp_device_put(struct ufp_device *device)
 {
-	atomic_dec(&port->refcount);
+	atomic_dec(&device->refcount);
 	return;
 }
 
 static int ufp_alloc_enid(void)
 {
-	struct ufp_port *port;
+	struct ufp_device *device;
 	unsigned int id = 0;
 
-	list_for_each_entry(port, &dev_list, list) {
+	list_for_each_entry(device, &dev_list, list) {
 		id++;
 	}
 
 	return id;
 }
 
-static struct ufp_port *ufp_port_alloc(void)
+static struct ufp_device *ufp_device_alloc(void)
 {
-	struct ufp_port *port;
+	struct ufp_device *device;
 
-	port = kzalloc(sizeof(struct ufp_port), GFP_KERNEL);
-	if (!port){
+	device = kzalloc(sizeof(struct ufp_device), GFP_KERNEL);
+	if (!device){
 		return NULL;
 	}
 
-	port->hw = kzalloc(sizeof(struct ufp_hw), GFP_KERNEL);
-	if(!port->hw){
+	device->hw = kzalloc(sizeof(struct ufp_hw), GFP_KERNEL);
+	if(!device->hw){
 		return NULL;
 	}
 
-	atomic_set(&port->refcount, 0);
-	sema_init(&port->sem, 1);
+	atomic_set(&device->refcount, 0);
+	sema_init(&device->sem, 1);
 
 	/* Add to global list */
 	down(&dev_sem);
-	port->id = ufp_alloc_enid();
-	list_add(&port->list, &dev_list);
+	device->id = ufp_alloc_enid();
+	list_add(&device->list, &dev_list);
 	up(&dev_sem);
 
-	return port;
+	return device;
 }
 
-static void ufp_port_free(struct ufp_port *port)
+static void ufp_device_free(struct ufp_device *device)
 {
 	down(&dev_sem);
-	list_del(&port->list);
+	list_del(&device->list);
 	up(&dev_sem);
 
-	kfree(port->hw);
-	kfree(port);
+	kfree(device->hw);
+	kfree(device);
 	return;
 }
 
@@ -160,7 +160,7 @@ static struct ufp_irq *ufp_irq_alloc(struct msix_entry *entry)
 {
 	struct ufp_irq *irq;
 
-	/* XXX: To support NUMA-aware allocation, use kzalloc_node() */
+	/* XXX: To supdevice NUMA-aware allocation, use kzalloc_node() */
 	irq = kzalloc(sizeof(struct ufp_irq), GFP_KERNEL);
 	if(!irq){
 		return NULL;
@@ -182,7 +182,7 @@ static void ufp_irq_free(struct ufp_irq *irq)
 	return;
 }
 
-int ufp_irq_assign(struct ufp_port *port, enum ufp_irq_type type,
+int ufp_irq_assign(struct ufp_device *device, enum ufp_irq_type type,
 	u32 queue_idx, int event_fd, u32 *vector, u16 *entry)
 {
 	struct ufp_irq *irq;
@@ -190,16 +190,16 @@ int ufp_irq_assign(struct ufp_port *port, enum ufp_irq_type type,
 
 	switch(type){
 	case IXMAP_IRQ_RX:
-		if(queue_idx > port->num_rx_queues)
+		if(queue_idx > device->num_rx_queues)
 			goto err_invalid_arg;
 
-		irq = port->rx_irq[queue_idx];
+		irq = device->rx_irq[queue_idx];
 		break;
 	case IXMAP_IRQ_TX:
-		if(queue_idx > port->num_tx_queues)
+		if(queue_idx > device->num_tx_queues)
 			goto err_invalid_arg;
 
-		irq = port->tx_irq[queue_idx];
+		irq = device->tx_irq[queue_idx];
 		break;
 	default:
 		goto err_invalid_arg;
@@ -224,84 +224,84 @@ err_invalid_arg:
 	return -EINVAL;
 }
 
-static void ufp_free_msix(struct ufp_port *port)
+static void ufp_free_msix(struct ufp_device *device)
 {
 	int i;
 
-        for(i = 0; i < port->num_rx_queues; i++){
-                free_irq(port->rx_irq[i]->msix_entry->vector,
-                        port->rx_irq[i]);
-                ufp_irq_free(port->rx_irq[i]);
+        for(i = 0; i < device->num_rx_queues; i++){
+                free_irq(device->rx_irq[i]->msix_entry->vector,
+                        device->rx_irq[i]);
+                ufp_irq_free(device->rx_irq[i]);
         }
 
-        for(i = 0; i < port->num_tx_queues; i++){
-                free_irq(port->tx_irq[i]->msix_entry->vector,
-                        port->tx_irq[i]);
-                ufp_irq_free(port->tx_irq[i]);
+        for(i = 0; i < device->num_tx_queues; i++){
+                free_irq(device->tx_irq[i]->msix_entry->vector,
+                        device->tx_irq[i]);
+                ufp_irq_free(device->tx_irq[i]);
         }
 
-        kfree(port->tx_irq);
-        kfree(port->rx_irq);
-        pci_disable_msix(port->pdev);
-        kfree(port->msix_entries);
-        port->msix_entries = NULL;
-        port->num_q_vectors = 0;
+        kfree(device->tx_irq);
+        kfree(device->rx_irq);
+        pci_disable_msix(device->pdev);
+        kfree(device->msix_entries);
+        device->msix_entries = NULL;
+        device->num_q_vectors = 0;
 
         return;
 }
 
-static int ufp_configure_msix(struct ufp_port *port)
+static int ufp_configure_msix(struct ufp_device *device)
 {
 	int vector = 0, vector_num, queue_idx, err, i;
 	int num_rx_requested = 0, num_tx_requested = 0;
 	struct msix_entry *entry;
 
-	vector_num = port->num_rx_queues + port->num_tx_queues;
+	vector_num = device->num_rx_queues + device->num_tx_queues;
 	pr_info("required vector num = %d\n", vector_num);
 
-	port->msix_entries = kcalloc(vector_num,
+	device->msix_entries = kcalloc(vector_num,
 		sizeof(struct msix_entry), GFP_KERNEL);
-	if (!port->msix_entries) {
+	if (!device->msix_entries) {
 		goto err_allocate_msix_entries;
 	}
 
 	for (vector = 0; vector < vector_num; vector++){
-		port->msix_entries[vector].entry = vector;
+		device->msix_entries[vector].entry = vector;
 	}
 
 	err = vector_num;
 	while (err){
 		/* err == number of vectors we should try again with */ 
-	      	err = pci_enable_msix(port->pdev, port->msix_entries, err);
+	      	err = pci_enable_msix(device->pdev, device->msix_entries, err);
 
 		if(err < 0){
 		       	/* failed to allocate enough msix vector */
 			goto err_pci_enable_msix;
 	       	}
 	}
-	port->num_q_vectors = vector_num;
+	device->num_q_vectors = vector_num;
 
-	port->rx_irq = kcalloc(port->num_rx_queues,
+	device->rx_irq = kcalloc(device->num_rx_queues,
 		sizeof(struct ufp_irq *), GFP_KERNEL);
-	if(!port->rx_irq)
+	if(!device->rx_irq)
 		goto err_alloc_irq_array_rx;
 
-	port->tx_irq = kcalloc(port->num_tx_queues,
+	device->tx_irq = kcalloc(device->num_tx_queues,
 		sizeof(struct ufp_irq *), GFP_KERNEL);
-	if(!port->tx_irq)
+	if(!device->tx_irq)
 		goto err_alloc_irq_array_tx;
 
-	for(queue_idx = 0, vector = 0; queue_idx < port->num_rx_queues;
+	for(queue_idx = 0, vector = 0; queue_idx < device->num_rx_queues;
 	queue_idx++, vector++, num_rx_requested++){
-		entry = &port->msix_entries[vector];
+		entry = &device->msix_entries[vector];
 
-		port->rx_irq[queue_idx] = ufp_irq_alloc(entry);
-		if(!port->rx_irq[queue_idx]){
+		device->rx_irq[queue_idx] = ufp_irq_alloc(entry);
+		if(!device->rx_irq[queue_idx]){
 			goto err_alloc_irq_rx;
 		}
 
 		err = request_irq(entry->vector, &ufp_interrupt, 0,
-				pci_name(port->pdev), port->rx_irq[queue_idx]);
+				pci_name(device->pdev), device->rx_irq[queue_idx]);
 		if(err){
 			goto err_request_irq_rx;
 		}
@@ -312,21 +312,21 @@ static int ufp_configure_msix(struct ufp_port *port)
 		continue;
 
 err_request_irq_rx:
-		kfree(port->rx_irq[queue_idx]);
+		kfree(device->rx_irq[queue_idx]);
 		goto err_alloc_irq_rx;
 	}
 
-	for(queue_idx = 0; queue_idx < port->num_tx_queues;
+	for(queue_idx = 0; queue_idx < device->num_tx_queues;
 	queue_idx++, vector++, num_tx_requested++){
-		entry = &port->msix_entries[vector];
+		entry = &device->msix_entries[vector];
 
-		port->tx_irq[queue_idx] = ufp_irq_alloc(entry);
-		if(!port->tx_irq[queue_idx]){
+		device->tx_irq[queue_idx] = ufp_irq_alloc(entry);
+		if(!device->tx_irq[queue_idx]){
 			goto err_alloc_irq_tx;
 		}
 
 		err = request_irq(entry->vector, &ufp_interrupt, 0,
-			pci_name(port->pdev), port->tx_irq[queue_idx]);
+			pci_name(device->pdev), device->tx_irq[queue_idx]);
 		if(err){
 			goto err_request_irq_tx;
 		}
@@ -337,7 +337,7 @@ err_request_irq_rx:
 		continue;
 
 err_request_irq_tx:
-		kfree(port->tx_irq[queue_idx]);
+		kfree(device->tx_irq[queue_idx]);
 		goto err_alloc_irq_tx;
 	}
 
@@ -345,52 +345,52 @@ err_request_irq_tx:
 
 err_alloc_irq_tx:
 	for(i = 0; i < num_tx_requested; i++){
-		free_irq(port->tx_irq[i]->msix_entry->vector,
-			port->tx_irq[i]);
-		kfree(port->tx_irq[i]);
+		free_irq(device->tx_irq[i]->msix_entry->vector,
+			device->tx_irq[i]);
+		kfree(device->tx_irq[i]);
 	}
 err_alloc_irq_rx:
 	for(i = 0; i < num_rx_requested; i++){
-		free_irq(port->rx_irq[i]->msix_entry->vector,
-			port->rx_irq[i]);
-		kfree(port->rx_irq[i]);
+		free_irq(device->rx_irq[i]->msix_entry->vector,
+			device->rx_irq[i]);
+		kfree(device->rx_irq[i]);
 	}
-	kfree(port->tx_irq);
+	kfree(device->tx_irq);
 err_alloc_irq_array_tx:
-	kfree(port->rx_irq);
+	kfree(device->rx_irq);
 err_alloc_irq_array_rx:
 err_pci_enable_msix:
-	pci_disable_msix(port->pdev);
-	kfree(port->msix_entries);
-	port->msix_entries = NULL;
+	pci_disable_msix(device->pdev);
+	kfree(device->msix_entries);
+	device->msix_entries = NULL;
 err_allocate_msix_entries:
 	return -1;
 }
 
-static inline void ufp_interrupt_disable(struct ufp_port *port)
+static inline void ufp_interrupt_disable(struct ufp_device *device)
 {
 	int vector;
 
-	for (vector = 0; vector < port->num_q_vectors; vector++)
-		synchronize_irq(port->msix_entries[vector].vector);
+	for (vector = 0; vector < device->num_q_vectors; vector++)
+		synchronize_irq(device->msix_entries[vector].vector);
 }
 
-int ufp_up(struct ufp_port *port)
+int ufp_up(struct ufp_device *device)
 {
 	int err;
 
-	if(!port->num_rx_queues || !port->num_tx_queues){
+	if(!device->num_rx_queues || !device->num_tx_queues){
 		goto err_num_queues;
 	}
 
-	err = ufp_configure_msix(port);
+	err = ufp_configure_msix(device);
         if(err < 0){
 		pr_err("failed to allocate MSI-X\n");
 		goto err_configure_msix;
 	}
 
 	/* User space application enables interrupts after */
-	port->up = 1;
+	device->up = 1;
 
 	return 0;
 
@@ -399,24 +399,24 @@ err_num_queues:
 	return -1;
 }
 
-int ufp_down(struct ufp_port *port)
+int ufp_down(struct ufp_device *device)
 {
-        ufp_interrupt_disable(port);
+        ufp_interrupt_disable(device);
 
-	if (!pci_channel_offline(port->pdev))
+	if (!pci_channel_offline(device->pdev))
 		pr_info("pci channel state is abnormal");
 
         /* free irqs */
-        ufp_free_msix(port);
-        port->up = 0;
+        ufp_free_msix(device);
+        device->up = 0;
 
         return 0;
 }
 
-static int ufp_hw_init(struct ufp_port *port)
+static int ufp_hw_init(struct ufp_device *device)
 {
-	struct ufp_hw *hw = port->hw;
-	struct pci_dev *pdev = port->pdev;
+	struct ufp_hw *hw = device->hw;
+	struct pci_dev *pdev = device->pdev;
 
 	/* PCI config space info */
 	hw->vendor_id = pdev->vendor;
@@ -428,7 +428,7 @@ static int ufp_hw_init(struct ufp_port *port)
 	return 0;
 }
 
-static void ufp_hw_free(struct ufp_port *port)
+static void ufp_hw_free(struct ufp_device *device)
 {
 	return;
 }
@@ -436,7 +436,7 @@ static void ufp_hw_free(struct ufp_port *port)
 static int ufp_probe(struct pci_dev *pdev,
 	const struct pci_device_id *ent)
 {
-	struct ufp_port *port;
+	struct ufp_device *device;
 	struct ufp_hw	*hw;
 	int pci_using_dac, err;
 
@@ -475,58 +475,58 @@ static int ufp_probe(struct pci_dev *pdev,
 	pci_enable_pcie_error_reporting(pdev);
 	pci_set_master(pdev);
 
-        port = ufp_port_alloc();
-        if (!port) {
+        device = ufp_device_alloc();
+        if (!device) {
                 err = -ENOMEM;
                 goto err_alloc;
         }
-        hw = port->hw;
+        hw = device->hw;
 
-        pci_set_drvdata(pdev, port);
-        port->pdev = pdev;
+        pci_set_drvdata(pdev, device);
+        device->pdev = pdev;
 
 	/* ufp_hw INITIALIZATION */
-	err = ufp_hw_init(port);
+	err = ufp_hw_init(device);
 	if (err)
 		goto err_hw_init;
 
 	/*
 	 * call save state here in standalone driver because it relies on
-	 * port struct to exist.
+	 * device struct to exist.
 	 */
         pci_save_state(pdev);
 
-        port->iobase = pci_resource_start(pdev, 0);
-        port->iolen  = pci_resource_len(pdev, 0);
+        device->iobase = pci_resource_start(pdev, 0);
+        device->iolen  = pci_resource_len(pdev, 0);
 
         if(pci_using_dac){
-                port->dma_mask = DMA_BIT_MASK(64);
+                device->dma_mask = DMA_BIT_MASK(64);
         }else{
-                port->dma_mask = DMA_BIT_MASK(32);
+                device->dma_mask = DMA_BIT_MASK(32);
         }
 
         /* setup for userland pci register access */
-        INIT_LIST_HEAD(&port->areas);
-        hw->hw_addr = ufp_dma_map_iobase(port);
+        INIT_LIST_HEAD(&device->areas);
+        hw->hw_addr = ufp_dma_map_iobase(device);
         if (!hw->hw_addr) {
                 err = -EIO;
                 goto err_ioremap;
         }
 
-	pr_info("device[%u] %s initialized\n", port->id, pci_name(pdev));
+	pr_info("device[%u] %s initialized\n", device->id, pci_name(pdev));
 
-	err = ufp_miscdev_register(port);
+	err = ufp_miscdev_register(device);
 	if(err < 0)
 		goto err_miscdev_register;
 
 	return 0;
 
 err_miscdev_register:
-	ufp_dma_unmap_all(port);
+	ufp_dma_unmap_all(device);
 err_ioremap:
-	ufp_hw_free(port);
+	ufp_hw_free(device);
 err_hw_init:
-        ufp_port_free(port);
+        ufp_device_free(device);
 err_alloc:
 	pci_disable_pcie_error_reporting(pdev);
 	pci_release_regions(pdev);
@@ -539,18 +539,18 @@ err_enable_device:
 
 static void ufp_remove(struct pci_dev *pdev)
 {
-        struct ufp_port *port = pci_get_drvdata(pdev);
+        struct ufp_device *device = pci_get_drvdata(pdev);
 
-        if(port->up){
-                ufp_down(port);
+        if(device->up){
+                ufp_down(device);
         }
 
-        ufp_miscdev_deregister(port);
-        ufp_dma_unmap_all(port);
+        ufp_miscdev_deregister(device);
+        ufp_dma_unmap_all(device);
 
-	pr_info("device[%u] %s removed\n", port->id, pci_name(pdev));
-	ufp_hw_free(port);
-	ufp_port_free(port);
+	pr_info("device[%u] %s removed\n", device->id, pci_name(pdev));
+	ufp_hw_free(device);
+	ufp_device_free(device);
 
 	pci_disable_pcie_error_reporting(pdev);
 	pci_release_regions(pdev);
