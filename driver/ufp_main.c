@@ -9,8 +9,6 @@
 #include "ufp_main.h"
 #include "ufp_dma.h"
 #include "ufp_fops.h"
-#include "ufp_mac.h"
-#include "ufp_mbx.h"
 
 static int ufp_alloc_enid(void);
 static struct ufp_port *ufp_port_alloc(void);
@@ -18,10 +16,6 @@ static void ufp_port_free(struct ufp_port *port);
 static irqreturn_t ufp_interrupt(int irqnum, void *data);
 static struct ufp_irq *ufp_irq_alloc(struct msix_entry *entry);
 static void ufp_irq_free(struct ufp_irq *irq);
-static void ufp_write_eitr(struct ufp_port *port, int vector);
-static void ufp_set_ivar(struct ufp_port *port,
-	int8_t direction, uint8_t queue, uint8_t msix_vector);
-static void ufp_negotiate_api(struct ufp_port *port);
 static void ufp_free_msix(struct ufp_port *port);
 static int ufp_configure_msix(struct ufp_port *port);
 static inline void ufp_interrupt_disable(struct ufp_port *port);
@@ -127,9 +121,6 @@ static struct ufp_port *ufp_port_alloc(void)
 	atomic_set(&port->refcount, 0);
 	sema_init(&port->sem, 1);
 
-	/* lock to protect mailbox accesses */
-	spin_lock_init(&port->mbx_lock);
-
 	/* Add to global list */
 	down(&dev_sem);
 	port->id = ufp_alloc_enid();
@@ -145,42 +136,8 @@ static void ufp_port_free(struct ufp_port *port)
 	list_del(&port->list);
 	up(&dev_sem);
 
-	ufp_mac_free(port->hw);
-	ufp_mbx_free(port->hw);
-
 	kfree(port->hw);
 	kfree(port);
-	return;
-}
-
-uint32_t ufp_read_reg(struct ufp_hw *hw, uint32_t reg)
-{
-	uint32_t value;
-	uint8_t __iomem *reg_addr;
-
-	reg_addr = ACCESS_ONCE(hw->hw_addr);
-	if (unlikely(!reg_addr))
-		return -1;
-
-	value = readl(reg_addr + reg);
-	return value;
-}
-
-void ufp_write_reg(struct ufp_hw *hw, uint32_t reg,
-	uint32_t value)
-{
-	uint8_t __iomem *reg_addr;
-
-	reg_addr = ACCESS_ONCE(hw->hw_addr);
-	if (unlikely(!reg_addr))
-		return;
-
-	writel(value, reg_addr + reg);
-}
-
-void ufp_write_flush(struct ufp_hw *hw)
-{
-	ufp_read_reg(hw, IXGBE_VFSTATUS);
 	return;
 }
 
@@ -267,70 +224,6 @@ err_invalid_arg:
 	return -EINVAL;
 }
 
-static void ufp_write_eitr(struct ufp_port *port, int vector)
-{
-	struct ufp_hw *hw = port->hw;
-	uint32_t itr_reg = port->num_interrupt_rate & IXGBE_MAX_EITR;
-
-	/*
-	 * set the WDIS bit to not clear the timer bits and cause an
-	 * immediate assertion of the interrupt
-	 */
-	itr_reg |= IXGBE_EITR_CNT_WDIS;
-	ufp_write_reg(hw, IXGBE_VTEITR(vector), itr_reg);
-}
-
-static void ufp_set_ivar(struct ufp_port *port,
-        int8_t direction, uint8_t queue, uint8_t msix_vector)
-{
-	uint32_t ivar, index;
-	struct ufp_hw *hw = port->hw;
-
-	/* tx or rx causes */
-	msix_vector |= IXGBE_IVAR_ALLOC_VAL;
-	index = ((16 * (queue & 1)) + (8 * direction));
-	ivar = ufp_read_reg(hw, IXGBE_VTIVAR(queue >> 1));
-	ivar &= ~(0xFF << index);
-	ivar |= (msix_vector << index);
-	ufp_write_reg(hw, IXGBE_VTIVAR(queue >> 1), ivar);
-}
-
-static void ufp_negotiate_api(struct ufp_port *port)
-{
-	struct ufp_hw *hw = port->hw;
-	struct ufp_mac_info *mac = hw->mac;
-
-	enum ufp_mbx_api_rev api[] = {
-			ixgbe_mbox_api_12,
-			ixgbe_mbox_api_11,
-			ixgbe_mbox_api_10,
-			ixgbe_mbox_api_unknown
-	};
-	int err = 0, idx = 0;
-
-	spin_lock_bh(&port->mbx_lock);
-
-	while (api[idx] != ixgbe_mbox_api_unknown) {
-		err = mac->ops.negotiate_api(hw, api[idx]);
-		if (!err)
-			break;
-		idx++;
-	}
-
-	spin_unlock_bh(&port->mbx_lock);
-}
-
-void ufp_reset(struct ufp_port *port)
-{
-	struct ufp_hw *hw = port->hw;
-	struct ufp_mac_info *mac = hw->mac;
-
-	if (mac->ops.reset_hw(hw))
-		pr_err("PF still resetting\n");
-
-	ufp_negotiate_api(port);
-}
-
 static void ufp_free_msix(struct ufp_port *port)
 {
 	int i;
@@ -361,8 +254,6 @@ static int ufp_configure_msix(struct ufp_port *port)
 {
 	int vector = 0, vector_num, queue_idx, err, i;
 	int num_rx_requested = 0, num_tx_requested = 0;
-	unsigned int qmask = 0;
-	struct ufp_hw *hw = port->hw;
 	struct msix_entry *entry;
 
 	vector_num = port->num_rx_queues + port->num_tx_queues;
@@ -415,11 +306,6 @@ static int ufp_configure_msix(struct ufp_port *port)
 			goto err_request_irq_rx;
 		}
 
-		/* set RX queue interrupt */
-		ufp_set_ivar(port, 0, queue_idx, vector);
-		ufp_write_eitr(port, vector);
-		qmask |= 1 << vector;
-
 		pr_info("RX irq registered: index = %d, vector = %d\n",
 			queue_idx, entry->vector);
 
@@ -445,11 +331,6 @@ err_request_irq_rx:
 			goto err_request_irq_tx;
 		}
 
-		/* set TX queue interrupt */
-		ufp_set_ivar(port, 1, queue_idx, vector);
-		ufp_write_eitr(port, vector);
-		qmask |= 1 << vector;
-
 		pr_info("TX irq registered: index = %d, vector = %d\n",
 			queue_idx, entry->vector);
 
@@ -459,9 +340,6 @@ err_request_irq_tx:
 		kfree(port->tx_irq[queue_idx]);
 		goto err_alloc_irq_tx;
 	}
-
-	ufp_write_reg(hw, IXGBE_VTEIAM, qmask);
-	ufp_write_reg(hw, IXGBE_VTEIAC, qmask);
 
 	return 0;
 
@@ -491,14 +369,7 @@ err_allocate_msix_entries:
 
 static inline void ufp_interrupt_disable(struct ufp_port *port)
 {
-	struct ufp_hw *hw = port->hw;
 	int vector;
-
-	ufp_write_reg(hw, IXGBE_VTEIAM, 0);
-	ufp_write_reg(hw, IXGBE_VTEIMC, ~0);
-	ufp_write_reg(hw, IXGBE_VTEIAC, 0);
-
-	ufp_write_flush(hw);
 
 	for (vector = 0; vector < port->num_q_vectors; vector++)
 		synchronize_irq(port->msix_entries[vector].vector);
@@ -506,30 +377,9 @@ static inline void ufp_interrupt_disable(struct ufp_port *port)
 
 int ufp_up(struct ufp_port *port)
 {
-	struct ufp_hw *hw = port->hw;
-	struct ufp_mac_info *mac = hw->mac;
-	uint32_t num_tcs, default_tc;
 	int err;
 
-	ufp_reset(port);
-
-	pr_info("MAC address: %02x:%02x:%02x:%02x:%02x:%02x\n",
-		mac->perm_addr[0], mac->perm_addr[1],
-		mac->perm_addr[2], mac->perm_addr[3],
-		mac->perm_addr[4], mac->perm_addr[5]);
-
-	/* fetch queue configuration from the PF */
-	err = mac->ops.get_queues(hw, &num_tcs, &default_tc);
-	if(err)
-		goto err_get_queues;
-
-	pr_info("Max RX queues: %d\n", mac->max_rx_queues);
-	pr_info("Max TX queues: %d\n", mac->max_tx_queues);
-
-	if(port->num_rx_queues > mac->max_rx_queues
-	|| port->num_rx_queues == 0
-	|| port->num_tx_queues > mac->max_rx_queues
-	|| port->num_tx_queues == 0){
+	if(!port->num_rx_queues || !port->num_tx_queues){
 		goto err_num_queues;
 	}
 
@@ -539,9 +389,6 @@ int ufp_up(struct ufp_port *port)
 		goto err_configure_msix;
 	}
 
-        /* clear any pending interrupts, may auto mask */
-        ufp_read_reg(hw, IXGBE_VTEICR);
-
 	/* User space application enables interrupts after */
 	port->up = 1;
 
@@ -549,43 +396,15 @@ int ufp_up(struct ufp_port *port)
 
 err_configure_msix:
 err_num_queues:
-err_get_queues:
 	return -1;
 }
 
 int ufp_down(struct ufp_port *port)
 {
-	struct ufp_hw *hw = port->hw;
-	uint32_t rxdctl;
-	int wait_loop = IXGBEVF_MAX_RX_DESC_POLL;
-	int i;
-
-	for(i = 0; i < port->num_rx_queues; i++){
-		rxdctl = ufp_read_reg(hw, IXGBE_VFRXDCTL(i));
-		rxdctl &= ~IXGBE_RXDCTL_ENABLE;
-
-		/* write value back with RXDCTL.ENABLE bit cleared */
-		ufp_write_reg(hw, IXGBE_VFRXDCTL(i), rxdctl);
-
-		/* the hardware may take up to 100us to really disable the rx queue */
-		do {
-			udelay(10);
-			rxdctl = ufp_read_reg(hw, IXGBE_VFRXDCTL(i));
-		} while (--wait_loop && (rxdctl & IXGBE_RXDCTL_ENABLE));
-
-		if (!wait_loop)
-			pr_err("RXDCTL.ENABLE queue %d not cleared while polling", i);
-	}
-
         ufp_interrupt_disable(port);
 
-        /* disable transmits in the hardware now that interrupts are off */
-        for (i = 0; i < port->num_tx_queues; i++) {
-		ufp_write_reg(hw, IXGBE_VFTXDCTL(i), IXGBE_TXDCTL_SWFLSH);
-	}
-
 	if (!pci_channel_offline(port->pdev))
-		ufp_reset(port);
+		pr_info("pci channel state is abnormal");
 
         /* free irqs */
         ufp_free_msix(port);
@@ -598,7 +417,6 @@ static int ufp_hw_init(struct ufp_port *port)
 {
 	struct ufp_hw *hw = port->hw;
 	struct pci_dev *pdev = port->pdev;
-	int err;
 
 	/* PCI config space info */
 	hw->vendor_id = pdev->vendor;
@@ -607,26 +425,11 @@ static int ufp_hw_init(struct ufp_port *port)
 	hw->subsystem_vendor_id = pdev->subsystem_vendor;
 	hw->subsystem_device_id = pdev->subsystem_device;
 
-	err = ufp_mac_init(port->hw);
-	if(err < 0)
-		goto err_mac_init;
-
-	err = ufp_mbx_init(port->hw);
-	if(err < 0)
-		goto err_mbx_init;
-
 	return 0;
-
-err_mbx_init:
-	ufp_mac_free(port->hw);
-err_mac_init:
-	return -1;
 }
 
 static void ufp_hw_free(struct ufp_port *port)
 {
-	ufp_mac_free(port->hw);
-	ufp_mbx_free(port->hw);
 	return;
 }
 

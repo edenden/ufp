@@ -9,19 +9,12 @@ struct ufp_info_req {
 	unsigned long		mmio_base;
 	unsigned long		mmio_size;
 
-	__u8			mac_addr[ETH_ALEN];
-
-	__u16			max_interrupt_rate;
-	__u16			num_interrupt_rate;
 	__u32			num_rx_queues;
 	__u32			num_tx_queues;
-	__u32			max_rx_queues;
-	__u32			max_tx_queues;
 };
 
 #define IXMAP_UP		_IOW('E', 202, int)
 struct ufp_up_req {
-	__u16			num_interrupt_rate;
 	__u32			num_rx_queues;
 	__u32			num_tx_queues;
 };

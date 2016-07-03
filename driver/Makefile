@@ -4,7 +4,7 @@ EXTRA_CFLAGS := -Wall -Wunused-function
 # objects will be automatically built from the corresponding .c file -
 # no need to list the source files explicitly.
 obj-m := ufp.o
-ufp-objs := ufp_mac.o ufp_mbx.o ufp_dma.o ufp_fops.o ufp_main.o
+ufp-objs := ufp_dma.o ufp_fops.o ufp_main.o
 
 # KDIR is the location of the kernel source.  The current standard is
 # to link to the associated source tree from the directory containing

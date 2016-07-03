@@ -14,11 +14,9 @@
 #include "ufp_main.h"
 #include "ufp_dma.h"
 #include "ufp_fops.h"
-#include "ufp_mac.h"
 
 static int ufp_cmd_up(struct ufp_port *port, void __user *argp);
 static int ufp_cmd_down(struct ufp_port *port, unsigned long arg);
-static int ufp_cmd_reset(struct ufp_port *port, unsigned long arg);
 static int ufp_cmd_info(struct ufp_port *port, void __user *argp);
 static int ufp_cmd_map(struct ufp_port *port, void __user *argp);
 static int ufp_cmd_unmap(struct ufp_port *port, void __user *argp);
@@ -104,7 +102,6 @@ static int ufp_cmd_up(struct ufp_port *port, void __user *argp)
 
 	pr_info("open req\n");
 
-	port->num_interrupt_rate = req.num_interrupt_rate;
 	port->num_rx_queues = req.num_rx_queues;
 	port->num_tx_queues = req.num_tx_queues;
 
@@ -133,41 +130,17 @@ static int ufp_cmd_down(struct ufp_port *port,
 	return 0;
 }
 
-static int ufp_cmd_reset(struct ufp_port *port,
-	unsigned long arg)
-{
-	if(!port->up){
-		return 0;
-	}
-
-	pr_info("reset req\n");
-	ufp_reset(port);
-
-	return 0;
-}
-
 static int ufp_cmd_info(struct ufp_port *port,
 	void __user *argp)
 {
 	struct ufp_info_req req;
-	struct ufp_hw *hw = port->hw;
-	struct ufp_mac_info *mac = hw->mac;
 	int err = 0;
 
 	req.mmio_base = port->iobase;
 	req.mmio_size = port->iolen;
 
-	memcpy(req.mac_addr, mac->perm_addr, ETH_ALEN);
-
-	req.num_interrupt_rate = port->num_interrupt_rate;
-	req.max_interrupt_rate = IXGBE_MAX_EITR;
-
 	req.num_rx_queues = port->num_rx_queues;
 	req.num_tx_queues = port->num_tx_queues;
-
-	/* Currently we support only RX/TX RSS mode */
-	req.max_rx_queues = mac->max_rx_queues;
-	req.max_tx_queues = mac->max_tx_queues;
 
 	if (copy_to_user(argp, &req, sizeof(req))) {
 		err = -EFAULT;
@@ -391,10 +364,6 @@ static long ufp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	case IXMAP_DOWN:
 		err = ufp_cmd_down(port, arg);
-		break;
-
-	case IXMAP_RESET:
-		err = ufp_cmd_reset(port, arg);
 		break;
 
 	case IXMAP_IRQ:
