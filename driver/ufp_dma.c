@@ -34,12 +34,12 @@ static int sg_alloc_table_from_pages(struct sg_table *sgt,
 	gfp_t gfp_mask);
 #endif /* < 3.6.0 */
 
-uint8_t __iomem *ufp_dma_map_iobase(struct ufp_port *port)
+u8 __iomem *ufp_dma_map_iobase(struct ufp_port *port)
 {
 	struct list_head *where;
 	struct ufp_dma_area *area;
 	unsigned long addr_dma = port->iobase;
-	uint8_t __iomem *hw_addr;
+	u8 __iomem *hw_addr;
 
 	hw_addr = ioremap(port->iobase, port->iolen);
 	if (!hw_addr)
@@ -71,7 +71,7 @@ err_ioremap:
 }
 
 dma_addr_t ufp_dma_map(struct ufp_port *port,
-		unsigned long addr_virtual, unsigned long size, uint8_t cache)
+		unsigned long addr_virtual, unsigned long size, u8 cache)
 {
 	struct ufp_dma_area *area;
 	struct list_head *where;

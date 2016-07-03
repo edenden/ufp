@@ -29,26 +29,26 @@ struct ufp_port {
 	struct list_head	list;
 	struct list_head	areas;
 	unsigned int		id;
-	uint8_t			up;
+	unsigned int		up;
 
 	struct miscdevice	miscdev;
 
 	struct semaphore	sem;
 	atomic_t		refcount;
 
-	uint64_t		dma_mask;
+	dma_addr_t		dma_mask;
 	struct pci_dev		*pdev;
 	unsigned long		iobase;
 	unsigned long		iolen;
 	struct ufp_hw		*hw;
 
 	struct msix_entry	*msix_entries;
-	uint32_t		num_q_vectors;
+	u32			num_q_vectors;
 	struct ufp_irq		**rx_irq;
 	struct ufp_irq		**tx_irq;
 
-	uint32_t		num_rx_queues;
-	uint32_t		num_tx_queues;
+	u32			num_rx_queues;
+	u32			num_tx_queues;
 };
 
 struct ufp_irq {
@@ -64,7 +64,7 @@ struct ufp_irq {
 int ufp_up(struct ufp_port *port);
 int ufp_down(struct ufp_port *port);
 int ufp_irq_assign(struct ufp_port *port, enum ufp_irq_type type,
-	uint32_t queue_idx, int event_fd, uint32_t *vector, uint16_t *entry);
+	u32 queue_idx, int event_fd, u32 *vector, u16 *entry);
 int ufp_port_inuse(struct ufp_port *port);
 void ufp_port_get(struct ufp_port *port);
 void ufp_port_put(struct ufp_port *port);

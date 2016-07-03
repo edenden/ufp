@@ -183,7 +183,7 @@ static void ufp_irq_free(struct ufp_irq *irq)
 }
 
 int ufp_irq_assign(struct ufp_port *port, enum ufp_irq_type type,
-	uint32_t queue_idx, int event_fd, uint32_t *vector, uint16_t *entry)
+	u32 queue_idx, int event_fd, u32 *vector, u16 *entry)
 {
 	struct ufp_irq *irq;
 	struct eventfd_ctx *efd_ctx;

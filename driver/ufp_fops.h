@@ -6,8 +6,8 @@
 #define IXMAP_INFO		_IOW('E', 201, int)
 /* MAC and PHY info */
 struct ufp_info_req {
-	unsigned long		mmio_base;
-	unsigned long		mmio_size;
+	__u64			mmio_base;
+	__u64			mmio_size;
 
 	__u32			num_rx_queues;
 	__u32			num_tx_queues;
@@ -24,22 +24,22 @@ struct ufp_up_req {
 
 #define IXMAP_MAP		_IOW('U', 210, int)
 struct ufp_map_req {
-	unsigned long		addr_virtual;
-	unsigned long		addr_dma;
-	unsigned long		size;
-	uint8_t			cache;
+	__u64			addr_virtual;
+	__u64			addr_dma;
+	__u64			size;
+	__u8			cache;
 };
 
 #define IXMAP_UNMAP		_IOW('U', 211, int)
 struct ufp_unmap_req {
-	unsigned long		addr_dma;
+	__u64			addr_dma;
 };
 
 #define IXMAP_IRQ		_IOW('E', 220, int)
 struct ufp_irq_req {
 	enum ufp_irq_type	type;
 	__u32			queue_idx;
-	int			event_fd;
+	__s32			event_fd;
 
 	__u32			vector;
 	__u16			entry;
