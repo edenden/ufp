@@ -80,24 +80,19 @@
 /* Receive Config masks */
 #define IXGBE_RXDCTL_ENABLE		0x02000000 /* Ena specific Rx Queue */
 
-/* LINKS Bit Masks */
-#define IXGBE_LINKS_UP			0x40000000
-
-#define IXGBE_LINKS_SPEED_82599		0x30000000
-#define IXGBE_LINKS_SPEED_10G_82599	0x30000000
-#define IXGBE_LINKS_SPEED_1G_82599	0x20000000
-#define IXGBE_LINKS_SPEED_100_82599	0x10000000
-
-#define IXGBE_LINK_SPEED_100_FULL	0x0008
-#define IXGBE_LINK_SPEED_1GB_FULL	0x0020
-#define IXGBE_LINK_SPEED_10GB_FULL	0x0080
+/* 82599 EITR is only 12 bits, with the lower 3 always zero */
+/*
+ * 82598 EITR is 16 bits but set the limits based on the max
+ * supported by all ixgbe hardware
+ */
+#define IXGBE_MAX_EITR			0x00000FF8
+#define IXGBE_EITR_CNT_WDIS		0x80000000
 
 struct ufp_mac_operations {
 	int32_t (*reset_hw)(struct ufp_hw *);
 	int32_t (*stop_adapter)(struct ufp_hw *);
 	int32_t (*negotiate_api)(struct ufp_hw *, uint32_t);
 	int32_t (*get_queues)(struct ufp_hw *, uint32_t *, uint32_t *);
-	int32_t (*check_link)(struct ufp_hw *, uint32_t *, uint32_t *);
 	int32_t (*update_xcast_mode)(struct ufp_hw *, int);
 	int32_t (*set_rlpml)(struct ufp_hw *, uint16_t);
 };
@@ -122,10 +117,8 @@ struct ufp_mac_info {
 
 	uint8_t				perm_addr[6];
 	int32_t				mc_filter_type;
-	uint32_t			get_link_status;
 	uint32_t			max_tx_queues;
 	uint32_t			max_rx_queues;
-	uint32_t			max_msix_vectors;
 };
 
 int ufp_mac_init(struct ufp_hw *hw);

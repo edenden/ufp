@@ -9,8 +9,6 @@
 
 static int32_t ufp_mac_reset(struct ufp_hw *hw);
 static int32_t ufp_mac_stop_adapter(struct ufp_hw *hw);
-static int32_t ufp_mac_check_mac_link(struct ufp_hw *hw, uint32_t *speed,
-	uint32_t *link_up);
 static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode);
 static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size);
 static int32_t ufp_mac_negotiate_api_version(struct ufp_hw *hw, uint32_t api);
@@ -30,7 +28,6 @@ int ufp_mac_init(struct ufp_hw *hw)
 	mac->ops.stop_adapter		= ufp_mac_stop_adapter;
 	mac->ops.negotiate_api		= ufp_mac_negotiate_api_version;
 	mac->ops.get_queues		= ufp_mac_get_queues;
-	mac->ops.check_link		= ufp_mac_check_mac_link;
 	mac->ops.update_xcast_mode	= ufp_mac_update_xcast_mode;
 	mac->ops.set_rlpml		= ufp_mac_set_rlpml;
 
@@ -232,83 +229,6 @@ static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
 		return -EPERM;
 
 	return 0;
-}
-
-static int32_t ufp_mac_check_mac_link(struct ufp_hw *hw, uint32_t *speed,
-	uint32_t *link_up)
-{
-	struct ufp_mbx_info *mbx = hw->mbx;
-	struct ufp_mac_info *mac = hw->mac;
-	int32_t ret_val = 0;
-	uint32_t links_reg;
-	uint32_t in_msg = 0;
-
-	/* If we were hit with a reset drop the link */
-	if (!mbx->ops.check_for_rst(hw) || !mbx->timeout)
-		mac->get_link_status = true;
-
-	if (!mac->get_link_status)
-		goto out;
-
-	/* if link status is down no point in checking to see if pf is up */
-	links_reg = ufp_read_reg(hw, IXGBE_VFLINKS);
-	if (!(links_reg & IXGBE_LINKS_UP))
-		goto out;
-
-	/* for SFP+ modules and DA cables on 82599 it can take up to 500usecs
-	 * before the link status is correct
-	 */
-	if (mac->type == ixgbe_mac_82599_vf) {
-		int i;
-
-		for (i = 0; i < 5; i++) {
-			udelay(100);
-			links_reg = ufp_read_reg(hw, IXGBE_VFLINKS);
-
-			if (!(links_reg & IXGBE_LINKS_UP))
-				goto out;
-		}
-	}
-
-	switch (links_reg & IXGBE_LINKS_SPEED_82599) {
-	case IXGBE_LINKS_SPEED_10G_82599:
-		*speed = IXGBE_LINK_SPEED_10GB_FULL;
-		break;
-	case IXGBE_LINKS_SPEED_1G_82599:
-		*speed = IXGBE_LINK_SPEED_1GB_FULL;
-		break;
-	case IXGBE_LINKS_SPEED_100_82599:
-		*speed = IXGBE_LINK_SPEED_100_FULL;
-		break;
-	}
-
-	/* if the read failed it could just be a mailbox collision, best wait
-	 * until we are called again and don't report an error
-	 */
-	if (mbx->ops.read(hw, &in_msg, 1))
-		goto out;
-
-	if (!(in_msg & IXGBE_VT_MSGTYPE_CTS)) {
-		/* msg is not CTS and is NACK we must have lost CTS status */
-		if (in_msg & IXGBE_VT_MSGTYPE_NACK)
-			ret_val = -1;
-		goto out;
-	}
-
-	/* the pf is talking, if we timed out in the past we reinit */
-	if (!mbx->timeout) {
-		ret_val = -1;
-		goto out;
-	}
-
-	/* if we passed all the tests above then the link is up and we no
-	 * longer need to check for link
-	 */
-	mac->get_link_status = false;
-
-out:
-	*link_up = !mac->get_link_status;
-	return ret_val;
 }
 
 static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size)

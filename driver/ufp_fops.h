@@ -9,9 +9,7 @@ struct ufp_info_req {
 	unsigned long		mmio_base;
 	unsigned long		mmio_size;
 
-	__u16			mac_type;
 	__u8			mac_addr[ETH_ALEN];
-	__u16			phy_type;
 
 	__u16			max_interrupt_rate;
 	__u16			num_interrupt_rate;
@@ -19,7 +17,6 @@ struct ufp_info_req {
 	__u32			num_tx_queues;
 	__u32			max_rx_queues;
 	__u32			max_tx_queues;
-	__u32			max_msix_vectors;
 };
 
 #define IXMAP_UP		_IOW('E', 202, int)
@@ -31,17 +28,6 @@ struct ufp_up_req {
 
 #define IXMAP_DOWN		_IOW('E', 203, int)
 #define IXMAP_RESET		_IOW('E', 204, int)
-#define IXMAP_CHECK_LINK	_IOW('E', 205, int)
-
-struct ufp_link_req {
-	__u16			speed;
-	__u16			duplex;
-	/*
-	 * Indicates that TX/RX flush is necessary
-	 * after link state changed
-	 */
-	__u16			flush;
-};
 
 #define IXMAP_MAP		_IOW('U', 210, int)
 struct ufp_map_req {

@@ -9,15 +9,16 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/pci.h>
+#include <linux/if_ether.h>
 
 #include "ufp_main.h"
 #include "ufp_dma.h"
 #include "ufp_fops.h"
+#include "ufp_mac.h"
 
 static int ufp_cmd_up(struct ufp_port *port, void __user *argp);
 static int ufp_cmd_down(struct ufp_port *port, unsigned long arg);
 static int ufp_cmd_reset(struct ufp_port *port, unsigned long arg);
-static int ufp_cmd_check_link(struct ufp_port *port, void __user *argp);
 static int ufp_cmd_info(struct ufp_port *port, void __user *argp);
 static int ufp_cmd_map(struct ufp_port *port, void __user *argp);
 static int ufp_cmd_unmap(struct ufp_port *port, void __user *argp);
@@ -103,20 +104,13 @@ static int ufp_cmd_up(struct ufp_port *port, void __user *argp)
 
 	pr_info("open req\n");
 
-	if(req.num_interrupt_rate > IXGBE_MAX_EITR){
-		return -EINVAL;
-	}
-
-	if(!req.num_rx_queues || !req.num_tx_queues)
-		return -EINVAL;
-	}
-
 	port->num_interrupt_rate = req.num_interrupt_rate;
 	port->num_rx_queues = req.num_rx_queues;
 	port->num_tx_queues = req.num_tx_queues;
 
 	err = ufp_up(port);
 	if (err){
+		err = -EINVAL;
 		goto err_up_complete;
 	}
 
@@ -152,73 +146,18 @@ static int ufp_cmd_reset(struct ufp_port *port,
 	return 0;
 }
 
-static int ufp_cmd_check_link(struct ufp_port *port,
-	void __user *argp)
-{
-	struct ufp_hw *hw = port->hw;
-	struct ufp_link_req req;
-	int err = 0, flush = 0;
-       	int link_up;
-	uint32_t link_speed = 0;
-
-	if (!port->up)
-		return -EAGAIN;
-
-	if (hw->mac.ops.check_link) {
-		hw->mac.ops.check_link(hw, &link_speed, &link_up, false);
-	} else {
-		/* always assume link is up, if no check link function */
-		link_speed = IXGBE_LINK_SPEED_10GB_FULL;
-		link_up = true;
-	}
-
-	pr_info("check_link req speed %u up %u\n", link_speed, link_up);
-
-	if (link_up) {
-		if (!port->link_speed) {
-			port->link_speed  = link_speed;
-			port->link_duplex = 2;
-
-			pr_info("link is up %d mbps %s\n", port->link_speed,
-				port->link_duplex == 2 ?  "Full Duplex" : "Half Duplex");
-		}
-	} else {
-		if (port->link_speed) {
-			port->link_speed  = 0;
-			port->link_duplex = 0;
-
-			/* We've lost the link, so the controller stops DMA,
-			 * but we've got queued Tx/Rx work that's never going
-			 * to get done. Tell the app to flush RX */
-			flush = 1;
-
-			pr_info("link is down\n");
-		}
-	}
-
-	req.speed   = port->link_speed;
-	req.duplex  = port->link_duplex;
-	req.flush   = flush;
-
-	if (copy_to_user(argp, &req, sizeof(req)))
-		err = -EFAULT;
-
-	return err;
-}
-
 static int ufp_cmd_info(struct ufp_port *port,
 	void __user *argp)
 {
 	struct ufp_info_req req;
 	struct ufp_hw *hw = port->hw;
+	struct ufp_mac_info *mac = hw->mac;
 	int err = 0;
 
 	req.mmio_base = port->iobase;
 	req.mmio_size = port->iolen;
 
-	memcpy(req.mac_addr, hw->mac.perm_addr, ETH_ALEN);
-	req.mac_type = hw->mac.type;
-	req.phy_type = hw->phy.type;
+	memcpy(req.mac_addr, mac->perm_addr, ETH_ALEN);
 
 	req.num_interrupt_rate = port->num_interrupt_rate;
 	req.max_interrupt_rate = IXGBE_MAX_EITR;
@@ -227,10 +166,8 @@ static int ufp_cmd_info(struct ufp_port *port,
 	req.num_tx_queues = port->num_tx_queues;
 
 	/* Currently we support only RX/TX RSS mode */
-	req.max_rx_queues = IXGBE_MAX_RSS_INDICES;
-	req.max_tx_queues = IXGBE_MAX_RSS_INDICES;
-
-	req.max_msix_vectors = hw->mac.max_msix_vectors;
+	req.max_rx_queues = mac->max_rx_queues;
+	req.max_tx_queues = mac->max_tx_queues;
 
 	if (copy_to_user(argp, &req, sizeof(req))) {
 		err = -EFAULT;
@@ -458,10 +395,6 @@ static long ufp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	case IXMAP_RESET:
 		err = ufp_cmd_reset(port, arg);
-		break;
-
-	case IXMAP_CHECK_LINK:
-		err = ufp_cmd_check_link(port, argp);
 		break;
 
 	case IXMAP_IRQ:

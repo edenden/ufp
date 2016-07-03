@@ -1,10 +1,41 @@
 #include <linux/types.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/aer.h>
 #include <linux/netdevice.h>
 #include <linux/string.h>
+#include <linux/eventfd.h>
 
 #include "ufp_main.h"
+#include "ufp_dma.h"
+#include "ufp_fops.h"
+#include "ufp_mac.h"
+#include "ufp_mbx.h"
+
+static int ufp_alloc_enid(void);
+static struct ufp_port *ufp_port_alloc(void);
+static void ufp_port_free(struct ufp_port *port);
+static irqreturn_t ufp_interrupt(int irqnum, void *data);
+static struct ufp_irq *ufp_irq_alloc(struct msix_entry *entry);
+static void ufp_irq_free(struct ufp_irq *irq);
+static void ufp_write_eitr(struct ufp_port *port, int vector);
+static void ufp_set_ivar(struct ufp_port *port,
+	int8_t direction, uint8_t queue, uint8_t msix_vector);
+static void ufp_negotiate_api(struct ufp_port *port);
+static void ufp_free_msix(struct ufp_port *port);
+static int ufp_configure_msix(struct ufp_port *port);
+static inline void ufp_interrupt_disable(struct ufp_port *port);
+static int ufp_hw_init(struct ufp_port *port);
+static void ufp_hw_free(struct ufp_port *port);
+static int ufp_probe(struct pci_dev *pdev,
+	const struct pci_device_id *ent);
+static void ufp_remove(struct pci_dev *pdev);
+static pci_ers_result_t ufp_io_error_detected(struct pci_dev *pdev,
+	pci_channel_state_t state);
+static pci_ers_result_t ufp_io_slot_reset(struct pci_dev *pdev);
+static void ufp_io_resume(struct pci_dev *pdev);
+static int __init ufp_module_init(void);
+static void __exit ufp_module_exit(void);
 
 const char ufp_driver_name[]	= "ufp";
 const char ufp_driver_desc[]	= "Direct access to Intel VF device from UserSpace";
@@ -40,7 +71,7 @@ static struct pci_driver ufp_driver = {
 	.name		= ufp_driver_name,
 	.id_table	= ufp_pci_tbl,
 	.probe		= ufp_probe,
-	.remove		= __devexit_p(ufp_remove),
+	.remove		= ufp_remove,
 	.err_handler	= &ufp_err_handler
 };
 
@@ -129,7 +160,8 @@ uint32_t ufp_read_reg(struct ufp_hw *hw, uint32_t reg)
 
 	reg_addr = ACCESS_ONCE(hw->hw_addr);
 	if (unlikely(!reg_addr))
-		return IXGBE_FAILED_READ_REG;
+		return -1;
+
 	value = readl(reg_addr + reg);
 	return value;
 }
@@ -245,27 +277,29 @@ static void ufp_write_eitr(struct ufp_port *port, int vector)
 	 * immediate assertion of the interrupt
 	 */
 	itr_reg |= IXGBE_EITR_CNT_WDIS;
-	IXGBE_WRITE_REG(hw, IXGBE_VTEITR(vector), itr_reg);
+	ufp_write_reg(hw, IXGBE_VTEITR(vector), itr_reg);
 }
 
 static void ufp_set_ivar(struct ufp_port *port,
         int8_t direction, uint8_t queue, uint8_t msix_vector)
 {
 	uint32_t ivar, index;
-	struct ufp_hw *hw = ufp->hw;
+	struct ufp_hw *hw = port->hw;
 
 	/* tx or rx causes */
 	msix_vector |= IXGBE_IVAR_ALLOC_VAL;
 	index = ((16 * (queue & 1)) + (8 * direction));
-	ivar = IXGBE_READ_REG(hw, IXGBE_VTIVAR(queue >> 1));
+	ivar = ufp_read_reg(hw, IXGBE_VTIVAR(queue >> 1));
 	ivar &= ~(0xFF << index);
 	ivar |= (msix_vector << index);
-	IXGBE_WRITE_REG(hw, IXGBE_VTIVAR(queue >> 1), ivar);
+	ufp_write_reg(hw, IXGBE_VTIVAR(queue >> 1), ivar);
 }
 
 static void ufp_negotiate_api(struct ufp_port *port)
 {
 	struct ufp_hw *hw = port->hw;
+	struct ufp_mac_info *mac = hw->mac;
+
 	enum ufp_mbx_api_rev api[] = {
 			ixgbe_mbox_api_12,
 			ixgbe_mbox_api_11,
@@ -277,7 +311,7 @@ static void ufp_negotiate_api(struct ufp_port *port)
 	spin_lock_bh(&port->mbx_lock);
 
 	while (api[idx] != ixgbe_mbox_api_unknown) {
-		err = hw->mac.ops.negotiate_api(hw, api[idx]);
+		err = mac->ops.negotiate_api(hw, api[idx]);
 		if (!err)
 			break;
 		idx++;
@@ -289,8 +323,9 @@ static void ufp_negotiate_api(struct ufp_port *port)
 void ufp_reset(struct ufp_port *port)
 {
 	struct ufp_hw *hw = port->hw;
+	struct ufp_mac_info *mac = hw->mac;
 
-	if (hw->mac.ops.reset_hw(hw))
+	if (mac->ops.reset_hw(hw))
 		pr_err("PF still resetting\n");
 
 	ufp_negotiate_api(port);
@@ -331,9 +366,6 @@ static int ufp_configure_msix(struct ufp_port *port)
 	struct msix_entry *entry;
 
 	vector_num = port->num_rx_queues + port->num_tx_queues;
-	if(vector_num > hw->mac.max_msix_vectors){
-		goto err_num_msix_vectors;
-	}
 	pr_info("required vector num = %d\n", vector_num);
 
 	port->msix_entries = kcalloc(vector_num,
@@ -428,8 +460,8 @@ err_request_irq_tx:
 		goto err_alloc_irq_tx;
 	}
 
-	IXGBE_WRITE_REG(hw, IXGBE_VTEIAM, qmask);
-	IXGBE_WRITE_REG(hw, IXGBE_VTEIAC, qmask);
+	ufp_write_reg(hw, IXGBE_VTEIAM, qmask);
+	ufp_write_reg(hw, IXGBE_VTEIAC, qmask);
 
 	return 0;
 
@@ -454,7 +486,6 @@ err_pci_enable_msix:
 	kfree(port->msix_entries);
 	port->msix_entries = NULL;
 err_allocate_msix_entries:
-err_num_msix_vectors:
 	return -1;
 }
 
@@ -463,9 +494,9 @@ static inline void ufp_interrupt_disable(struct ufp_port *port)
 	struct ufp_hw *hw = port->hw;
 	int vector;
 
-	IXGBE_WRITE_REG(hw, IXGBE_VTEIAM, 0);
-	IXGBE_WRITE_REG(hw, IXGBE_VTEIMC, ~0);
-	IXGBE_WRITE_REG(hw, IXGBE_VTEIAC, 0);
+	ufp_write_reg(hw, IXGBE_VTEIAM, 0);
+	ufp_write_reg(hw, IXGBE_VTEIMC, ~0);
+	ufp_write_reg(hw, IXGBE_VTEIAC, 0);
 
 	ufp_write_flush(hw);
 
@@ -473,27 +504,32 @@ static inline void ufp_interrupt_disable(struct ufp_port *port)
 		synchronize_irq(port->msix_entries[vector].vector);
 }
 
-static int ufp_up(struct ufp_port *port)
+int ufp_up(struct ufp_port *port)
 {
-	struct ixgbe_hw *hw = port->hw;
+	struct ufp_hw *hw = port->hw;
+	struct ufp_mac_info *mac = hw->mac;
+	uint32_t num_tcs, default_tc;
 	int err;
 
 	ufp_reset(port);
 
 	pr_info("MAC address: %02x:%02x:%02x:%02x:%02x:%02x\n",
-		hw->mac.perm_addr[0], hw->mac.perm_addr[1],
-		hw->mac.perm_addr[2], hw->mac.perm_addr[3],
-		hw->mac.perm_addr[4], hw->mac.perm_addr[5]);
+		mac->perm_addr[0], mac->perm_addr[1],
+		mac->perm_addr[2], mac->perm_addr[3],
+		mac->perm_addr[4], mac->perm_addr[5]);
 
 	/* fetch queue configuration from the PF */
-	err = hw->mac.ops.get_queues(hw, &num_tcs, &def_q);
+	err = mac->ops.get_queues(hw, &num_tcs, &default_tc);
+	if(err)
+		goto err_get_queues;
 
-	pr_info("Max RX queues: %d\n", hw->mac.max_rx_queues);
-	pr_info("Max TX queues: %d\n", hw->mac.max_tx_queues);
+	pr_info("Max RX queues: %d\n", mac->max_rx_queues);
+	pr_info("Max TX queues: %d\n", mac->max_tx_queues);
 
-	if(port->num_rx_queues > hw->mac.max_rx_queues
-	|| port->num_tx_queues > hw->mac.max_rx_queues){
-		err = -EINVAL;
+	if(port->num_rx_queues > mac->max_rx_queues
+	|| port->num_rx_queues == 0
+	|| port->num_tx_queues > mac->max_rx_queues
+	|| port->num_tx_queues == 0){
 		goto err_num_queues;
 	}
 
@@ -503,14 +539,8 @@ static int ufp_up(struct ufp_port *port)
 		goto err_configure_msix;
 	}
 
-        spin_lock_bh(&port->mbx_lock);
-
-	hw->mac.ops.set_rar(hw, 0, hw->mac.perm_addr, 0, IXGBE_RAH_AV);
-
-        spin_unlock_bh(&port->mbx_lock);
-
         /* clear any pending interrupts, may auto mask */
-        IXGBE_READ_REG(hw, IXGBE_VTEICR);
+        ufp_read_reg(hw, IXGBE_VTEICR);
 
 	/* User space application enables interrupts after */
 	port->up = 1;
@@ -519,22 +549,43 @@ static int ufp_up(struct ufp_port *port)
 
 err_configure_msix:
 err_num_queues:
-	return err;
+err_get_queues:
+	return -1;
 }
 
-static int ufp_down(struct ufp_port *port)
+int ufp_down(struct ufp_port *port)
 {
+	struct ufp_hw *hw = port->hw;
+	uint32_t rxdctl;
+	int wait_loop = IXGBEVF_MAX_RX_DESC_POLL;
+	int i;
+
+	for(i = 0; i < port->num_rx_queues; i++){
+		rxdctl = ufp_read_reg(hw, IXGBE_VFRXDCTL(i));
+		rxdctl &= ~IXGBE_RXDCTL_ENABLE;
+
+		/* write value back with RXDCTL.ENABLE bit cleared */
+		ufp_write_reg(hw, IXGBE_VFRXDCTL(i), rxdctl);
+
+		/* the hardware may take up to 100us to really disable the rx queue */
+		do {
+			udelay(10);
+			rxdctl = ufp_read_reg(hw, IXGBE_VFRXDCTL(i));
+		} while (--wait_loop && (rxdctl & IXGBE_RXDCTL_ENABLE));
+
+		if (!wait_loop)
+			pr_err("RXDCTL.ENABLE queue %d not cleared while polling", i);
+	}
+
         ufp_interrupt_disable(port);
 
         /* disable transmits in the hardware now that interrupts are off */
         for (i = 0; i < port->num_tx_queues; i++) {
-                u8 reg_idx = port->tx_ring[i]->reg_idx;
-                IXGBE_WRITE_REG(hw, IXGBE_VFTXDCTL(reg_idx),
-                                IXGBE_TXDCTL_SWFLSH);
-        }
+		ufp_write_reg(hw, IXGBE_VFTXDCTL(i), IXGBE_TXDCTL_SWFLSH);
+	}
 
-        if (!pci_channel_offline(port->pdev))
-                ufp_reset(port);
+	if (!pci_channel_offline(port->pdev))
+		ufp_reset(port);
 
         /* free irqs */
         ufp_free_msix(port);
@@ -543,7 +594,7 @@ static int ufp_down(struct ufp_port *port)
         return 0;
 }
 
-static int __devinit ufp_hw_init(struct ufp_port *port)
+static int ufp_hw_init(struct ufp_port *port)
 {
 	struct ufp_hw *hw = port->hw;
 	struct pci_dev *pdev = port->pdev;
@@ -572,14 +623,14 @@ err_mac_init:
 	return -1;
 }
 
-static void __devexit ufp_hw_free(struct ufp_port *port)
+static void ufp_hw_free(struct ufp_port *port)
 {
 	ufp_mac_free(port->hw);
 	ufp_mbx_free(port->hw);
 	return;
 }
 
-static int __devinit ufp_probe(struct pci_dev *pdev,
+static int ufp_probe(struct pci_dev *pdev,
 	const struct pci_device_id *ent)
 {
 	struct ufp_port *port;
@@ -630,7 +681,6 @@ static int __devinit ufp_probe(struct pci_dev *pdev,
 
         pci_set_drvdata(pdev, port);
         port->pdev = pdev;
-        hw->back = port;
 
 	/* ufp_hw INITIALIZATION */
 	err = ufp_hw_init(port);
@@ -679,12 +729,12 @@ err_alloc:
 	pci_release_regions(pdev);
 err_pci_reg:
 err_dma:
-	pci_disable_device(pdev)
+	pci_disable_device(pdev);
 err_enable_device:
 	return err;
 }
 
-static void __devexit ufp_remove(struct pci_dev *pdev)
+static void ufp_remove(struct pci_dev *pdev)
 {
         struct ufp_port *port = pci_get_drvdata(pdev);
 

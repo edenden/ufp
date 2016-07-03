@@ -9,10 +9,9 @@
 #undef pr_fmt
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#define MIN_MSIX_Q_VECTORS	1
-#define IXGBE_MAX_RSS_INDICES	16
-#define IXGBE_IVAR_ALLOC_VAL    0x80 /* Interrupt Allocation valid */
-#define EVENTFD_INCREMENT	1
+#define IXGBE_IVAR_ALLOC_VAL		0x80 /* Interrupt Allocation valid */
+#define EVENTFD_INCREMENT		1
+#define IXGBEVF_MAX_RX_DESC_POLL	10
 
 enum ufp_irq_type {
 	IXMAP_IRQ_RX = 0,
@@ -23,7 +22,6 @@ struct ufp_mac_info;
 struct ufp_mbx_info;
 
 struct ufp_hw {
-	void			*back;
 	u8 __iomem		*hw_addr;
 	struct ufp_mac_info	*mac;
 	struct ufp_mbx_info	*mbx;
@@ -58,12 +56,11 @@ struct ufp_port {
 	struct ufp_irq		**rx_irq;
 	struct ufp_irq		**tx_irq;
 
-	uint16_t		link_speed;
-	uint16_t		link_duplex;
-
 	uint32_t		num_rx_queues;
 	uint32_t		num_tx_queues;
 	uint16_t		num_interrupt_rate;
+
+	spinlock_t		mbx_lock;
 };
 
 struct ufp_irq {
@@ -80,5 +77,13 @@ uint32_t ufp_read_reg(struct ufp_hw *hw, uint32_t reg);
 void ufp_write_reg(struct ufp_hw *hw, uint32_t reg,
 	uint32_t value);
 void ufp_write_flush(struct ufp_hw *hw);
+int ufp_up(struct ufp_port *port);
+int ufp_down(struct ufp_port *port);
+void ufp_reset(struct ufp_port *port);
+int ufp_irq_assign(struct ufp_port *port, enum ufp_irq_type type,
+	uint32_t queue_idx, int event_fd, uint32_t *vector, uint16_t *entry);
+int ufp_port_inuse(struct ufp_port *port);
+void ufp_port_get(struct ufp_port *port);
+void ufp_port_put(struct ufp_port *port);
 
 #endif /* _UFP_MAIN_H */

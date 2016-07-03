@@ -1,12 +1,12 @@
 #ifndef _UFP_DMA_H
 #define _UFP_DMA_H
 
-uint8_t __iomem *ufp_dma_map_iobase(struct ufp_adapter *ud);
-dma_addr_t ufp_dma_map(struct ufp_adapter *ud,
+uint8_t __iomem *ufp_dma_map_iobase(struct ufp_port *port);
+dma_addr_t ufp_dma_map(struct ufp_port *port,
 	unsigned long addr_virtual, unsigned long size, uint8_t cache);
-int ufp_dma_unmap(struct ufp_adapter *ud, unsigned long addr_dma);
-void ufp_dma_unmap_all(struct ufp_adapter *ud);
-struct ufp_dma_area *ufp_dma_area_lookup(struct ufp_adapter *ud,
+int ufp_dma_unmap(struct ufp_port *port, unsigned long addr_dma);
+void ufp_dma_unmap_all(struct ufp_port *port);
+struct ufp_dma_area *ufp_dma_area_lookup(struct ufp_port *port,
 	unsigned long addr_dma);
 
 enum {
