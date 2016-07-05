@@ -352,27 +352,27 @@ static long ufp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	down(&device->sem);
 
 	switch (cmd) {
-	case IXMAP_INFO:
+	case UFP_INFO:
 		err = ufp_cmd_info(device, argp);
 		break;
 
-	case IXMAP_UP:
+	case UFP_UP:
 		err = ufp_cmd_up(device, argp);
 		break;
 
-	case IXMAP_MAP:
+	case UFP_MAP:
 		err = ufp_cmd_map(device, argp);
 		break;
 
-	case IXMAP_UNMAP:
+	case UFP_UNMAP:
 		err = ufp_cmd_unmap(device, argp);
 		break;
 
-	case IXMAP_DOWN:
+	case UFP_DOWN:
 		err = ufp_cmd_down(device, arg);
 		break;
 
-	case IXMAP_IRQ:
+	case UFP_IRQ:
 		err = ufp_cmd_irq(device, argp);
 		break;
 

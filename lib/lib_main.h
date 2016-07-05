@@ -1,5 +1,5 @@
-#ifndef _IXMAP_H
-#define _IXMAP_H
+#ifndef _LIBUFP_MAIN_H
+#define _LIBUFP_MAIN_H
 
 #include <config.h>
 #include <net/if.h>
@@ -29,9 +29,9 @@
 #define L1_CACHE_BYTES		(1 << L1_CACHE_SHIFT)
 
 #ifdef DEBUG
-#define ixmap_print(args...) printf("ixgbe: " args)
+#define ufp_print(args...) printf("ixgbe: " args)
 #else
-#define ixmap_print(args...)
+#define ufp_print(args...)
 #endif
 
 #define DMA_64BIT_MASK		0xffffffffffffffffULL
@@ -59,7 +59,7 @@
 				IXGBE_EIMS_TCP_TIMER    | \
 				IXGBE_EIMS_OTHER)
 
-struct ixmap_ring {
+struct ufp_ring {
 	void		*addr_virt;
 	unsigned long	addr_dma;
 
@@ -69,15 +69,15 @@ struct ixmap_ring {
 	int32_t		*slot_index;
 };
 
-struct ixmap_desc {
+struct ufp_desc {
 	void			*addr_virt;
-	struct ixmap_mnode	*node;
+	struct ufp_mnode	*node;
 	int			core_id;
 };
 
 #define IXMAP_SLOT_INFLIGHT 0x1
 
-struct ixmap_buf {
+struct ufp_buf {
 	void			*addr_virt;
 	unsigned long		*addr_dma;
 	uint32_t		buf_size;
@@ -85,14 +85,13 @@ struct ixmap_buf {
 	int32_t			*slots;
 };
 
-struct ixmap_handle {
+struct ufp_handle {
  	int			fd;
 	void			*bar;
 	unsigned long		bar_size;
 
-	struct ixmap_ring	*tx_ring;
-	struct ixmap_ring	*rx_ring;
-	struct ixmap_buf	*buf;
+	struct ufp_ring		*tx_ring;
+	struct ufp_ring		*rx_ring;
 
 	uint32_t		num_tx_desc;
 	uint32_t		num_rx_desc;
@@ -108,18 +107,18 @@ struct ixmap_handle {
 	char			interface_name[IFNAMSIZ];
 };
 
-struct ixmap_irq_handle {
+struct ufp_irq_handle {
 	int			fd;
 	uint64_t		qmask;
 	uint32_t		vector;
 };
 
-struct ixmap_port {
+struct ufp_port {
 	void			*irqreg[2];
-	struct ixmap_ring	*rx_ring;
-	struct ixmap_ring	*tx_ring;
-	struct ixmap_irq_handle	*rx_irq;
-	struct ixmap_irq_handle *tx_irq;
+	struct ufp_ring		*rx_ring;
+	struct ufp_ring		*tx_ring;
+	struct ufp_irq_handle	*rx_irq;
+	struct ufp_irq_handle	*tx_irq;
 	uint32_t		rx_slot_next;
 	uint32_t		rx_slot_offset;
 	uint32_t		tx_suspended;
@@ -138,11 +137,11 @@ struct ixmap_port {
 	unsigned long		count_tx_clean_total;
 };
 
-struct ixmap_plane {
-	struct ixmap_port 	*ports;
+struct ufp_plane {
+	struct ufp_port 	*ports;
 };
 
-struct ixmap_packet {
+struct ufp_packet {
 	void			*slot_buf;
 	unsigned int		slot_size;
 	int			slot_index;
@@ -154,13 +153,13 @@ enum {
 	IXGBE_DMA_CACHE_WRITECOMBINE
 };
 
-enum ixmap_irq_type {
+enum ufp_irq_type {
 	IXMAP_IRQ_RX = 0,
 	IXMAP_IRQ_TX,
 };
 
 /* Receive Descriptor - Advanced */
-union ixmap_adv_rx_desc {
+union ufp_adv_rx_desc {
 	struct {
 		uint64_t pkt_addr; /* Packet buffer address */
 		uint64_t hdr_addr; /* Header buffer address */
@@ -191,7 +190,7 @@ union ixmap_adv_rx_desc {
 };
 
 /* Transmit Descriptor - Advanced */
-union ixmap_adv_tx_desc {
+union ufp_adv_tx_desc {
 	struct {
 		uint64_t buffer_addr; /* Address of descriptor's data buf */
 		uint32_t cmd_type_len;
@@ -204,73 +203,55 @@ union ixmap_adv_tx_desc {
 	} wb;
 };
 
-#define IXMAP_INFO		_IOW('E', 201, int)
+#define UFP_INFO                _IOW('E', 201, int)
 /* MAC and PHY info */
-struct ixmap_info_req {
-	unsigned long		mmio_base;
-	unsigned long		mmio_size;
+struct ufp_info_req {
+        __u64                   mmio_base;
+        __u64                   mmio_size;
 
-	uint16_t		mac_type;
-	uint8_t			mac_addr[ETH_ALEN];
-	uint16_t		phy_type;
+        __u32                   num_rx_queues;
+        __u32                   num_tx_queues;
 
-	uint16_t		max_interrupt_rate;
-	uint16_t		num_interrupt_rate;
-	uint32_t		num_rx_queues;
-	uint32_t		num_tx_queues;
-	uint32_t		max_rx_queues;
-	uint32_t		max_tx_queues;
-	uint32_t		max_msix_vectors;
+        __u16                   device_id;
+        __u16                   vendor_id;
 };
 
-#define IXMAP_UP		_IOW('E', 202, int)
-struct ixmap_up_req {
-	uint16_t		num_interrupt_rate;
-	uint32_t		num_rx_queues;
-	uint32_t		num_tx_queues;
+#define UFP_UP          _IOW('E', 202, int)
+struct ufp_up_req {
+        __u32                   num_rx_queues;
+        __u32                   num_tx_queues;
 };
 
-#define IXMAP_DOWN		_IOW('E', 203, int)
-#define IXMAP_RESET		_IOW('E', 204, int)
-#define IXMAP_CHECK_LINK	_IOW('E', 205, int)
+#define UFP_DOWN                _IOW('E', 203, int)
+#define UFP_RESET               _IOW('E', 204, int)
 
-struct ixmap_link_req {
-	uint16_t		speed;
-	uint16_t		duplex;
-	/*
-	 * Indicates that TX/RX flush is necessary
-	 * after link state changed
-	 */
-	uint16_t		flush;
+#define UFP_MAP         _IOW('U', 210, int)
+struct ufp_map_req {
+        __u64                   addr_virtual;
+        __u64                   addr_dma;
+        __u64                   size;
+        __u8                    cache;
 };
 
-#define IXMAP_MAP		_IOW('U', 210, int)
-struct ixmap_map_req {
-	unsigned long		addr_virt;
-	unsigned long		addr_dma;
-	unsigned long		size;
-	uint8_t			cache;
+#define UFP_UNMAP               _IOW('U', 211, int)
+struct ufp_unmap_req {
+        __u64                   addr_dma;
 };
 
-#define IXMAP_UNMAP		_IOW('U', 211, int)
-struct ixmap_unmap_req {
-	unsigned long		addr_dma;
+#define UFP_IRQ         _IOW('E', 220, int)
+struct ufp_irq_req {
+        enum ufp_irq_type       type;
+        __u32                   queue_idx;
+        __s32                   event_fd;
+
+        __u32                   vector;
+        __u16                   entry;
 };
 
-#define IXMAP_IRQ		_IOW('E', 220, int)
-struct ixmap_irq_req {
-	enum ixmap_irq_type	type;
-	uint32_t		queue_idx;
-	int			event_fd;
+inline uint32_t ufp_readl(const volatile void *addr);
+inline void ufp_writel(uint32_t b, volatile void *addr);
+inline uint32_t ufp_read_reg(struct ufp_handle *ih, uint32_t reg);
+inline void ufp_write_reg(struct ufp_handle *ih, uint32_t reg, uint32_t value);
+inline void ufp_write_flush(struct ufp_handle *ih);
 
-	uint32_t		vector;
-	uint16_t		entry;
-};
-
-inline uint32_t ixmap_readl(const volatile void *addr);
-inline void ixmap_writel(uint32_t b, volatile void *addr);
-inline uint32_t ixmap_read_reg(struct ixmap_handle *ih, uint32_t reg);
-inline void ixmap_write_reg(struct ixmap_handle *ih, uint32_t reg, uint32_t value);
-inline void ixmap_write_flush(struct ixmap_handle *ih);
-
-#endif /* _IXMAP_H */
+#endif /* _LIBUFP_MAIN_H */

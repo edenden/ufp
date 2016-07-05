@@ -14,48 +14,48 @@
 #include <pthread.h>
 #include <numa.h>
 
-#include "ixmap.h"
-#include "memory.h"
+#include "lib_main.h"
+#include "lib_mem.h"
 
-static void ixmap_irq_enable_queues(struct ixmap_handle *ih, uint64_t qmask);
-static int ixmap_dma_map(struct ixmap_handle *ih, void *addr_virt,
+static void ufp_irq_enable_queues(struct ufp_handle *ih, uint64_t qmask);
+static int ufp_dma_map(struct ufp_handle *ih, void *addr_virt,
 	unsigned long *addr_dma, unsigned long size);
-static int ixmap_dma_unmap(struct ixmap_handle *ih, unsigned long addr_dma);
-static struct ixmap_irq_handle *ixmap_irq_open(struct ixmap_handle *ih,
-	unsigned int core_id, enum ixmap_irq_type type);
-static void ixmap_irq_close(struct ixmap_irq_handle *irqh);
-static int ixmap_irq_setaffinity(unsigned int vector, unsigned int core_id);
+static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma);
+static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
+	unsigned int core_id, enum ufp_irq_type type);
+static void ufp_irq_close(struct ufp_irq_handle *irqh);
+static int ufp_irq_setaffinity(unsigned int vector, unsigned int core_id);
 
-inline uint32_t ixmap_readl(const volatile void *addr)
+inline uint32_t ufp_readl(const volatile void *addr)
 {
 	return htole32( *(volatile uint32_t *) addr );
 }
 
-inline void ixmap_writel(uint32_t b, volatile void *addr)
+inline void ufp_writel(uint32_t b, volatile void *addr)
 {
 	*(volatile uint32_t *) addr = htole32(b);
 	return;
 }
 
-inline uint32_t ixmap_read_reg(struct ixmap_handle *ih, uint32_t reg)
+inline uint32_t ufp_read_reg(struct ufp_handle *ih, uint32_t reg)
 {
-	uint32_t value = ixmap_readl(ih->bar + reg);
+	uint32_t value = ufp_readl(ih->bar + reg);
 	return value;
 }
 
-inline void ixmap_write_reg(struct ixmap_handle *ih, uint32_t reg, uint32_t value)
+inline void ufp_write_reg(struct ufp_handle *ih, uint32_t reg, uint32_t value)
 {
-	ixmap_writel(value, ih->bar + reg);
+	ufp_writel(value, ih->bar + reg);
 	return;
 }
 
-inline void ixmap_write_flush(struct ixmap_handle *ih)
+inline void ufp_write_flush(struct ufp_handle *ih)
 {
-	ixmap_read_reg(ih, IXGBE_STATUS);
+	ufp_read_reg(ih, IXGBE_STATUS);
 	return;
 }
 
-void ixmap_irq_enable(struct ixmap_handle *ih)
+void ufp_irq_enable(struct ufp_handle *ih)
 {
 	uint32_t mask;
 
@@ -66,40 +66,40 @@ void ixmap_irq_enable(struct ixmap_handle *ih)
 	mask &= ~IXGBE_EIMS_TCP_TIMER;
 	mask &= ~IXGBE_EIMS_OTHER;
 
-	ixmap_write_reg(ih, IXGBE_EIMS, mask);
+	ufp_write_reg(ih, IXGBE_EIMS, mask);
 
-	ixmap_irq_enable_queues(ih, ~0);
-	ixmap_write_flush(ih);
+	ufp_irq_enable_queues(ih, ~0);
+	ufp_write_flush(ih);
 
 	return;
 }
 
-static void ixmap_irq_enable_queues(struct ixmap_handle *ih, uint64_t qmask)
+static void ufp_irq_enable_queues(struct ufp_handle *ih, uint64_t qmask)
 {
 	uint32_t mask;
 
 	mask = (qmask & 0xFFFFFFFF);
 	if (mask)
-		ixmap_write_reg(ih, IXGBE_EIMS_EX(0), mask);
+		ufp_write_reg(ih, IXGBE_EIMS_EX(0), mask);
 	mask = (qmask >> 32);
 	if (mask)
-		ixmap_write_reg(ih, IXGBE_EIMS_EX(1), mask);
+		ufp_write_reg(ih, IXGBE_EIMS_EX(1), mask);
 
 	return;
 }
 
-struct ixmap_plane *ixmap_plane_alloc(struct ixmap_handle **ih_list,
-	struct ixmap_buf *buf, int ih_num, int core_id)
+struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
+	struct ufp_buf *buf, int ih_num, int core_id)
 {
-	struct ixmap_plane *plane;
+	struct ufp_plane *plane;
 	int i, ports_assigned = 0;
 
-	plane = numa_alloc_onnode(sizeof(struct ixmap_plane),
+	plane = numa_alloc_onnode(sizeof(struct ufp_plane),
 		numa_node_of_cpu(core_id));
 	if(!plane)
 		goto err_plane_alloc;
 
-	plane->ports = numa_alloc_onnode(sizeof(struct ixmap_port) * ih_num,
+	plane->ports = numa_alloc_onnode(sizeof(struct ufp_port) * ih_num,
 		numa_node_of_cpu(core_id));
 	if(!plane->ports){
 		printf("failed to allocate port for each plane\n");
@@ -128,12 +128,12 @@ struct ixmap_plane *ixmap_plane_alloc(struct ixmap_handle **ih_list,
 
 		memcpy(plane->ports[i].mac_addr, ih_list[i]->mac_addr, ETH_ALEN);
 
-		plane->ports[i].rx_irq = ixmap_irq_open(ih_list[i], core_id,
+		plane->ports[i].rx_irq = ufp_irq_open(ih_list[i], core_id,
 						IXMAP_IRQ_RX);
 		if(!plane->ports[i].rx_irq)
 			goto err_alloc_irq_rx;
 
-		plane->ports[i].tx_irq = ixmap_irq_open(ih_list[i], core_id,
+		plane->ports[i].tx_irq = ufp_irq_open(ih_list[i], core_id,
 						IXMAP_IRQ_TX);
 		if(!plane->ports[i].tx_irq)
 			goto err_alloc_irq_tx;
@@ -141,7 +141,7 @@ struct ixmap_plane *ixmap_plane_alloc(struct ixmap_handle **ih_list,
 		continue;
 
 err_alloc_irq_tx:
-		ixmap_irq_close(plane->ports[i].rx_irq);
+		ufp_irq_close(plane->ports[i].rx_irq);
 err_alloc_irq_rx:
 		goto err_alloc_plane;
 	}
@@ -150,41 +150,41 @@ err_alloc_irq_rx:
 
 err_alloc_plane:
 	for(i = 0; i < ports_assigned; i++){
-		ixmap_irq_close(plane->ports[i].rx_irq);
-		ixmap_irq_close(plane->ports[i].tx_irq);
+		ufp_irq_close(plane->ports[i].rx_irq);
+		ufp_irq_close(plane->ports[i].tx_irq);
 	}
-	numa_free(plane->ports, sizeof(struct ixmap_port) * ih_num);
+	numa_free(plane->ports, sizeof(struct ufp_port) * ih_num);
 err_alloc_ports:
-	numa_free(plane, sizeof(struct ixmap_plane));
+	numa_free(plane, sizeof(struct ufp_plane));
 err_plane_alloc:
 	return NULL;
 }
 
-void ixmap_plane_release(struct ixmap_plane *plane, int ih_num)
+void ufp_plane_release(struct ufp_plane *plane, int ih_num)
 {
 	int i;
 
 	for(i = 0; i < ih_num; i++){
-		ixmap_irq_close(plane->ports[i].rx_irq);
-		ixmap_irq_close(plane->ports[i].tx_irq);
+		ufp_irq_close(plane->ports[i].rx_irq);
+		ufp_irq_close(plane->ports[i].tx_irq);
 	}
 
-	numa_free(plane->ports, sizeof(struct ixmap_port) * ih_num);
-	numa_free(plane, sizeof(struct ixmap_plane));
+	numa_free(plane->ports, sizeof(struct ufp_port) * ih_num);
+	numa_free(plane, sizeof(struct ufp_plane));
 
 	return;
 }
 
-struct ixmap_desc *ixmap_desc_alloc(struct ixmap_handle **ih_list, int ih_num,
+struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
 	int core_id)
 {
-	struct ixmap_desc *desc;
+	struct ufp_desc *desc;
 	unsigned long size, size_tx_desc, size_rx_desc, size_mem;
 	void *addr_virt, *addr_mem;
 	int i, ret;
 	int desc_assigned = 0;
 
-	desc = numa_alloc_onnode(sizeof(struct ixmap_desc),
+	desc = numa_alloc_onnode(sizeof(struct ufp_desc),
 		numa_node_of_cpu(core_id));
 	if(!desc)
 		goto err_alloc_desc;
@@ -202,18 +202,18 @@ struct ixmap_desc *ixmap_desc_alloc(struct ixmap_handle **ih_list, int ih_num,
 
 	for(i = 0; i < ih_num; i++, desc_assigned++){
 		int *slot_index;
-		struct ixmap_handle *ih;
+		struct ufp_handle *ih;
 		unsigned long addr_dma;
 
 		ih = ih_list[i];
 
-		size_rx_desc = sizeof(union ixmap_adv_rx_desc) * ih->num_rx_desc;
+		size_rx_desc = sizeof(union ufp_adv_rx_desc) * ih->num_rx_desc;
 		size_rx_desc = ALIGN(size_rx_desc, 128); /* needs 128-byte alignment */
-		size_tx_desc = sizeof(union ixmap_adv_tx_desc) * ih->num_tx_desc;
+		size_tx_desc = sizeof(union ufp_adv_tx_desc) * ih->num_tx_desc;
 		size_tx_desc = ALIGN(size_tx_desc, 128); /* needs 128-byte alignment */
 
 		/* Rx descripter ring allocation */
-		ret = ixmap_dma_map(ih, addr_virt, &addr_dma, size_rx_desc);
+		ret = ufp_dma_map(ih, addr_virt, &addr_dma, size_rx_desc);
 		if(ret < 0){
 			goto err_rx_dma_map;
 		}
@@ -234,7 +234,7 @@ struct ixmap_desc *ixmap_desc_alloc(struct ixmap_handle **ih_list, int ih_num,
 		addr_virt += size_rx_desc;
 
 		/* Tx descripter ring allocation */
-		ret = ixmap_dma_map(ih, addr_virt, &addr_dma, size_tx_desc);
+		ret = ufp_dma_map(ih, addr_virt, &addr_dma, size_tx_desc);
 		if(ret < 0){
 			goto err_tx_dma_map;
 		}
@@ -257,12 +257,12 @@ struct ixmap_desc *ixmap_desc_alloc(struct ixmap_handle **ih_list, int ih_num,
 		continue;
 
 err_tx_assign:
-		ixmap_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
+		ufp_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
 err_tx_dma_map:
 		numa_free(ih->rx_ring[core_id].slot_index,
 			sizeof(int32_t) * ih->num_rx_desc);
 err_rx_assign:
-		ixmap_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
+		ufp_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
 err_rx_dma_map:
 		goto err_desc_assign;
 	}
@@ -270,7 +270,7 @@ err_rx_dma_map:
 	addr_mem	= (void *)ALIGN((unsigned long)addr_virt, L1_CACHE_BYTES);
 	size_mem	= size - (addr_mem - desc->addr_virt);
 	desc->core_id	= core_id;
-	desc->node	= ixmap_mem_init(addr_mem, size_mem, core_id);
+	desc->node	= ufp_mem_init(addr_mem, size_mem, core_id);
 	if(!desc->node)
 		goto err_mem_init;
 
@@ -279,57 +279,57 @@ err_rx_dma_map:
 err_mem_init:
 err_desc_assign:
 	for(i = 0; i < desc_assigned; i++){
-		struct ixmap_handle *ih;
+		struct ufp_handle *ih;
 
 		ih = ih_list[i];
 		numa_free(ih->tx_ring[core_id].slot_index,
 			sizeof(int32_t) * ih->num_tx_desc);
-		ixmap_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
+		ufp_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
 		numa_free(ih->rx_ring[core_id].slot_index,
 			sizeof(int32_t) * ih->num_rx_desc);
-		ixmap_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
+		ufp_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
 	}
 	munmap(desc->addr_virt, size);
 err_mmap:
-	numa_free(desc, sizeof(struct ixmap_desc));
+	numa_free(desc, sizeof(struct ufp_desc));
 err_alloc_desc:
 	return NULL;
 }
 
-void ixmap_desc_release(struct ixmap_handle **ih_list, int ih_num,
-	int core_id, struct ixmap_desc *desc)
+void ufp_desc_release(struct ufp_handle **ih_list, int ih_num,
+	int core_id, struct ufp_desc *desc)
 {
 	int i;
 
-	ixmap_mem_destroy(desc->node);
+	ufp_mem_destroy(desc->node);
 
 	for(i = 0; i < ih_num; i++){
-		struct ixmap_handle *ih;
+		struct ufp_handle *ih;
 
 		ih = ih_list[i];
 		numa_free(ih->tx_ring[core_id].slot_index,
 			sizeof(int32_t) * ih->num_tx_desc);
-		ixmap_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
+		ufp_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
 		numa_free(ih->rx_ring[core_id].slot_index,
 			sizeof(int32_t) * ih->num_rx_desc);
-		ixmap_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
+		ufp_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
 	}
 
 	munmap(desc->addr_virt, SIZE_1GB);
-	numa_free(desc, sizeof(struct ixmap_desc));
+	numa_free(desc, sizeof(struct ufp_desc));
 	return;
 }
 
-struct ixmap_buf *ixmap_buf_alloc(struct ixmap_handle **ih_list,
+struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
 	int ih_num, uint32_t count, uint32_t buf_size, int core_id)
 {
-	struct ixmap_buf *buf;
+	struct ufp_buf *buf;
 	void	*addr_virt;
 	unsigned long addr_dma, size;
 	int *slots;
 	int ret, i, mapped_ports = 0;
 
-	buf = numa_alloc_onnode(sizeof(struct ixmap_buf),
+	buf = numa_alloc_onnode(sizeof(struct ufp_buf),
 		numa_node_of_cpu(core_id));
 	if(!buf)
 		goto err_alloc_buf;
@@ -352,9 +352,9 @@ struct ixmap_buf *ixmap_buf_alloc(struct ixmap_handle **ih_list,
 		goto err_mmap;
 
 	for(i = 0; i < ih_num; i++, mapped_ports++){
-		ret = ixmap_dma_map(ih_list[i], addr_virt, &addr_dma, size);
+		ret = ufp_dma_map(ih_list[i], addr_virt, &addr_dma, size);
 		if(ret < 0)
-			goto err_ixmap_dma_map;
+			goto err_ufp_dma_map;
 
 		buf->addr_dma[i] = addr_dma;
 	}
@@ -376,9 +376,9 @@ struct ixmap_buf *ixmap_buf_alloc(struct ixmap_handle **ih_list,
 	return buf;
 
 err_alloc_slots:
-err_ixmap_dma_map:
+err_ufp_dma_map:
 	for(i = 0; i < mapped_ports; i++){
-		ixmap_dma_unmap(ih_list[i], buf->addr_dma[i]);
+		ufp_dma_unmap(ih_list[i], buf->addr_dma[i]);
 	}
 	munmap(addr_virt, size);
 err_mmap:
@@ -386,13 +386,13 @@ err_mmap:
 		sizeof(unsigned long) * ih_num);
 err_alloc_buf_addr_dma:
 	numa_free(buf,
-		sizeof(struct ixmap_buf));
+		sizeof(struct ufp_buf));
 err_alloc_buf:
 	return NULL;
 }
 
-void ixmap_buf_release(struct ixmap_buf *buf,
-	struct ixmap_handle **ih_list, int ih_num)
+void ufp_buf_release(struct ufp_buf *buf,
+	struct ufp_handle **ih_list, int ih_num)
 {
 	int i, ret;
 	unsigned long size;
@@ -401,7 +401,7 @@ void ixmap_buf_release(struct ixmap_buf *buf,
 		sizeof(int32_t) * (buf->count * ih_num));
 
 	for(i = 0; i < ih_num; i++){
-		ret = ixmap_dma_unmap(ih_list[i], buf->addr_dma[i]);
+		ret = ufp_dma_unmap(ih_list[i], buf->addr_dma[i]);
 		if(ret < 0)
 			perror("failed to unmap buf");
 	}
@@ -411,15 +411,15 @@ void ixmap_buf_release(struct ixmap_buf *buf,
 	numa_free(buf->addr_dma,
 		sizeof(unsigned long) * ih_num);
 	numa_free(buf,
-		sizeof(struct ixmap_buf));
+		sizeof(struct ufp_buf));
 
 	return;
 }
 
-static int ixmap_dma_map(struct ixmap_handle *ih, void *addr_virt,
+static int ufp_dma_map(struct ufp_handle *ih, void *addr_virt,
 	unsigned long *addr_dma, unsigned long size)
 {
-	struct ixmap_map_req req_map;
+	struct ufp_map_req req_map;
 
 	req_map.addr_virt = (unsigned long)addr_virt;
 	req_map.addr_dma = 0;
@@ -433,9 +433,9 @@ static int ixmap_dma_map(struct ixmap_handle *ih, void *addr_virt,
 	return 0;
 }
 
-static int ixmap_dma_unmap(struct ixmap_handle *ih, unsigned long addr_dma)
+static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma)
 {
-	struct ixmap_unmap_req req_unmap;
+	struct ufp_unmap_req req_unmap;
 
 	req_unmap.addr_dma = addr_dma;
 
@@ -445,21 +445,21 @@ static int ixmap_dma_unmap(struct ixmap_handle *ih, unsigned long addr_dma)
 	return 0;
 }
 
-struct ixmap_handle *ixmap_open(unsigned int port_index,
+struct ufp_handle *ufp_open(unsigned int port_index,
 	unsigned int num_queues_req, unsigned short intr_rate,
 	unsigned int rx_budget, unsigned int tx_budget,
 	unsigned int mtu_frame, unsigned int promisc,
 	unsigned int num_rx_desc, unsigned int num_tx_desc)
 {
-	struct ixmap_handle *ih;
+	struct ufp_handle *ih;
 	char filename[FILENAME_SIZE];
-	struct ixmap_info_req req_info;
-	struct ixmap_up_req req_up;
+	struct ufp_info_req req_info;
+	struct ufp_up_req req_up;
 
-	ih = malloc(sizeof(struct ixmap_handle));
+	ih = malloc(sizeof(struct ufp_handle));
 	if (!ih)
 		goto err_alloc_ih;
-	memset(ih, 0, sizeof(struct ixmap_handle));
+	memset(ih, 0, sizeof(struct ufp_handle));
 
 	snprintf(filename, sizeof(filename), "/dev/%s%d",
 		IXMAP_IFNAME, port_index);
@@ -468,12 +468,12 @@ struct ixmap_handle *ixmap_open(unsigned int port_index,
 		goto err_open;
 
 	/* Get device information */
-	memset(&req_info, 0, sizeof(struct ixmap_info_req));
+	memset(&req_info, 0, sizeof(struct ufp_info_req));
 	if(ioctl(ih->fd, IXMAP_INFO, (unsigned long)&req_info) < 0)
 		goto err_ioctl_info;
 
 	/* UP the device */
-	memset(&req_up, 0, sizeof(struct ixmap_up_req));
+	memset(&req_up, 0, sizeof(struct ufp_up_req));
 
 	ih->num_interrupt_rate =
 		min(intr_rate, req_info.max_interrupt_rate);
@@ -494,13 +494,17 @@ struct ixmap_handle *ixmap_open(unsigned int port_index,
 	if(ih->bar == MAP_FAILED)
 		goto err_mmap;
 
-	ih->rx_ring = malloc(sizeof(struct ixmap_ring) * ih->num_queues);
+	ih->rx_ring = malloc(sizeof(struct ufp_ring) * ih->num_queues);
 	if(!ih->rx_ring)
 		goto err_alloc_rx_ring;
 
-	ih->tx_ring = malloc(sizeof(struct ixmap_ring) * ih->num_queues);
+	ih->tx_ring = malloc(sizeof(struct ufp_ring) * ih->num_queues);
 	if(!ih->tx_ring)
 		goto err_alloc_tx_ring;
+
+	ih->ops = ufp_ops_init(req_info.device_id);
+	if(!ih->ops)
+		goto err_ops_init;
 
 	ih->bar_size = req_info.mmio_size;
 	ih->promisc = !!promisc;
@@ -515,6 +519,8 @@ struct ixmap_handle *ixmap_open(unsigned int port_index,
 
 	return ih;
 
+err_ops_init:
+	free(ih->tx_ring);
 err_alloc_tx_ring:
 	free(ih->rx_ring);
 err_alloc_rx_ring:
@@ -529,8 +535,10 @@ err_alloc_ih:
 	return NULL;
 }
 
-void ixmap_close(struct ixmap_handle *ih)
+void ufp_close(struct ufp_handle *ih)
 {
+	ufp_ops_destroy(ih->ops);
+
 	free(ih->tx_ring);
 	free(ih->rx_ring);
 	munmap(ih->bar, ih->bar_size);
@@ -540,28 +548,28 @@ void ixmap_close(struct ixmap_handle *ih)
 	return;
 }
 
-unsigned int ixmap_bufsize_get(struct ixmap_handle *ih)
+unsigned int ufp_bufsize_get(struct ufp_handle *ih)
 {
 	return ih->buf_size;
 }
 
-uint8_t *ixmap_macaddr_default(struct ixmap_handle *ih)
+uint8_t *ufp_macaddr_default(struct ufp_handle *ih)
 {
 	return ih->mac_addr;
 }
 
-unsigned int ixmap_mtu_get(struct ixmap_handle *ih)
+unsigned int ufp_mtu_get(struct ufp_handle *ih)
 {
 	return ih->mtu_frame;
 }
 
-static struct ixmap_irq_handle *ixmap_irq_open(struct ixmap_handle *ih,
-	unsigned int core_id, enum ixmap_irq_type type)
+static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
+	unsigned int core_id, enum ufp_irq_type type)
 {
-	struct ixmap_irq_handle *irqh;
+	struct ufp_irq_handle *irqh;
 	uint64_t qmask;
 	int efd, ret;
-	struct ixmap_irq_req req;
+	struct ufp_irq_req req;
 
 	if(core_id >= ih->num_queues){
 		goto err_invalid_core_id;
@@ -581,7 +589,7 @@ static struct ixmap_irq_handle *ixmap_irq_open(struct ixmap_handle *ih,
 		goto err_irq_assign;
 	}
 
-	ret = ixmap_irq_setaffinity(req.vector, core_id);
+	ret = ufp_irq_setaffinity(req.vector, core_id);
 	if(ret < 0){
 		printf("failed to set afinity\n");
 		goto err_irq_setaffinity;
@@ -598,7 +606,7 @@ static struct ixmap_irq_handle *ixmap_irq_open(struct ixmap_handle *ih,
 		goto err_undefined_type;
 	}
 
-	irqh = numa_alloc_onnode(sizeof(struct ixmap_irq_handle),
+	irqh = numa_alloc_onnode(sizeof(struct ufp_irq_handle),
 		numa_node_of_cpu(core_id));
 	if(!irqh)
 		goto err_alloc_handle;
@@ -619,15 +627,15 @@ err_invalid_core_id:
 	return NULL;
 }
 
-static void ixmap_irq_close(struct ixmap_irq_handle *irqh)
+static void ufp_irq_close(struct ufp_irq_handle *irqh)
 {
 	close(irqh->fd);
-	numa_free(irqh, sizeof(struct ixmap_irq_handle));
+	numa_free(irqh, sizeof(struct ufp_irq_handle));
 
 	return;
 }
 
-static int ixmap_irq_setaffinity(unsigned int vector, unsigned int core_id)
+static int ufp_irq_setaffinity(unsigned int vector, unsigned int core_id)
 {
 	FILE *file;
 	char filename[FILENAME_SIZE];
@@ -660,11 +668,11 @@ err_open_proc:
 	return -1;
 }
 
-int ixmap_irq_fd(struct ixmap_plane *plane, unsigned int port_index,
-	enum ixmap_irq_type type)
+int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_index,
+	enum ufp_irq_type type)
 {
-	struct ixmap_port *port;
-	struct ixmap_irq_handle *irqh;
+	struct ufp_port *port;
+	struct ufp_irq_handle *irqh;
 
 	port = &plane->ports[port_index];
 
@@ -685,11 +693,11 @@ err_undefined_type:
 	return -1;
 }
 
-struct ixmap_irq_handle *ixmap_irq_handle(struct ixmap_plane *plane,
-	unsigned int port_index, enum ixmap_irq_type type)
+struct ufp_irq_handle *ufp_irq_handle(struct ufp_plane *plane,
+	unsigned int port_index, enum ufp_irq_type type)
 {
-	struct ixmap_port *port;
-	struct ixmap_irq_handle *irqh;
+	struct ufp_port *port;
+	struct ufp_irq_handle *irqh;
 
 	port = &plane->ports[port_index];
 

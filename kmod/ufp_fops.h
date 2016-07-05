@@ -3,7 +3,7 @@
 
 #define MISCDEV_NAME_SIZE	32
 
-#define IXMAP_INFO		_IOW('E', 201, int)
+#define UFP_INFO		_IOW('E', 201, int)
 /* MAC and PHY info */
 struct ufp_info_req {
 	__u64			mmio_base;
@@ -16,16 +16,16 @@ struct ufp_info_req {
 	__u16			vendor_id;
 };
 
-#define IXMAP_UP		_IOW('E', 202, int)
+#define UFP_UP		_IOW('E', 202, int)
 struct ufp_up_req {
 	__u32			num_rx_queues;
 	__u32			num_tx_queues;
 };
 
-#define IXMAP_DOWN		_IOW('E', 203, int)
-#define IXMAP_RESET		_IOW('E', 204, int)
+#define UFP_DOWN		_IOW('E', 203, int)
+#define UFP_RESET		_IOW('E', 204, int)
 
-#define IXMAP_MAP		_IOW('U', 210, int)
+#define UFP_MAP		_IOW('U', 210, int)
 struct ufp_map_req {
 	__u64			addr_virtual;
 	__u64			addr_dma;
@@ -33,12 +33,12 @@ struct ufp_map_req {
 	__u8			cache;
 };
 
-#define IXMAP_UNMAP		_IOW('U', 211, int)
+#define UFP_UNMAP		_IOW('U', 211, int)
 struct ufp_unmap_req {
 	__u64			addr_dma;
 };
 
-#define IXMAP_IRQ		_IOW('E', 220, int)
+#define UFP_IRQ		_IOW('E', 220, int)
 struct ufp_irq_req {
 	enum ufp_irq_type	type;
 	__u32			queue_idx;
