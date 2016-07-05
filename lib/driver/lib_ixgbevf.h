@@ -88,40 +88,12 @@
 #define IXGBE_MAX_EITR			0x00000FF8
 #define IXGBE_EITR_CNT_WDIS		0x80000000
 
-struct ufp_mac_operations {
-	int32_t (*reset_hw)(struct ufp_hw *);
-	int32_t (*stop_adapter)(struct ufp_hw *);
-	int32_t (*negotiate_api)(struct ufp_hw *, uint32_t);
-	int32_t (*get_queues)(struct ufp_hw *, uint32_t *, uint32_t *);
-	int32_t (*update_xcast_mode)(struct ufp_hw *, int);
-	int32_t (*set_rlpml)(struct ufp_hw *, uint16_t);
+struct ufp_ixgbevf_data {
+	int32_t		mc_filter_type;
+	int		api_version;
 };
 
-enum ufp_mac_type {
-	ixgbe_mac_unknown = 0,
-	ixgbe_mac_82598EB,
-	ixgbe_mac_82599EB,
-	ixgbe_mac_82599_vf,
-	ixgbe_mac_X540,
-	ixgbe_mac_X540_vf,
-	ixgbe_mac_X550,
-	ixgbe_mac_X550EM_x,
-	ixgbe_mac_X550_vf,
-	ixgbe_mac_X550EM_x_vf,
-	ixgbe_num_macs
-};
-
-struct ufp_mac_info {
-	struct ufp_mac_operations	ops;
-	enum ufp_mac_type		type;
-
-	uint8_t				perm_addr[6];
-	int32_t				mc_filter_type;
-	uint32_t			max_tx_queues;
-	uint32_t			max_rx_queues;
-};
-
-int ufp_mac_init(struct ufp_hw *hw);
-void ufp_mac_free(struct ufp_hw *hw);
+int ufp_ixgbevf_init(struct ufp_ops *ops);
+void ufp_ixgbevf_destroy(struct ufp_ops *ops);
 
 #endif /* _UFP_MAC_H__ */

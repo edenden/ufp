@@ -15,49 +15,30 @@ static int32_t ufp_mac_negotiate_api_version(struct ufp_hw *hw, uint32_t api);
 static int32_t ufp_mac_get_queues(struct ufp_hw *hw, uint32_t *num_tcs,
 	uint32_t *default_tc);
 
-int ufp_mac_init(struct ufp_hw *hw)
+int ufp_ixgbevf_init(struct ufp_ops *ops)
 {
-	struct ufp_mac_info *mac;
+	struct ufp_ixgbevf_data *data;
 
-	mac = kzalloc(sizeof(struct ufp_mac_info), GFP_KERNEL);
-	if(!mac){
-		return -1;
-	}
+	data = malloc(sizeof(struct ufp_ixgbevf_data));
+	if(!data)
+		goto err_alloc_data;
 
-	mac->ops.reset_hw		= ufp_mac_reset;
-	mac->ops.stop_adapter		= ufp_mac_stop_adapter;
-	mac->ops.negotiate_api		= ufp_mac_negotiate_api_version;
-	mac->ops.get_queues		= ufp_mac_get_queues;
-	mac->ops.update_xcast_mode	= ufp_mac_update_xcast_mode;
-	mac->ops.set_rlpml		= ufp_mac_set_rlpml;
+	data->mc_filter = 0;
+	data->api_version = ixgbe_mbox_api_unknown;
 
-	switch(hw->device_id){
-	case IXGBE_DEV_ID_82599_VF:
-		mac->type = ixgbe_mac_82599_vf;
-		break;
-	case IXGBE_DEV_ID_X540_VF:
-		mac->type = ixgbe_mac_X540_vf;
-		break;
-	case IXGBE_DEV_ID_X550_VF:
-		mac->type = ixgbe_mac_X550_vf;
-		break;
-	case IXGBE_DEV_ID_X550EM_X_VF:
-		mac->type = ixgbe_mac_X550EM_x_vf;
-		break;
-	default:
-		mac->type = ixgbe_mac_unknown;
-		break;
-	}
+	ops->data		= data;
 
-	hw->mac = mac;
+	ops->reset_hw		= ufp_ixgbevf_reset;
+
 	return 0;
+
+err_alloc_data:
+	return -1;
 }
 
-void ufp_mac_free(struct ufp_hw *hw)
+void ufp_ixgbevf_destroy(struct ufp_ops *ops)
 {
-	kfree(hw->mac);
-	hw->mac = NULL;
-
+	free(ops->data);
 	return;
 }
 
@@ -101,12 +82,55 @@ static void ufp_mac_clr_reg(struct ufp_hw *hw)
 	ufp_write_flush(hw);
 }
 
+static int32_t ufp_ixgbevf_negotiate_api(struct ufp_hw *hw)
+{
+	struct ufp_mbx_info *mbx = hw->mbx;
+	int32_t err, i = 0;
+	uint32_t msg[3];
+
+	enum ufp_mbx_api_rev api[] = {
+		ixgbe_mbox_api_12,
+		ixgbe_mbox_api_11,
+		ixgbe_mbox_api_10,
+		ixgbe_mbox_api_unknown
+	};
+
+	while (api[i] != ixgbe_mbox_api_unknown) {
+
+		/* Negotiate the mailbox API version */
+		msg[0] = IXGBE_VF_API_NEGOTIATE;
+		msg[1] = api[i];
+		msg[2] = 0;
+
+		err = mbx->ops.write_posted(hw, msg, 3);
+		if(err) 
+			goto err_write;
+
+		err = mbx->ops.read_posted(hw, msg, 3);
+		if(err) 
+			goto err_read;
+
+		msg[0] &= ~IXGBE_VT_MSGTYPE_CTS;
+
+		if (msg[0] == (IXGBE_VF_API_NEGOTIATE | IXGBE_VT_MSGTYPE_ACK))
+			break;
+
+		i++;
+	}
+
+	return api[i];
+
+err_read:
+err_write:
+        return -1;
+}
+
 static int32_t ufp_mac_reset(struct ufp_hw *hw)
 {
 	struct ufp_mbx_info *mbx = hw->mbx;
 	struct ufp_mac_info *mac = hw->mac;
 	uint32_t timeout = IXGBE_VF_INIT_TIMEOUT;
-	int32_t err;
+	int err, i = 0;
 	uint32_t msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
 	uint8_t *addr = (uint8_t *)(&msgbuf[1]);
 
@@ -160,7 +184,7 @@ static int32_t ufp_mac_reset(struct ufp_hw *hw)
 		memcpy(mac->perm_addr, addr, 6);
 
 	mac->mc_filter_type = msgbuf[IXGBE_VF_MC_TYPE_WORD];
-
+	mac->api_version = ufp_ixgbevf_negotiate_api();
 	return 0;
 
 err_read_mac_addr:
@@ -251,39 +275,6 @@ static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size)
 
 	return 0;
 
-err_read:
-err_write:
-	return -1;
-}
-
-static int32_t ufp_mac_negotiate_api_version(struct ufp_hw *hw, uint32_t api)
-{
-	struct ufp_mbx_info *mbx = hw->mbx;
-	int32_t err;
-	uint32_t msg[3];
-
-	/* Negotiate the mailbox API version */
-	msg[0] = IXGBE_VF_API_NEGOTIATE;
-	msg[1] = api;
-	msg[2] = 0;
-
-	err = mbx->ops.write_posted(hw, msg, 3);
-	if(err)
-		goto err_write;
-
-	err = mbx->ops.read_posted(hw, msg, 3);
-	if(err)
-		goto err_read;
-
-	msg[0] &= ~IXGBE_VT_MSGTYPE_CTS;
-
-	if (msg[0] != (IXGBE_VF_API_NEGOTIATE | IXGBE_VT_MSGTYPE_ACK))
-		goto err_invalid_argument;
-
-	hw->api_version = api;
-	return 0;
-
-err_invalid_argument:
 err_read:
 err_write:
 	return -1;
