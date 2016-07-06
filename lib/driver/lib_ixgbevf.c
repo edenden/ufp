@@ -9,6 +9,8 @@
 static int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih);
 static int ufp_ixgbevf_get_queues(struct ufp_handle *ih);
 
+static int ufp_ixgbevf_get_intr_rate(struct ufp_handle *ih);
+
 static void ufp_ixgbevf_stop_adapter(struct ufp_handle *ih);
 static void ufp_ixgbevf_clr_reg(struct ufp_handle *ih)
 static int ufp_ixgbevf_reset(struct ufp_handle *ih);
@@ -88,7 +90,7 @@ err_write:
         return -1;
 }
 
-static int ufp_mac_get_queues(struct ufp_handle *ih)
+static int ufp_ixgbevf_get_queues(struct ufp_handle *ih)
 {
 	int32_t err;
 	uint32_t msg[5];
@@ -160,6 +162,12 @@ err_read:
 err_write:
 err_nego_api:
         return -1;
+}
+
+static int ufp_ixgbevf_get_intr_rate(struct ufp_handle *ih)
+{
+	ih->num_interrupt_rate = IXGBE_MAX_EITR;
+	return 0;
 }
 
 static void ufp_mac_stop_adapter(struct ufp_handle *ih)

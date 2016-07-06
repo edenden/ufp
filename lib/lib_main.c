@@ -522,7 +522,6 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	ih->mtu_frame = mtu_frame;
 	ih->num_rx_desc = num_rx_desc;
 	ih->num_tx_desc = num_tx_desc;
-	memcpy(ih->mac_addr, req_info.mac_addr, ETH_ALEN);
 	snprintf(ih->interface_name, sizeof(ih->interface_name), "%s%d",
 		IXMAP_IFNAME, port_index);
 
@@ -550,10 +549,10 @@ err_alloc_ih:
 
 void ufp_close(struct ufp_handle *ih)
 {
-	ufp_ops_destroy(ih->ops);
-
 	free(ih->tx_ring);
 	free(ih->rx_ring);
+	ufp_ops_destroy(ih->ops);
+
 	munmap(ih->bar, ih->bar_size);
 	close(ih->fd);
 	free(ih);
