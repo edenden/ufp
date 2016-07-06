@@ -302,6 +302,62 @@ err_reset_failed:
 	return -1;
 }
 
+static void ufp_write_eitr(struct ufp_port *port, int vector)
+{
+	struct ufp_hw *hw = port->hw;
+	uint32_t itr_reg = port->num_interrupt_rate & IXGBE_MAX_EITR;
+
+	/*
+	 * set the WDIS bit to not clear the timer bits and cause an
+	 * immediate assertion of the interrupt
+	 */
+	itr_reg |= IXGBE_EITR_CNT_WDIS;
+	ufp_write_reg(hw, IXGBE_VTEITR(vector), itr_reg);
+}
+
+static void ufp_set_ivar(struct ufp_port *port,
+        int8_t direction, uint8_t queue, uint8_t msix_vector)
+{
+	uint32_t ivar, index;
+	struct ufp_hw *hw = port->hw;
+
+	/* tx or rx causes */
+	msix_vector |= IXGBE_IVAR_ALLOC_VAL;
+	index = ((16 * (queue & 1)) + (8 * direction));
+	ivar = ufp_read_reg(hw, IXGBE_VTIVAR(queue >> 1));
+	ivar &= ~(0xFF << index);
+	ivar |= (msix_vector << index);
+	ufp_write_reg(hw, IXGBE_VTIVAR(queue >> 1), ivar);
+}
+
+static int ufp_ixgbevf_intr_configure(struct ufp_handle *ih)
+{
+	unsigned int qmask = 0;
+
+	for(queue_idx = 0, vector = 0; queue_idx < port->num_rx_queues;
+	queue_idx++, vector++, num_rx_requested++){
+		/* set RX queue interrupt */
+		ufp_set_ivar(port, 0, queue_idx, vector);
+		ufp_write_eitr(port, vector);
+		qmask |= 1 << vector;
+	}
+
+	for(queue_idx = 0; queue_idx < port->num_tx_queues;
+	queue_idx++, vector++, num_tx_requested++){
+		/* set TX queue interrupt */
+		ufp_set_ivar(port, 1, queue_idx, vector);
+		ufp_write_eitr(port, vector);
+		qmask |= 1 << vector;
+	}
+
+	/* clear any pending interrupts, may auto mask */
+	IXGBE_READ_REG(hw, IXGBE_VTEICR);
+
+	ufp_write_reg(hw, IXGBE_VTEIAM, qmask);
+	ufp_write_reg(hw, IXGBE_VTEIAC, qmask);
+	ufp_write_reg(hw, IXGBE_VTEIMS, qmask);
+}
+
 static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
 {
 	struct ufp_mbx_info *mbx = hw->mbx;

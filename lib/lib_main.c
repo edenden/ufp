@@ -17,7 +17,6 @@
 #include "lib_main.h"
 #include "lib_mem.h"
 
-static void ufp_irq_enable_queues(struct ufp_handle *ih, uint64_t qmask);
 static int ufp_dma_map(struct ufp_handle *ih, void *addr_virt,
 	unsigned long *addr_dma, unsigned long size);
 static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma);
@@ -52,39 +51,6 @@ inline void ufp_write_reg(struct ufp_handle *ih, uint32_t reg, uint32_t value)
 inline void ufp_write_flush(struct ufp_handle *ih)
 {
 	ufp_read_reg(ih, 0x00008);
-	return;
-}
-
-void ufp_irq_enable(struct ufp_handle *ih)
-{
-	uint32_t mask;
-
-	mask = (IXGBE_EIMS_ENABLE_MASK & ~IXGBE_EIMS_RTX_QUEUE);
-
-	/* XXX: Currently we don't support misc interrupts */
-	mask &= ~IXGBE_EIMS_LSC;
-	mask &= ~IXGBE_EIMS_TCP_TIMER;
-	mask &= ~IXGBE_EIMS_OTHER;
-
-	ufp_write_reg(ih, IXGBE_EIMS, mask);
-
-	ufp_irq_enable_queues(ih, ~0);
-	ufp_write_flush(ih);
-
-	return;
-}
-
-static void ufp_irq_enable_queues(struct ufp_handle *ih, uint64_t qmask)
-{
-	uint32_t mask;
-
-	mask = (qmask & 0xFFFFFFFF);
-	if (mask)
-		ufp_write_reg(ih, IXGBE_EIMS_EX(0), mask);
-	mask = (qmask >> 32);
-	if (mask)
-		ufp_write_reg(ih, IXGBE_EIMS_EX(1), mask);
-
 	return;
 }
 
@@ -484,19 +450,19 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	if(!ih->ops)
 		goto err_ops_init;
 
-	err = ih->ops.get_queues(ih);
+	err = ufp_ops_get_queues(ih);
 	if(err < 0)
 		goto err_ops_get_queues;
 
 	ih->num_queues = min(ih->num_queues, num_queues_req);
 
-	err = ih->ops.get_intr_rate(ih);
+	err = ufp_ops_get_intr_rate(ih);
 	if(err < 0)
 		goto err_ops_get_intr_rate;
 
 	ih->num_interrupt_rate = min(ih->num_interrupt_rate, intr_rate);
 
-	err = ih->ops.reset_hw(ih);
+	err = ufp_ops_reset_hw(ih);
 	if(err < 0)
 		goto err_ops_reset_hw;
 
@@ -506,6 +472,10 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	req_up.num_tx_queues = ih->num_queues;
 	if(ioctl(ih->fd, IXMAP_UP, (unsigned long)&req_up) < 0)
 		goto err_ioctl_up;
+
+#	err = ufp_ops_intr_configure(ih);
+#	if(err < 0)
+#		goto err_intr_configure;
 
 	ih->rx_ring = malloc(sizeof(struct ufp_ring) * ih->num_queues);
 	if(!ih->rx_ring)

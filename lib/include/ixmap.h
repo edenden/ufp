@@ -39,7 +39,6 @@ enum ixmap_irq_type {
 	IXMAP_IRQ_TX,
 };
 
-void ixmap_irq_enable(struct ixmap_handle *ih);
 struct ixmap_plane *ixmap_plane_alloc(struct ixmap_handle **ih_list,
 	struct ixmap_buf *buf, int ih_num, int core_id);
 void ixmap_plane_release(struct ixmap_plane *plane, int ih_num);
