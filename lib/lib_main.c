@@ -51,7 +51,7 @@ inline void ufp_write_reg(struct ufp_handle *ih, uint32_t reg, uint32_t value)
 
 inline void ufp_write_flush(struct ufp_handle *ih)
 {
-	ufp_read_reg(ih, IXGBE_STATUS);
+	ufp_read_reg(ih, 0x00008);
 	return;
 }
 
@@ -455,6 +455,7 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	char filename[FILENAME_SIZE];
 	struct ufp_info_req req_info;
 	struct ufp_up_req req_up;
+	int err;
 
 	ih = malloc(sizeof(struct ufp_handle));
 	if (!ih)
@@ -469,30 +470,42 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 
 	/* Get device information */
 	memset(&req_info, 0, sizeof(struct ufp_info_req));
-	if(ioctl(ih->fd, IXMAP_INFO, (unsigned long)&req_info) < 0)
+	err = ioctl(ih->fd, IXMAP_INFO, (unsigned long)&req_info);
+	if(err < 0)
 		goto err_ioctl_info;
-
-	/* UP the device */
-	memset(&req_up, 0, sizeof(struct ufp_up_req));
-
-	ih->num_interrupt_rate =
-		min(intr_rate, req_info.max_interrupt_rate);
-	req_up.num_interrupt_rate = ih->num_interrupt_rate;
-
-	ih->num_queues =
-		min(req_info.max_rx_queues, req_info.max_tx_queues);
-	ih->num_queues = min(num_queues_req, ih->num_queues);
-	req_up.num_rx_queues = ih->num_queues;
-	req_up.num_tx_queues = ih->num_queues;
-
-	if(ioctl(ih->fd, IXMAP_UP, (unsigned long)&req_up) < 0)
-		goto err_ioctl_up;
 
 	/* Map PCI config register space */
 	ih->bar = mmap(NULL, req_info.mmio_size,
 		PROT_READ | PROT_WRITE, MAP_SHARED, ih->fd, 0);
 	if(ih->bar == MAP_FAILED)
 		goto err_mmap;
+
+	ih->ops = ufp_ops_init(req_info.device_id);
+	if(!ih->ops)
+		goto err_ops_init;
+
+	err = ih->ops.get_queues(ih);
+	if(err < 0)
+		goto err_ops_get_queues;
+
+	ih->num_queues = min(ih->num_queues, num_queues_req);
+
+	err = ih->ops.get_intr_rate(ih);
+	if(err < 0)
+		goto err_ops_get_intr_rate;
+
+	ih->num_interrupt_rate = min(ih->num_interrupt_rate, intr_rate);
+
+	err = ih->ops.reset_hw(ih);
+	if(err < 0)
+		goto err_ops_reset_hw;
+
+	/* UP the device */
+	memset(&req_up, 0, sizeof(struct ufp_up_req));
+	req_up.num_rx_queues = ih->num_queues;
+	req_up.num_tx_queues = ih->num_queues;
+	if(ioctl(ih->fd, IXMAP_UP, (unsigned long)&req_up) < 0)
+		goto err_ioctl_up;
 
 	ih->rx_ring = malloc(sizeof(struct ufp_ring) * ih->num_queues);
 	if(!ih->rx_ring)
@@ -501,10 +514,6 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	ih->tx_ring = malloc(sizeof(struct ufp_ring) * ih->num_queues);
 	if(!ih->tx_ring)
 		goto err_alloc_tx_ring;
-
-	ih->ops = ufp_ops_init(req_info.device_id);
-	if(!ih->ops)
-		goto err_ops_init;
 
 	ih->bar_size = req_info.mmio_size;
 	ih->promisc = !!promisc;
@@ -519,14 +528,18 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 
 	return ih;
 
-err_ops_init:
-	free(ih->tx_ring);
 err_alloc_tx_ring:
 	free(ih->rx_ring);
 err_alloc_rx_ring:
+err_ioctl_up:
+	ufp_ops_destroy(ih->ops);
+
+err_ops_reset_hw:
+err_ops_get_intr_rate:
+err_ops_get_queues:
+err_ops_init:
 	munmap(ih->bar, ih->bar_size);
 err_mmap:
-err_ioctl_up:
 err_ioctl_info:
 	close(ih->fd);
 err_open:
