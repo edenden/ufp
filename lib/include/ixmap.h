@@ -51,7 +51,7 @@ struct ixmap_buf *ixmap_buf_alloc(struct ixmap_handle **ih_list,
 void ixmap_buf_release(struct ixmap_buf *buf,
 	struct ixmap_handle **ih_list, int ih_num);
 struct ixmap_handle *ixmap_open(unsigned int port_index,
-	unsigned int num_queues_req, unsigned short intr_rate,
+	unsigned int num_queues_req, unsigned int intr_rate,
 	unsigned int rx_budget, unsigned int tx_budget,
 	unsigned int mtu_frame, unsigned int promisc,
 	unsigned int num_rx_desc, unsigned int num_tx_desc);

@@ -412,7 +412,7 @@ static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma)
 }
 
 struct ufp_handle *ufp_open(unsigned int port_index,
-	unsigned int num_queues_req, unsigned short intr_rate,
+	unsigned int num_queues_req, unsigned int intr_rate,
 	unsigned int rx_budget, unsigned int tx_budget,
 	unsigned int mtu_frame, unsigned int promisc,
 	unsigned int num_rx_desc, unsigned int num_tx_desc)
@@ -456,12 +456,6 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 
 	ih->num_queues = min(ih->num_queues, num_queues_req);
 
-	err = ufp_ops_get_intr_rate(ih);
-	if(err < 0)
-		goto err_ops_get_intr_rate;
-
-	ih->num_interrupt_rate = min(ih->num_interrupt_rate, intr_rate);
-
 	err = ufp_ops_reset_hw(ih);
 	if(err < 0)
 		goto err_ops_reset_hw;
@@ -473,9 +467,10 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	if(ioctl(ih->fd, IXMAP_UP, (unsigned long)&req_up) < 0)
 		goto err_ioctl_up;
 
-#	err = ufp_ops_intr_configure(ih);
-#	if(err < 0)
-#		goto err_intr_configure;
+	ih->num_interrupt_rate = intr_rate;
+	err = ufp_ops_irq_configure(ih);
+	if(err < 0)
+		goto err_ops_irq_configure;
 
 	ih->rx_ring = malloc(sizeof(struct ufp_ring) * ih->num_queues);
 	if(!ih->rx_ring)
@@ -500,6 +495,7 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 err_alloc_tx_ring:
 	free(ih->rx_ring);
 err_alloc_rx_ring:
+err_ops_irq_configure:
 err_ioctl_up:
 	ufp_ops_destroy(ih->ops);
 

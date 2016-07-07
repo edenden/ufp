@@ -72,21 +72,16 @@ int ufp_ops_get_queues(struct ufp_handle *ih)
 	return err;
 }
 
-int ufp_ops_get_intr_rate(struct ufp_handle *ih)
+int ufp_ops_irq_configure(struct ufp_handle *ih)
 {
 	int err;
 
-	if(ih->ops->get_intr_rate)
-		err = ih->ops->get_intr_rate(ih);
+	if(ih->ops->irq_configure)
+		err = ih->ops->irq_configure(ih);
 	else
 		err = 0;
 
 	return err;
-}
-
-int ufp_ops_intr_configure(struct ufp_handle *ih)
-{
-
 }
 
 int ufp_ops_rx_configure(struct ufp_handle *ih)

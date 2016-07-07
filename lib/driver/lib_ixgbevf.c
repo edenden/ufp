@@ -9,11 +9,15 @@
 static int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih);
 static int ufp_ixgbevf_get_queues(struct ufp_handle *ih);
 
-static int ufp_ixgbevf_get_intr_rate(struct ufp_handle *ih);
-
 static void ufp_ixgbevf_stop_adapter(struct ufp_handle *ih);
 static void ufp_ixgbevf_clr_reg(struct ufp_handle *ih)
 static int ufp_ixgbevf_reset(struct ufp_handle *ih);
+
+static void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
+	int8_t direction, uint8_t queue, uint8_t msix_vector);
+static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector,
+	uint32_t intr_rate);
+static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih);
 
 static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode);
 static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size);
@@ -30,7 +34,7 @@ int ufp_ixgbevf_init(struct ufp_ops *ops)
 
 	ops->reset_hw		= ufp_ixgbevf_reset;
 	ops->get_queues		= ufp_ixgbevf_get_queues;
-	ops->get_intr_rate	= ufp_ixgbevf_get_intr_rate;
+	ops->irq_configure	= ufp_ixgbevf_irq_configure;
 
 	return 0;
 
@@ -162,12 +166,6 @@ err_read:
 err_write:
 err_nego_api:
         return -1;
-}
-
-static int ufp_ixgbevf_get_intr_rate(struct ufp_handle *ih)
-{
-	ih->num_interrupt_rate = IXGBE_MAX_EITR;
-	return 0;
 }
 
 static void ufp_mac_stop_adapter(struct ufp_handle *ih)
@@ -302,21 +300,25 @@ err_reset_failed:
 	return -1;
 }
 
-static void ufp_write_eitr(struct ufp_port *port, int vector)
+static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector,
+	uint32_t intr_rate)
 {
-	struct ufp_hw *hw = port->hw;
-	uint32_t itr_reg = port->num_interrupt_rate & IXGBE_MAX_EITR;
+	uint32_t itr_reg;
+
+	itr_reg = intr_rate & IXGBE_MAX_EITR;
 
 	/*
 	 * set the WDIS bit to not clear the timer bits and cause an
 	 * immediate assertion of the interrupt
 	 */
 	itr_reg |= IXGBE_EITR_CNT_WDIS;
-	ufp_write_reg(hw, IXGBE_VTEITR(vector), itr_reg);
+	ufp_write_reg(ih, IXGBE_VTEITR(vector), itr_reg);
+
+	ih->num_interrupt_rate = itr_reg;
 }
 
-static void ufp_set_ivar(struct ufp_port *port,
-        int8_t direction, uint8_t queue, uint8_t msix_vector)
+static void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
+	int8_t direction, uint8_t queue, uint8_t msix_vector)
 {
 	uint32_t ivar, index;
 	struct ufp_hw *hw = port->hw;
@@ -327,35 +329,35 @@ static void ufp_set_ivar(struct ufp_port *port,
 	ivar = ufp_read_reg(hw, IXGBE_VTIVAR(queue >> 1));
 	ivar &= ~(0xFF << index);
 	ivar |= (msix_vector << index);
-	ufp_write_reg(hw, IXGBE_VTIVAR(queue >> 1), ivar);
+	ufp_write_reg(ih, IXGBE_VTIVAR(queue >> 1), ivar);
 }
 
-static int ufp_ixgbevf_intr_configure(struct ufp_handle *ih)
+static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih)
 {
 	unsigned int qmask = 0;
 
-	for(queue_idx = 0, vector = 0; queue_idx < port->num_rx_queues;
-	queue_idx++, vector++, num_rx_requested++){
+	for(queue_idx = 0, vector = 0; queue_idx < ih->num_queues;
+	queue_idx++, vector++){
 		/* set RX queue interrupt */
-		ufp_set_ivar(port, 0, queue_idx, vector);
-		ufp_write_eitr(port, vector);
+		ufp_set_ivar(ih, 0, queue_idx, vector);
+		ufp_write_eitr(ih, vector, ih->num_interrupt_rate);
 		qmask |= 1 << vector;
 	}
 
-	for(queue_idx = 0; queue_idx < port->num_tx_queues;
-	queue_idx++, vector++, num_tx_requested++){
+	for(queue_idx = 0; queue_idx < ih->num_queues;
+	queue_idx++, vector++){
 		/* set TX queue interrupt */
-		ufp_set_ivar(port, 1, queue_idx, vector);
-		ufp_write_eitr(port, vector);
+		ufp_set_ivar(ih, 1, queue_idx, vector);
+		ufp_write_eitr(ih, vector, ih->num_interrupt_rate);
 		qmask |= 1 << vector;
 	}
 
 	/* clear any pending interrupts, may auto mask */
-	IXGBE_READ_REG(hw, IXGBE_VTEICR);
+	ufp_read_reg(ih, IXGBE_VTEICR);
 
-	ufp_write_reg(hw, IXGBE_VTEIAM, qmask);
-	ufp_write_reg(hw, IXGBE_VTEIAC, qmask);
-	ufp_write_reg(hw, IXGBE_VTEIMS, qmask);
+	ufp_write_reg(ih, IXGBE_VTEIAM, qmask);
+	ufp_write_reg(ih, IXGBE_VTEIAC, qmask);
+	ufp_write_reg(ih, IXGBE_VTEIMS, qmask);
 }
 
 static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)

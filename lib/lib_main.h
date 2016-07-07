@@ -99,7 +99,7 @@ struct ufp_handle {
 	uint32_t		tx_budget;
 
 	uint32_t		num_queues;
-	uint16_t		num_interrupt_rate;
+	uint32_t		num_interrupt_rate;
 	uint32_t		promisc;
 	uint32_t		mtu_frame;
 	uint32_t		buf_size;

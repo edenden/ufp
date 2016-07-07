@@ -40,7 +40,7 @@ struct ixmapfwd {
 	unsigned int		promisc;
 	unsigned int		mtu_frame;
 	unsigned int		buf_count;
-	unsigned short		intr_rate;
+	unsigned int		intr_rate;
 };
 
 void ixmapfwd_log(int level, char *fmt, ...);
