@@ -50,17 +50,38 @@ void ufp_ops_destroy(struct ufp_ops *ops)
 
 int ufp_ops_reset_hw(struct ufp_handle *ih)
 {
-	return ih->ops->reset_hw(ih);
+	int err;
+
+	if(ih->ops->reset_hw)
+		err = ih->ops->reset_hw(ih);
+	else
+		err = 0;
+
+	return err;
 }
 
 int ufp_ops_get_queues(struct ufp_handle *ih)
 {
-	return ih->ops->get_queues(ih);
+	int err;
+
+	if(ih->ops->get_queues)
+		err = ih->ops->get_queues(ih);
+	else
+		err = 0;
+
+	return err;
 }
 
 int ufp_ops_get_intr_rate(struct ufp_handle *ih)
 {
-	return ih->ops->get_intr_rate(ih);
+	int err;
+
+	if(ih->ops->get_intr_rate)
+		err = ih->ops->get_intr_rate(ih);
+	else
+		err = 0;
+
+	return err;
 }
 
 int ufp_ops_intr_configure(struct ufp_handle *ih)
