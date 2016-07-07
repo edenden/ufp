@@ -158,7 +158,6 @@ int main(int argc, char **argv)
 	for(i = 0; i < ixmapfwd.num_ports; i++){
 		ixmap_configure_rx(ixmapfwd.ih_array[i]);
 		ixmap_configure_tx(ixmapfwd.ih_array[i]);
-		ixmap_irq_enable(ixmapfwd.ih_array[i]);
 
 		/* calclulate maximum buf_size we should prepare */
 		if(ixmap_bufsize_get(ixmapfwd.ih_array[i]) > ixmapfwd.buf_size)
