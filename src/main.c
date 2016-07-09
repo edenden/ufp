@@ -248,7 +248,7 @@ err_tun_open:
 	}
 err_up:
 	for(i = 0; i < ports_up; i++){
-		ixmap_down(ixmapfwd.ih_array[i])
+		ixmap_down(ixmapfwd.ih_array[i]);
 	}
 err_desc_alloc:
 	for(i = 0; i < desc_assigned; i++){
