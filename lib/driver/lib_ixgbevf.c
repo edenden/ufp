@@ -15,8 +15,7 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih);
 
 static void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
 	int8_t direction, uint8_t queue, uint8_t msix_vector);
-static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector,
-	uint32_t intr_rate);
+static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector);
 static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih);
 
 static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode);
@@ -300,12 +299,11 @@ err_reset_failed:
 	return -1;
 }
 
-static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector,
-	uint32_t intr_rate)
+static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector)
 {
 	uint32_t itr_reg;
 
-	itr_reg = intr_rate & IXGBE_MAX_EITR;
+	itr_reg = ih->num_interrupt_rate & IXGBE_MAX_EITR;
 
 	/*
 	 * set the WDIS bit to not clear the timer bits and cause an
@@ -313,8 +311,6 @@ static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector,
 	 */
 	itr_reg |= IXGBE_EITR_CNT_WDIS;
 	ufp_write_reg(ih, IXGBE_VTEITR(vector), itr_reg);
-
-	ih->num_interrupt_rate = itr_reg;
 }
 
 static void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
@@ -340,7 +336,7 @@ static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih)
 	queue_idx++, vector++){
 		/* set RX queue interrupt */
 		ufp_set_ivar(ih, 0, queue_idx, vector);
-		ufp_write_eitr(ih, vector, ih->num_interrupt_rate);
+		ufp_write_eitr(ih, vector);
 		qmask |= 1 << vector;
 	}
 
@@ -348,7 +344,7 @@ static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih)
 	queue_idx++, vector++){
 		/* set TX queue interrupt */
 		ufp_set_ivar(ih, 1, queue_idx, vector);
-		ufp_write_eitr(ih, vector, ih->num_interrupt_rate);
+		ufp_write_eitr(ih, vector);
 		qmask |= 1 << vector;
 	}
 

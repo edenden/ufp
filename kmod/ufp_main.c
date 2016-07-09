@@ -350,7 +350,7 @@ static void ufp_interrupt_disable(struct ufp_device *device)
 	return;
 }
 
-int ufp_up(struct ufp_device *device)
+int ufp_allocate(struct ufp_device *device)
 {
 	int err;
 
@@ -365,7 +365,7 @@ int ufp_up(struct ufp_device *device)
 	}
 
 	/* User space application enables interrupts after */
-	device->up = 1;
+	device->allocated = 1;
 
 	return 0;
 
@@ -374,7 +374,7 @@ err_num_queues:
 	return -1;
 }
 
-void ufp_down(struct ufp_device *device)
+void ufp_release(struct ufp_device *device)
 {
         ufp_interrupt_disable(device);
 
@@ -383,7 +383,7 @@ void ufp_down(struct ufp_device *device)
 
         /* free irqs */
         ufp_free_msix(device);
-        device->up = 0;
+        device->allocated = 0;
 
 	return;
 }
@@ -481,8 +481,8 @@ static void ufp_remove(struct pci_dev *pdev)
 {
         struct ufp_device *device = pci_get_drvdata(pdev);
 
-        if(device->up){
-                ufp_down(device);
+        if(device->allocated){
+                ufp_release(device);
         }
 
         ufp_miscdev_deregister(device);

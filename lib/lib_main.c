@@ -420,7 +420,6 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	struct ufp_handle *ih;
 	char filename[FILENAME_SIZE];
 	struct ufp_info_req req_info;
-	struct ufp_up_req req_up;
 	int err;
 
 	ih = malloc(sizeof(struct ufp_handle));
@@ -460,18 +459,6 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	if(err < 0)
 		goto err_ops_reset_hw;
 
-	/* UP the device */
-	memset(&req_up, 0, sizeof(struct ufp_up_req));
-	req_up.num_rx_queues = ih->num_queues;
-	req_up.num_tx_queues = ih->num_queues;
-	if(ioctl(ih->fd, IXMAP_UP, (unsigned long)&req_up) < 0)
-		goto err_ioctl_up;
-
-	ih->num_interrupt_rate = intr_rate;
-	err = ufp_ops_irq_configure(ih);
-	if(err < 0)
-		goto err_ops_irq_configure;
-
 	ih->rx_ring = malloc(sizeof(struct ufp_ring) * ih->num_queues);
 	if(!ih->rx_ring)
 		goto err_alloc_rx_ring;
@@ -480,6 +467,7 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	if(!ih->tx_ring)
 		goto err_alloc_tx_ring;
 
+	ih->num_interrupt_rate = intr_rate;
 	ih->bar_size = req_info.mmio_size;
 	ih->promisc = !!promisc;
 	ih->rx_budget = rx_budget;
@@ -495,13 +483,10 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 err_alloc_tx_ring:
 	free(ih->rx_ring);
 err_alloc_rx_ring:
-err_ops_irq_configure:
-err_ioctl_up:
-	ufp_ops_destroy(ih->ops);
 
 err_ops_reset_hw:
-err_ops_get_intr_rate:
 err_ops_get_queues:
+	ufp_ops_destroy(ih->ops);
 err_ops_init:
 	munmap(ih->bar, ih->bar_size);
 err_mmap:
@@ -517,13 +502,50 @@ void ufp_close(struct ufp_handle *ih)
 {
 	free(ih->tx_ring);
 	free(ih->rx_ring);
-	ufp_ops_destroy(ih->ops);
 
+	ufp_ops_destroy(ih->ops);
 	munmap(ih->bar, ih->bar_size);
 	close(ih->fd);
 	free(ih);
 
 	return;
+}
+
+int ufp_up(struct ufp_handle *ih)
+{
+	struct ufp_alloc_req req_alloc;
+	int err = 0;
+
+	memset(&req_alloc, 0, sizeof(struct ufp_alloc_req));
+	req_up.num_rx_queues = ih->num_queues;
+	req_up.num_tx_queues = ih->num_queues;
+	if(ioctl(ih->fd, IXMAP_ALLOCATE, (unsigned long)&req_alloc) < 0)
+		goto err_ioctl_alloc;
+
+	err = ufp_ops_irq_configure(ih);
+	if(err < 0)
+		goto err_ops_irq_configure;
+
+	err = ufp_ops_configure_tx;
+	if(err < 0)
+		goto err_configure_tx;
+
+	err = ufp_ops_configure_rx;
+	if(err < 0)
+		goto err_configure_rx;
+
+	return err;
+
+err_configure_rx:
+err_configure_tx:
+err_ops_irq_configure:
+err_ioctl_alloc:
+	return -1;
+}
+
+void ufp_down(struct ufp_handle *ih)
+{
+	
 }
 
 unsigned int ufp_bufsize_get(struct ufp_handle *ih)

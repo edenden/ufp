@@ -15,8 +15,8 @@
 #include "ufp_dma.h"
 #include "ufp_fops.h"
 
-static int ufp_cmd_up(struct ufp_device *device, void __user *argp);
-static int ufp_cmd_down(struct ufp_device *device, unsigned long arg);
+static int ufp_cmd_allocate(struct ufp_device *device, void __user *argp);
+static int ufp_cmd_release(struct ufp_device *device, unsigned long arg);
 static int ufp_cmd_info(struct ufp_device *device, void __user *argp);
 static int ufp_cmd_map(struct ufp_device *device, void __user *argp);
 static int ufp_cmd_unmap(struct ufp_device *device, void __user *argp);
@@ -90,44 +90,41 @@ void ufp_miscdev_deregister(struct ufp_device *device)
 	return;
 }
 
-static int ufp_cmd_up(struct ufp_device *device, void __user *argp)
+static int ufp_cmd_allocate(struct ufp_device *device, void __user *argp)
 {
-	struct ufp_up_req req;
+	struct ufp_alloc_req req;
 	int err = 0;
 
-	if(device->up){
+	if(device->allocated){
 		return -EALREADY;
 	}
 
 	if (copy_from_user(&req, argp, sizeof(req)))
 		return -EFAULT;
 
-	pr_info("open req\n");
-
 	device->num_rx_queues = req.num_rx_queues;
 	device->num_tx_queues = req.num_tx_queues;
 
-	err = ufp_up(device);
+	err = ufp_allocate(device);
 	if (err){
 		err = -EINVAL;
-		goto err_up_complete;
+		goto err_allocate;
 	}
 
 	return 0;
 
-err_up_complete:
+err_allocate:
 	return err;
 }
 
-static int ufp_cmd_down(struct ufp_device *device,
+static int ufp_cmd_release(struct ufp_device *device,
 	unsigned long arg)
 {
-	if(!device->up){
+	if(!device->allocated){
 		return -EALREADY;
 	}
 
-	pr_info("down req\n");
-	ufp_down(device);
+	ufp_release(device);
 
 	return 0;
 }
@@ -268,7 +265,7 @@ static int ufp_close(struct inode *inode, struct file *file)
 	pr_info("close device=%p\n", device);
 
 	down(&device->sem);
-	ufp_cmd_down(device, 0);
+	ufp_cmd_release(device, 0);
 	up(&device->sem);
 
 	ufp_device_put(device);
@@ -356,8 +353,8 @@ static long ufp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		err = ufp_cmd_info(device, argp);
 		break;
 
-	case UFP_UP:
-		err = ufp_cmd_up(device, argp);
+	case UFP_ALLOCATE:
+		err = ufp_cmd_allocate(device, argp);
 		break;
 
 	case UFP_MAP:
@@ -368,8 +365,8 @@ static long ufp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		err = ufp_cmd_unmap(device, argp);
 		break;
 
-	case UFP_DOWN:
-		err = ufp_cmd_down(device, arg);
+	case UFP_RELEASE:
+		err = ufp_cmd_release(device, arg);
 		break;
 
 	case UFP_IRQ:

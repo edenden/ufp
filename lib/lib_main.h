@@ -216,16 +216,15 @@ struct ufp_info_req {
         __u16                   vendor_id;
 };
 
-#define UFP_UP          _IOW('E', 202, int)
-struct ufp_up_req {
+#define UFP_ALLOCATE		_IOW('E', 202, int)
+struct ufp_alloc_req {
         __u32                   num_rx_queues;
         __u32                   num_tx_queues;
 };
 
-#define UFP_DOWN                _IOW('E', 203, int)
-#define UFP_RESET               _IOW('E', 204, int)
+#define UFP_RELEASE		_IOW('E', 203, int)
 
-#define UFP_MAP         _IOW('U', 210, int)
+#define UFP_MAP			_IOW('U', 210, int)
 struct ufp_map_req {
         __u64                   addr_virtual;
         __u64                   addr_dma;

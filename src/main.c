@@ -48,6 +48,7 @@ int main(int argc, char **argv)
 	int			ret, i, signal, opt;
 	int			cores_assigned = 0,
 				ports_assigned = 0,
+				ports_up = 0,
 				tun_assigned = 0,
 				desc_assigned = 0;
 	sigset_t		sigset;
@@ -155,9 +156,13 @@ int main(int argc, char **argv)
 		}
 	}
 
-	for(i = 0; i < ixmapfwd.num_ports; i++){
-		ixmap_configure_rx(ixmapfwd.ih_array[i]);
-		ixmap_configure_tx(ixmapfwd.ih_array[i]);
+	for(i = 0; i < ixmapfwd.num_ports; i++, ports_up++){
+		ret = ixmap_up(ixmapfwd.ih_array[i]);
+		if(ret < 0){
+			ixmapfwd_log(LOG_ERR, "failed to ixmap_up, idx = %d", i);
+			ret = -1;
+			goto err_up;
+		}
 
 		/* calclulate maximum buf_size we should prepare */
 		if(ixmap_bufsize_get(ixmapfwd.ih_array[i]) > ixmapfwd.buf_size)
@@ -240,6 +245,10 @@ err_set_signal:
 err_tun_open:
 	for(i = 0; i < tun_assigned; i++){
 		tun_close(&ixmapfwd, i);
+	}
+err_up:
+	for(i = 0; i < ports_up; i++){
+		ixmap_down(ixmapfwd.ih_array[i)
 	}
 err_desc_alloc:
 	for(i = 0; i < desc_assigned; i++){
