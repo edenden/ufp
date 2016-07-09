@@ -26,6 +26,8 @@ int ufp_ixgbevf_init(struct ufp_ops *ops)
 	ops->reset_hw		= ufp_ixgbevf_reset;
 	ops->get_queues		= ufp_ixgbevf_get_queues;
 	ops->irq_configure	= ufp_ixgbevf_irq_configure;
+	ops->tx_configure	= ufp_ixgbevf_tx_configure;
+	ops->rx_configure	= ufp_ixgbevf_rx_configure;
 
 	return 0;
 
@@ -202,59 +204,43 @@ static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih)
 	ufp_write_reg(ih, IXGBE_VTEIMS, qmask);
 }
 
-static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode)
+static int ufp_ixgbevf_tx_configure(struct ufp_handle *ih)
 {
-	struct ufp_mbx_info *mbx = hw->mbx;
-	uint32_t msgbuf[2];
-	int32_t err;
-
-	switch (hw->api_version) {
-	case ixgbe_mbox_api_12:
-		break;
-	default:
-		return -EOPNOTSUPP;
-	}
-
-	msgbuf[0] = IXGBE_VF_UPDATE_XCAST_MODE;
-	msgbuf[1] = xcast_mode;
-
-	err = mbx->ops.write_posted(hw, msgbuf, 2);
-	if (err)
-		return err;
-
-	err = mbx->ops.read_posted(hw, msgbuf, 2);
-	if (err)
-		return err;
-
-	msgbuf[0] &= ~IXGBE_VT_MSGTYPE_CTS;
-	if (msgbuf[0] == (IXGBE_VF_UPDATE_XCAST_MODE | IXGBE_VT_MSGTYPE_NACK))
-		return -EPERM;
-
-	return 0;
+        /* Setup the HW Tx Head and Tail descriptor pointers */
+        for (i = 0; i < adapter->num_tx_queues; i++)
+                ixgbevf_configure_tx_ring(adapter, adapter->tx_ring[i]);
 }
 
-static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size)
+static int ufp_ixgbevf_rx_configure(struct ufp_handle *ih)
 {
-	struct ufp_mbx_info *mbx = hw->mbx;
-	uint32_t msgbuf[2];
-	uint32_t retmsg[IXGBE_VFMAILBOX_SIZE];
-	int32_t err;
+	int err;
 
-	msgbuf[0] = IXGBE_VF_SET_LPE;
-	msgbuf[1] = max_size;
+	/* VF can't support promiscuous mode */
+	if(ih->promisc)
+		goto err_promisc;
 
-        err = mbx->ops.write_posted(hw, msgbuf, 2);
-	if(err)
-		goto err_write;
+	err = ufp_ixgbevf_update_xcast_mode(ih, IXGBEVF_XCAST_MODE_ALLMULTI);
+	if(err < 0)
+		goto err_xcast_mode;
 
-	err = mbx->ops.read_posted(hw, retmsg, 2);
-	if(err)
-		goto err_read;
+        ixgbevf_setup_psrtype(adapter);
+        if (hw->mac.type >= ixgbe_mac_X550_vf)
+                ixgbevf_setup_vfmrqc(adapter);
+
+        ret = ixgbevf_rlpml_set_vf(hw, netdev->mtu + ETH_HLEN + ETH_FCS_LEN);
+        if (ret)
+                DPRINTK(HW, DEBUG, "Failed to set MTU at %d\n", netdev->mtu);
+
+        /* Setup the HW Rx Head and Tail Descriptor Pointers and
+         * the Base and Length of the Rx Descriptor Ring
+         */
+        for (i = 0; i < adapter->num_rx_queues; i++)
+                ixgbevf_configure_rx_ring(adapter, adapter->rx_ring[i]);
 
 	return 0;
 
-err_read:
-err_write:
+err_xcast_mode:
+err_promisc:
 	return -1;
 }
 

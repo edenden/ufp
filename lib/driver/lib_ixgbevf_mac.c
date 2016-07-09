@@ -1,4 +1,4 @@
-static int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih)
+int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih)
 {
         int32_t err, i = 0;
         uint32_t msg[3];
@@ -44,7 +44,7 @@ err_write:
         return -1;
 }
 
-static void ufp_mac_stop_adapter(struct ufp_handle *ih)
+void ufp_ixgbevf_stop_adapter(struct ufp_handle *ih)
 {
         uint32_t reg_val;
         uint16_t i;
@@ -75,7 +75,7 @@ static void ufp_mac_stop_adapter(struct ufp_handle *ih)
 	return 0;
 }
 
-static void ufp_ixgbevf_clr_reg(struct ufp_handle *ih)
+void ufp_ixgbevf_clr_reg(struct ufp_handle *ih)
 {
 	int i;
 	uint32_t vfsrrctl;
@@ -115,7 +115,7 @@ static void ufp_ixgbevf_clr_reg(struct ufp_handle *ih)
 	ufp_write_flush(ih);
 }
 
-static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector)
+void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector)
 {
 	uint32_t itr_reg;
 
@@ -129,7 +129,7 @@ static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector)
 	ufp_write_reg(ih, IXGBE_VTEITR(vector), itr_reg);
 }
 
-static void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
+void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
 	int8_t direction, uint8_t queue, uint8_t msix_vector)
 {
 	uint32_t ivar, index;
@@ -144,3 +144,59 @@ static void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
 	ufp_write_reg(ih, IXGBE_VTIVAR(queue >> 1), ivar);
 }
 
+int ufp_ixgbevf_update_xcast_mode(struct ufp_handle *ih, int xcast_mode)
+{
+	struct ufp_ixgbevf_data *data;
+	uint32_t msgbuf[2];
+	int err;
+
+	data = ih->ops.data;
+
+	switch(data->api_version) {
+	case ixgbe_mbox_api_12:
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	msgbuf[0] = IXGBE_VF_UPDATE_XCAST_MODE;
+	msgbuf[1] = xcast_mode;
+
+	err = mbx->ops.write_posted(hw, msgbuf, 2);
+	if (err)
+		return err;
+
+	err = mbx->ops.read_posted(hw, msgbuf, 2);
+	if (err)
+		return err;
+
+	msgbuf[0] &= ~IXGBE_VT_MSGTYPE_CTS;
+	if (msgbuf[0] == (IXGBE_VF_UPDATE_XCAST_MODE | IXGBE_VT_MSGTYPE_NACK))
+		return -EPERM;
+
+	return 0;
+}
+
+int ufp_mac_set_rlpml(struct ufp_handle *ih, uint16_t max_size)
+{
+	uint32_t msgbuf[2];
+	uint32_t retmsg[IXGBE_VFMAILBOX_SIZE];
+	int err;
+
+	msgbuf[0] = IXGBE_VF_SET_LPE;
+	msgbuf[1] = max_size;
+
+        err = mbx->ops.write_posted(hw, msgbuf, 2);
+	if(err)
+		goto err_write;
+
+	err = mbx->ops.read_posted(hw, retmsg, 2);
+	if(err)
+		goto err_read;
+
+	return 0;
+
+err_read:
+err_write:
+	return -1;
+}

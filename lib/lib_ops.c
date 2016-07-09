@@ -84,12 +84,26 @@ int ufp_ops_irq_configure(struct ufp_handle *ih)
 	return err;
 }
 
-int ufp_ops_rx_configure(struct ufp_handle *ih)
-{
-
-}
-
 int ufp_ops_tx_configure(struct ufp_handle *ih)
 {
+	int err;
 
+	if(ih->ops->tx_configure)
+		err = ih->ops->tx_configure(ih);
+	else
+		err = 0;
+
+	return err;
+}
+
+int ufp_ops_rx_configure(struct ufp_handle *ih)
+{
+	int err;
+
+	if(ih->ops->rx_configure)
+		err = ih->ops->rx_configure(ih);
+	else
+		err = 0;
+
+	return err;
 }
