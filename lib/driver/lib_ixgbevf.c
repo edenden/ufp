@@ -206,14 +206,16 @@ static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih)
 
 static int ufp_ixgbevf_tx_configure(struct ufp_handle *ih)
 {
-        /* Setup the HW Tx Head and Tail descriptor pointers */
-        for (i = 0; i < adapter->num_tx_queues; i++)
-                ixgbevf_configure_tx_ring(adapter, adapter->tx_ring[i]);
+	int i;
+
+	/* Setup the HW Tx Head and Tail descriptor pointers */
+	for (i = 0; i < ih->num_queues; i++)
+		ufp_ixgbevf_tx_configure_ring(adapter, adapter->tx_ring[i]);
 }
 
 static int ufp_ixgbevf_rx_configure(struct ufp_handle *ih)
 {
-	int err;
+	int i, err;
 
 	/* VF can't support promiscuous mode */
 	if(ih->promisc)
@@ -223,22 +225,30 @@ static int ufp_ixgbevf_rx_configure(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_xcast_mode;
 
-        ixgbevf_setup_psrtype(adapter);
-        if (hw->mac.type >= ixgbe_mac_X550_vf)
-                ixgbevf_setup_vfmrqc(adapter);
+	ufp_ixgbevf_set_psrtype(ih);
 
-        ret = ixgbevf_rlpml_set_vf(hw, netdev->mtu + ETH_HLEN + ETH_FCS_LEN);
-        if (ret)
-                DPRINTK(HW, DEBUG, "Failed to set MTU at %d\n", netdev->mtu);
+	switch(ih->ops->device_id){
+	case IXGBE_DEV_ID_X550_VF:
+	case IXGBE_DEV_ID_X550EM_X_VF:
+		ufp_ixgbevf_set_vfmrqc(ih);
+		break;
+	default:
+		break;
+	}
 
-        /* Setup the HW Rx Head and Tail Descriptor Pointers and
-         * the Base and Length of the Rx Descriptor Ring
-         */
-        for (i = 0; i < adapter->num_rx_queues; i++)
-                ixgbevf_configure_rx_ring(adapter, adapter->rx_ring[i]);
+	err = ufp_ixgbevf_set_rlpml(ih);
+	if(err < 0)
+		goto err_set_rlpml;
+
+	/* Setup the HW Rx Head and Tail Descriptor Pointers and
+	 * the Base and Length of the Rx Descriptor Ring
+	 */
+	for (i = 0; i < ih->num_queues; i++)
+		ufp_ixgbevf_rx_configure_ring(adapter, adapter->rx_ring[i]);
 
 	return 0;
 
+err_set_rlpml:
 err_xcast_mode:
 err_promisc:
 	return -1;

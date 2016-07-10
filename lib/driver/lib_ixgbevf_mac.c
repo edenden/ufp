@@ -177,14 +177,69 @@ int ufp_ixgbevf_update_xcast_mode(struct ufp_handle *ih, int xcast_mode)
 	return 0;
 }
 
-int ufp_mac_set_rlpml(struct ufp_handle *ih, uint16_t max_size)
+void ufp_ixgbevf_set_psrtype(struct ufp_handle *ih)
+{
+	uint32_t psrtype;
+
+	/* PSRTYPE must be initialized in 82599 */
+	psrtype = IXGBE_PSRTYPE_TCPHDR | IXGBE_PSRTYPE_UDPHDR |
+		IXGBE_PSRTYPE_IPV4HDR | IXGBE_PSRTYPE_IPV6HDR |
+		IXGBE_PSRTYPE_L2HDR;
+
+	if(ih->num_queues > 1)
+		psrtype |= 1 << 29;
+
+	ufp_write_reg(ih, IXGBE_VFPSRTYPE, psrtype);
+}
+
+void ufp_ixgbevf_set_vfmrqc(struct ufp_handle *ih)
+{
+	uint32_t vfmrqc = 0, vfreta = 0;
+	uint16_t rss_i = ih->num_queues;
+        int i, j;
+
+	/* Fill out hash function seeds */
+	for(i = 0; i < IXGBEVF_VFRSSRK_REGS; i++)
+		ufp_write_reg(ih, IXGBE_VFRSSRK(i), rand());
+
+	for (i = 0, j = 0; i < IXGBEVF_X550_VFRETA_SIZE; i++, j++) {
+		if (j == rss_i)
+			j = 0;
+
+		vfreta |= j << (i & 0x3) * 8;
+		if ((i & 3) == 3) {
+			ufp_write_reg(ih, IXGBE_VFRETA(i >> 2), vfreta);
+			vfreta = 0;
+		}
+	}
+
+	/* Perform hash on these packet types */
+	vfmrqc |= IXGBE_MRQC_RSS_FIELD_IPV4 |
+		IXGBE_MRQC_RSS_FIELD_IPV4_TCP |
+		IXGBE_MRQC_RSS_FIELD_IPV6 |
+		IXGBE_MRQC_RSS_FIELD_IPV6_TCP;
+
+	vfmrqc |= IXGBE_MRQC_RSSEN;
+
+	ufp_write_reg(ih, IXGBE_VFMRQC, vfmrqc);
+}
+
+int ufp_ixgbevf_set_rlpml(struct ufp_handle *ih)
 {
 	uint32_t msgbuf[2];
 	uint32_t retmsg[IXGBE_VFMAILBOX_SIZE];
 	int err;
 
+	/* adjust max frame to be at least the size of a standard frame */
+	if(!ih->mtu_frame)
+		ih->mtu_frame = (VLAN_ETH_FRAME_LEN + ETH_FCS_LEN);
+
+	if(ih->mtu_frame < 64 ||
+	ih->mtu_frame > IXGBE_MAX_JUMBO_FRAME_SIZE)
+		goto err_mtu;
+
 	msgbuf[0] = IXGBE_VF_SET_LPE;
-	msgbuf[1] = max_size;
+	msgbuf[1] = ih->mtu_frame;
 
         err = mbx->ops.write_posted(hw, msgbuf, 2);
 	if(err)
@@ -198,5 +253,115 @@ int ufp_mac_set_rlpml(struct ufp_handle *ih, uint16_t max_size)
 
 err_read:
 err_write:
+err_mtu:
 	return -1;
+}
+
+static void ixgbevf_configure_tx_ring(struct ixgbevf_adapter *adapter,
+                                      struct ixgbevf_ring *ring)
+{
+        struct ixgbe_hw *hw = &adapter->hw;
+        u64 tdba = ring->dma;
+        int wait_loop = 10;
+        u32 txdctl = IXGBE_TXDCTL_ENABLE;
+        u8 reg_idx = ring->reg_idx;
+
+        /* disable queue to avoid issues while updating state */
+        IXGBE_WRITE_REG(hw, IXGBE_VFTXDCTL(reg_idx), IXGBE_TXDCTL_SWFLSH);
+        IXGBE_WRITE_FLUSH(hw);
+
+        IXGBE_WRITE_REG(hw, IXGBE_VFTDBAL(reg_idx), tdba & DMA_BIT_MASK(32));
+        IXGBE_WRITE_REG(hw, IXGBE_VFTDBAH(reg_idx), tdba >> 32);
+        IXGBE_WRITE_REG(hw, IXGBE_VFTDLEN(reg_idx),
+                        ring->count * sizeof(union ixgbe_adv_tx_desc));
+
+        /* disable head writeback */
+        IXGBE_WRITE_REG(hw, IXGBE_VFTDWBAH(reg_idx), 0);
+        IXGBE_WRITE_REG(hw, IXGBE_VFTDWBAL(reg_idx), 0);
+
+
+        /* enable relaxed ordering */
+        IXGBE_WRITE_REG(hw, IXGBE_VFDCA_TXCTRL(reg_idx),
+                        (IXGBE_DCA_TXCTRL_DESC_RRO_EN |
+                         IXGBE_DCA_TXCTRL_DATA_RRO_EN));
+
+        /* reset head and tail pointers */
+        IXGBE_WRITE_REG(hw, IXGBE_VFTDH(reg_idx), 0);
+        IXGBE_WRITE_REG(hw, IXGBE_VFTDT(reg_idx), 0);
+        ring->tail = adapter->io_addr + IXGBE_VFTDT(reg_idx);
+
+        /* reset ntu and ntc to place SW in sync with hardwdare */
+        ring->next_to_clean = 0;
+        ring->next_to_use = 0;
+
+        /* set WTHRESH to encourage burst writeback, it should not be set
+         * higher than 1 when ITR is 0 as it could cause false TX hangs
+         *
+         * In order to avoid issues WTHRESH + PTHRESH should always be equal
+         * to or less than the number of on chip descriptors, which is
+         * currently 40.
+         */
+        if (!ring->q_vector || (ring->q_vector->itr < 8))
+                txdctl |= (1 << 16);    /* WTHRESH = 1 */
+        else
+                txdctl |= (8 << 16);    /* WTHRESH = 8 */
+
+        /* Setting PTHRESH to 32 both improves performance */
+        txdctl |= (1 << 8) |    /* HTHRESH = 1 */
+                   32;          /* PTHRESH = 32 */
+
+        clear_bit(__IXGBEVF_HANG_CHECK_ARMED, &ring->state);
+
+        IXGBE_WRITE_REG(hw, IXGBE_VFTXDCTL(reg_idx), txdctl);
+
+        /* poll to verify queue is enabled */
+        do {
+                msleep(1);
+                txdctl = IXGBE_READ_REG(hw, IXGBE_VFTXDCTL(reg_idx));
+        }  while (--wait_loop && !(txdctl & IXGBE_TXDCTL_ENABLE));
+        if (!wait_loop)
+                DPRINTK(PROBE, ERR, "Could not enable Tx Queue %d\n", reg_idx);
+}
+
+static void ixgbevf_configure_rx_ring(struct ixgbevf_adapter *adapter,
+                                      struct ixgbevf_ring *ring)
+{
+        struct ixgbe_hw *hw = &adapter->hw;
+        u64 rdba = ring->dma;
+        u32 rxdctl;
+        u8 reg_idx = ring->reg_idx;
+
+        /* disable queue to avoid issues while updating state */
+        rxdctl = IXGBE_READ_REG(hw, IXGBE_VFRXDCTL(reg_idx));
+        ixgbevf_disable_rx_queue(adapter, ring);
+
+        IXGBE_WRITE_REG(hw, IXGBE_VFRDBAL(reg_idx), rdba & DMA_BIT_MASK(32));
+        IXGBE_WRITE_REG(hw, IXGBE_VFRDBAH(reg_idx), rdba >> 32);
+        IXGBE_WRITE_REG(hw, IXGBE_VFRDLEN(reg_idx),
+                        ring->count * sizeof(union ixgbe_adv_rx_desc));
+
+        /* enable relaxed ordering */
+        IXGBE_WRITE_REG(hw, IXGBE_VFDCA_RXCTRL(reg_idx),
+                        IXGBE_DCA_RXCTRL_DESC_RRO_EN);
+
+        /* reset head and tail pointers */
+        IXGBE_WRITE_REG(hw, IXGBE_VFRDH(reg_idx), 0);
+        IXGBE_WRITE_REG(hw, IXGBE_VFRDT(reg_idx), 0);
+        ring->tail = adapter->io_addr + IXGBE_VFRDT(reg_idx);
+
+        /* reset ntu and ntc to place SW in sync with hardwdare */
+        ring->next_to_clean = 0;
+        ring->next_to_use = 0;
+        ring->next_to_alloc = 0;
+
+        ixgbevf_configure_srrctl(adapter, reg_idx);
+
+        /* allow any size packet since we can handle overflow */
+        rxdctl &= ~IXGBE_RXDCTL_RLPML_EN;
+
+        rxdctl |= IXGBE_RXDCTL_ENABLE | IXGBE_RXDCTL_VME;
+        IXGBE_WRITE_REG(hw, IXGBE_VFRXDCTL(reg_idx), rxdctl);
+
+        ixgbevf_rx_desc_queue_enable(adapter, ring);
+        ixgbevf_alloc_rx_buffers(ring, ixgbevf_desc_unused(ring));
 }

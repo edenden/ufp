@@ -526,11 +526,11 @@ int ufp_up(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_ops_irq_configure;
 
-	err = ih->ops->configure_tx;
+	err = ih->ops->configure_tx(ih);
 	if(err < 0)
 		goto err_configure_tx;
 
-	err = ih->ops->configure_rx;
+	err = ih->ops->configure_rx(ih);
 	if(err < 0)
 		goto err_configure_rx;
 
