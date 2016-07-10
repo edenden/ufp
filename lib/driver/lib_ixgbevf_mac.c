@@ -156,7 +156,7 @@ int ufp_ixgbevf_update_xcast_mode(struct ufp_handle *ih, int xcast_mode)
 	case ixgbe_mbox_api_12:
 		break;
 	default:
-		return -EOPNOTSUPP;
+		goto err_not_supported;
 	}
 
 	msgbuf[0] = IXGBE_VF_UPDATE_XCAST_MODE;
@@ -177,6 +177,7 @@ int ufp_ixgbevf_update_xcast_mode(struct ufp_handle *ih, int xcast_mode)
 	return 0;
 
 err_ack:
+err_not_supported:
 	return -1;
 }
 
@@ -263,42 +264,41 @@ err_write:
 	return -1;
 }
 
-static void ixgbevf_configure_tx_ring(struct ixgbevf_adapter *adapter,
-                                      struct ixgbevf_ring *ring)
+void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
+	uint8_t reg_idx, struct ufp_ring *ring)
 {
-        struct ixgbe_hw *hw = &adapter->hw;
-        u64 tdba = ring->dma;
         int wait_loop = 10;
-        u32 txdctl = IXGBE_TXDCTL_ENABLE;
-        u8 reg_idx = ring->reg_idx;
+	uint32_t txdctl = IXGBE_TXDCTL_ENABLE;
+	uint64_t addr_dma;
+	struct timespec ts;
 
-        /* disable queue to avoid issues while updating state */
-        IXGBE_WRITE_REG(hw, IXGBE_VFTXDCTL(reg_idx), IXGBE_TXDCTL_SWFLSH);
-        IXGBE_WRITE_FLUSH(hw);
+	addr_dma = (uint64_t)ring->addr_dma;
+	ts.tv_sec = 0;
+	ts.tv_nsec = 1000000;
 
-        IXGBE_WRITE_REG(hw, IXGBE_VFTDBAL(reg_idx), tdba & DMA_BIT_MASK(32));
-        IXGBE_WRITE_REG(hw, IXGBE_VFTDBAH(reg_idx), tdba >> 32);
-        IXGBE_WRITE_REG(hw, IXGBE_VFTDLEN(reg_idx),
-                        ring->count * sizeof(union ixgbe_adv_tx_desc));
+	/* disable queue to avoid issues while updating state */
+	ufp_write_reg(ih, IXGBE_VFTXDCTL(reg_idx), IXGBE_TXDCTL_SWFLSH);
+	ufp_write_flush(ih);
+
+	ufp_write_reg(ih, IXGBE_VFTDBAL(reg_idx), addr_dma & DMA_BIT_MASK(32));
+	ufp_write_reg(ih, IXGBE_VFTDBAH(reg_idx), addr_dma >> 32);
+	ufp_write_reg(ih, IXGBE_VFTDLEN(reg_idx),
+		ih->num_tx_desc * sizeof(union ixmap_adv_tx_desc));
 
         /* disable head writeback */
-        IXGBE_WRITE_REG(hw, IXGBE_VFTDWBAH(reg_idx), 0);
-        IXGBE_WRITE_REG(hw, IXGBE_VFTDWBAL(reg_idx), 0);
+	ufp_write_reg(ih, IXGBE_VFTDWBAH(reg_idx), 0);
+	ufp_write_reg(ih, IXGBE_VFTDWBAL(reg_idx), 0);
 
 
-        /* enable relaxed ordering */
-        IXGBE_WRITE_REG(hw, IXGBE_VFDCA_TXCTRL(reg_idx),
-                        (IXGBE_DCA_TXCTRL_DESC_RRO_EN |
-                         IXGBE_DCA_TXCTRL_DATA_RRO_EN));
+	/* enable relaxed ordering */
+	ufp_write_reg(ih, IXGBE_VFDCA_TXCTRL(reg_idx),
+		(IXGBE_DCA_TXCTRL_DESC_RRO_EN | IXGBE_DCA_TXCTRL_DATA_RRO_EN));
 
-        /* reset head and tail pointers */
-        IXGBE_WRITE_REG(hw, IXGBE_VFTDH(reg_idx), 0);
-        IXGBE_WRITE_REG(hw, IXGBE_VFTDT(reg_idx), 0);
-        ring->tail = adapter->io_addr + IXGBE_VFTDT(reg_idx);
+	/* reset head and tail pointers */
+	ufp_write_reg(ih, IXGBE_VFTDH(reg_idx), 0);
+	ufp_write_reg(ih, IXGBE_VFTDT(reg_idx), 0);
 
-        /* reset ntu and ntc to place SW in sync with hardwdare */
-        ring->next_to_clean = 0;
-        ring->next_to_use = 0;
+	ring->tail = ih->bar + IXGBE_TDT(reg_idx);
 
         /* set WTHRESH to encourage burst writeback, it should not be set
          * higher than 1 when ITR is 0 as it could cause false TX hangs
@@ -307,26 +307,27 @@ static void ixgbevf_configure_tx_ring(struct ixgbevf_adapter *adapter,
          * to or less than the number of on chip descriptors, which is
          * currently 40.
          */
-        if (!ring->q_vector || (ring->q_vector->itr < 8))
-                txdctl |= (1 << 16);    /* WTHRESH = 1 */
-        else
-                txdctl |= (8 << 16);    /* WTHRESH = 8 */
+	if(ih->num_interrupt_rate < 8)
+		txdctl |= (1 << 16);	/* WTHRESH = 1 */
+	else
+		txdctl |= (8 << 16);	/* WTHRESH = 8 */
 
-        /* Setting PTHRESH to 32 both improves performance */
-        txdctl |= (1 << 8) |    /* HTHRESH = 1 */
-                   32;          /* PTHRESH = 32 */
+	/* Setting PTHRESH to 32 both improves performance */
+	txdctl |= (1 << 8) |		/* HTHRESH = 1 */
+		32;			/* PTHRESH = 32 */
 
-        clear_bit(__IXGBEVF_HANG_CHECK_ARMED, &ring->state);
+	/* enable queue */
+	ufp_write_reg(ih, IXGBE_VFTXDCTL(reg_idx), txdctl);
 
-        IXGBE_WRITE_REG(hw, IXGBE_VFTXDCTL(reg_idx), txdctl);
+	/* poll to verify queue is enabled */
+	do{
+		nanosleep(&ts, NULL);
+		txdctl = ufp_read_reg(ih, IXGBE_VFTXDCTL(reg_idx));
+	}while(--wait_loop && !(txdctl & IXGBE_TXDCTL_ENABLE));
 
-        /* poll to verify queue is enabled */
-        do {
-                msleep(1);
-                txdctl = IXGBE_READ_REG(hw, IXGBE_VFTXDCTL(reg_idx));
-        }  while (--wait_loop && !(txdctl & IXGBE_TXDCTL_ENABLE));
         if (!wait_loop)
-                DPRINTK(PROBE, ERR, "Could not enable Tx Queue %d\n", reg_idx);
+		printf("Could not enable Tx Queue %d\n", reg_idx);
+	return;
 }
 
 static void ufp_ixgbevf_disable_rx_queue(struct ufp_handle *ih, uint8_t reg_idx)

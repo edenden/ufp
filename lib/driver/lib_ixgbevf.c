@@ -120,7 +120,10 @@ static int ufp_ixgbevf_get_queues(struct ufp_handle *ih)
 	case ixgbe_mbox_api_12:
 		break;
 	default:
-		ih->num_queues = 1;
+		/* assume legacy case in which
+		 * PF would only give VF 2 queue pairs
+		 */
+		ih->num_queues = 2;
 		return 0;
 	}
 
