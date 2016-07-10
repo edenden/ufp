@@ -231,12 +231,11 @@ int ufp_ixgbevf_set_rlpml(struct ufp_handle *ih)
 	int err;
 
 	/* adjust max frame to be at least the size of a standard frame */
-	if(!ih->mtu_frame)
+	if(ih->mtu_frame < (VLAN_ETH_FRAME_LEN + ETH_FCS_LEN))
 		ih->mtu_frame = (VLAN_ETH_FRAME_LEN + ETH_FCS_LEN);
 
-	if(ih->mtu_frame < 64 ||
-	ih->mtu_frame > IXGBE_MAX_JUMBO_FRAME_SIZE)
-		goto err_mtu;
+	if(ih->mtu_frame > IXGBE_MAX_JUMBO_FRAME_SIZE)
+		ih->mtu_frame = IXGBE_MAX_JUMBO_FRAME_SIZE;
 
 	msgbuf[0] = IXGBE_VF_SET_LPE;
 	msgbuf[1] = ih->mtu_frame;
@@ -253,7 +252,6 @@ int ufp_ixgbevf_set_rlpml(struct ufp_handle *ih)
 
 err_read:
 err_write:
-err_mtu:
 	return -1;
 }
 
