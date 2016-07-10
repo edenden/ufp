@@ -1,3 +1,5 @@
+
+
 struct ufp_ops *ufp_ops_init(uint16_t device_id)
 {
 	struct ufp_ops *ops;
@@ -48,62 +50,3 @@ void ufp_ops_destroy(struct ufp_ops *ops)
 	return;
 }
 
-int ufp_ops_reset_hw(struct ufp_handle *ih)
-{
-	int err;
-
-	if(ih->ops->reset_hw)
-		err = ih->ops->reset_hw(ih);
-	else
-		err = 0;
-
-	return err;
-}
-
-int ufp_ops_get_queues(struct ufp_handle *ih)
-{
-	int err;
-
-	if(ih->ops->get_queues)
-		err = ih->ops->get_queues(ih);
-	else
-		err = 0;
-
-	return err;
-}
-
-int ufp_ops_irq_configure(struct ufp_handle *ih)
-{
-	int err;
-
-	if(ih->ops->irq_configure)
-		err = ih->ops->irq_configure(ih);
-	else
-		err = 0;
-
-	return err;
-}
-
-int ufp_ops_tx_configure(struct ufp_handle *ih)
-{
-	int err;
-
-	if(ih->ops->tx_configure)
-		err = ih->ops->tx_configure(ih);
-	else
-		err = 0;
-
-	return err;
-}
-
-int ufp_ops_rx_configure(struct ufp_handle *ih)
-{
-	int err;
-
-	if(ih->ops->rx_configure)
-		err = ih->ops->rx_configure(ih);
-	else
-		err = 0;
-
-	return err;
-}

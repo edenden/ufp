@@ -449,13 +449,13 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	if(!ih->ops)
 		goto err_ops_init;
 
-	err = ufp_ops_get_queues(ih);
+	err = ih->ops->get_queues(ih);
 	if(err < 0)
 		goto err_ops_get_queues;
 
 	ih->num_queues = min(ih->num_queues, num_queues_req);
 
-	err = ufp_ops_reset_hw(ih);
+	err = ih->ops->reset_hw(ih);
 	if(err < 0)
 		goto err_ops_reset_hw;
 
@@ -522,15 +522,15 @@ int ufp_up(struct ufp_handle *ih)
 	if(ioctl(ih->fd, IXMAP_ALLOCATE, (unsigned long)&req_alloc) < 0)
 		goto err_ioctl_alloc;
 
-	err = ufp_ops_irq_configure(ih);
+	err = ih->ops->irq_configure(ih);
 	if(err < 0)
 		goto err_ops_irq_configure;
 
-	err = ufp_ops_configure_tx;
+	err = ih->ops->configure_tx;
 	if(err < 0)
 		goto err_configure_tx;
 
-	err = ufp_ops_configure_rx;
+	err = ih->ops->configure_rx;
 	if(err < 0)
 		goto err_configure_rx;
 
