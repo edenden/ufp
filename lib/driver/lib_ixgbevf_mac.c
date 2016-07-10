@@ -171,10 +171,13 @@ int ufp_ixgbevf_update_xcast_mode(struct ufp_handle *ih, int xcast_mode)
 		return err;
 
 	msgbuf[0] &= ~IXGBE_VT_MSGTYPE_CTS;
-	if (msgbuf[0] == (IXGBE_VF_UPDATE_XCAST_MODE | IXGBE_VT_MSGTYPE_NACK))
-		return -EPERM;
+	if (msgbuf[0] != (IXGBE_VF_UPDATE_XCAST_MODE | IXGBE_VT_MSGTYPE_ACK))
+		goto err_ack;
 
 	return 0;
+
+err_ack:
+	return -1;
 }
 
 void ufp_ixgbevf_set_psrtype(struct ufp_handle *ih)
@@ -364,10 +367,10 @@ static void ufp_ixgbevf_configure_srrctl(struct ufp_handle *ih, uint8_t reg_idx)
 	 * the header size must be set.
 	 */
 	srrctl |= IXGBEVF_RX_HDR_SIZE << IXGBE_SRRCTL_BSIZEHDRSIZE_SHIFT;
-	srrctl |= ih->buf_size >> IXGBE_SRRCTL_BSIZEPKT_SHIFT;
+	srrctl |= IXGBEVF_RX_BUFSZ >> IXGBE_SRRCTL_BSIZEPKT_SHIFT;
 	srrctl |= IXGBE_SRRCTL_DESCTYPE_ADV_ONEBUF;
 
-	ufp_write_reg(ih, IXGBE_VFSRRCTL(index), srrctl);
+	ufp_write_reg(ih, IXGBE_VFSRRCTL(reg_idx), srrctl);
 }
 
 static void ufp_ixgbevf_rx_desc_queue_enable(struct ufp_handle *ih,

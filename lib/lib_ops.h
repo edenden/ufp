@@ -4,6 +4,7 @@
 struct ufp_ops {
 	int		(*reset_hw)(struct ufp_handle *);
 	int		(*get_queues)(struct ufp_handle *);
+	int		(*get_bufsize)(struct ufp_handle *);
 	int		(*irq_configure)(struct ufp_handle *);
 	int		(*configure_tx)(struct ufp_handle *);
 	int		(*configure_rx)(struct ufp_handle *);

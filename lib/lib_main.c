@@ -526,6 +526,10 @@ int ufp_up(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_ops_irq_configure;
 
+	err = ih->ops->get_bufsize(ih);
+	if(err < 0)
+		goto err_get_bufsize;
+
 	err = ih->ops->configure_tx(ih);
 	if(err < 0)
 		goto err_configure_tx;
@@ -538,6 +542,7 @@ int ufp_up(struct ufp_handle *ih)
 
 err_configure_rx:
 err_configure_tx:
+err_get_bufsize:
 err_ops_irq_configure:
 err_ioctl_alloc:
 	return -1;

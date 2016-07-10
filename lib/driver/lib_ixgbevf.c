@@ -25,6 +25,7 @@ int ufp_ixgbevf_init(struct ufp_ops *ops)
 
 	ops->reset_hw		= ufp_ixgbevf_reset;
 	ops->get_queues		= ufp_ixgbevf_get_queues;
+	ops->get_bufsize	= ufp_ixgbevf_get_bufsize;
 	ops->irq_configure	= ufp_ixgbevf_irq_configure;
 	ops->tx_configure	= ufp_ixgbevf_tx_configure;
 	ops->rx_configure	= ufp_ixgbevf_rx_configure;
@@ -39,6 +40,67 @@ void ufp_ixgbevf_destroy(struct ufp_ops *ops)
 {
 	free(ops->data);
 	return;
+}
+
+static int ufp_ixgbevf_reset(struct ufp_handle *ih)
+{
+        uint32_t timeout = IXGBE_VF_INIT_TIMEOUT;
+        uint32_t msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
+        int err;
+        int32_t mc_filter_type;
+
+        /* Call adapter stop to disable tx/rx and clear interrupts */
+        mac->ops.stop_adapter(hw);
+
+        pr_info("Issuing a function level reset to MAC\n");
+
+        ufp_write_reg(hw, IXGBE_VFCTRL, IXGBE_CTRL_RST);
+        ufp_write_flush(hw);
+
+        msleep(50);
+
+        /* we cannot reset while the RSTI / RSTD bits are asserted */
+        while (!mbx->ops.check_for_rst(hw) && timeout) {
+                timeout--;
+                udelay(5);
+        }
+
+        if (!timeout)
+                goto err_reset_failed;
+
+        /* Reset VF registers to initial values */
+        ufp_mac_clr_reg(hw);
+
+        /* mailbox timeout can now become active */
+        mbx->timeout = IXGBE_VF_MBX_INIT_TIMEOUT;
+
+        msgbuf[0] = IXGBE_VF_RESET;
+        mbx->ops.write_posted(hw, msgbuf, 1);
+
+        msleep(10);
+
+        /*
+         * set our "perm_addr" based on info provided by PF
+         * also set up the mc_filter_type which is piggy backed
+         * on the mac address in word 3
+         */
+        err = mbx->ops.read_posted(hw, msgbuf, IXGBE_VF_PERMADDR_MSG_LEN);
+        if (err)
+                goto err_read_mac_addr;
+
+        if (msgbuf[0] != (IXGBE_VF_RESET | IXGBE_VT_MSGTYPE_ACK))
+                goto err_read_mac_addr;
+
+        memcpy(ih->mac_addr, &msgbuf[1], 6);
+
+        /* Currently mc filter is not used */
+        mc_filter_type = msgbuf[IXGBE_VF_MC_TYPE_WORD];
+
+        return 0;
+
+err_read_mac_addr:
+err_reset_failed:
+        return -1;
 }
 
 static int ufp_ixgbevf_get_queues(struct ufp_handle *ih)
@@ -115,65 +177,10 @@ err_nego_api:
         return -1;
 }
 
-static int ufp_ixgbevf_reset(struct ufp_handle *ih)
+static int ufp_ixgbevf_get_bufsize(struct ufp_handle *ih)
 {
-	uint32_t timeout = IXGBE_VF_INIT_TIMEOUT;
-	uint32_t msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
-	int err;
-	int32_t mc_filter_type;
-
-	/* Call adapter stop to disable tx/rx and clear interrupts */
-	mac->ops.stop_adapter(hw);
-
-	pr_info("Issuing a function level reset to MAC\n");
-
-	ufp_write_reg(hw, IXGBE_VFCTRL, IXGBE_CTRL_RST);
-	ufp_write_flush(hw);
-
-	msleep(50);
-
-	/* we cannot reset while the RSTI / RSTD bits are asserted */
-	while (!mbx->ops.check_for_rst(hw) && timeout) {
-		timeout--;
-		udelay(5);
-	}
-
-	if (!timeout)
-		goto err_reset_failed;
-
-	/* Reset VF registers to initial values */
-	ufp_mac_clr_reg(hw);
-
-	/* mailbox timeout can now become active */
-	mbx->timeout = IXGBE_VF_MBX_INIT_TIMEOUT;
-
-	msgbuf[0] = IXGBE_VF_RESET;
-	mbx->ops.write_posted(hw, msgbuf, 1);
-
-	msleep(10);
-
-	/*
-	 * set our "perm_addr" based on info provided by PF
-	 * also set up the mc_filter_type which is piggy backed
-	 * on the mac address in word 3
-	 */
-	err = mbx->ops.read_posted(hw, msgbuf, IXGBE_VF_PERMADDR_MSG_LEN);
-	if (err)
-		goto err_read_mac_addr;
-
-	if (msgbuf[0] != (IXGBE_VF_RESET | IXGBE_VT_MSGTYPE_ACK))
-		goto err_read_mac_addr;
-
-	memcpy(ih->mac_addr, &msgbuf[1], 6);
-
-	/* Currently mc filter is not used */
-	mc_filter_type = msgbuf[IXGBE_VF_MC_TYPE_WORD];
-
+	ih->buf_size = IXGBEVF_RX_BUFSZ;
 	return 0;
-
-err_read_mac_addr:
-err_reset_failed:
-	return -1;
 }
 
 static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih)
@@ -243,7 +250,6 @@ static int ufp_ixgbevf_rx_configure(struct ufp_handle *ih)
 	/* Setup the HW Rx Head and Tail Descriptor Pointers and
 	 * the Base and Length of the Rx Descriptor Ring
 	 */
-	ih->buf_size = IXGBEVF_RX_BUFSZ;
 	for (i = 0; i < ih->num_queues; i++)
 		ufp_ixgbevf_rx_configure_ring(ih, i, &ih->rx_ring[i]);
 
