@@ -455,6 +455,10 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 
 	ih->num_queues = min(ih->num_queues, num_queues_req);
 
+	err = ih->ops->get_bufsize(ih);
+	if(err < 0)
+		goto err_get_bufsize;
+
 	err = ih->ops->reset_hw(ih);
 	if(err < 0)
 		goto err_ops_reset_hw;
@@ -485,6 +489,7 @@ err_alloc_tx_ring:
 err_alloc_rx_ring:
 
 err_ops_reset_hw:
+err_ops_get_bufsize:
 err_ops_get_queues:
 	ufp_ops_destroy(ih->ops);
 err_ops_init:
@@ -526,10 +531,6 @@ int ufp_up(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_ops_irq_configure;
 
-	err = ih->ops->get_bufsize(ih);
-	if(err < 0)
-		goto err_get_bufsize;
-
 	err = ih->ops->configure_tx(ih);
 	if(err < 0)
 		goto err_configure_tx;
@@ -542,7 +543,6 @@ int ufp_up(struct ufp_handle *ih)
 
 err_configure_rx:
 err_configure_tx:
-err_get_bufsize:
 err_ops_irq_configure:
 err_ioctl_alloc:
 	return -1;
@@ -550,7 +550,20 @@ err_ioctl_alloc:
 
 void ufp_down(struct ufp_handle *ih)
 {
-	
+        /* disable all enabled rx queues */
+        for (i = 0; i < adapter->num_rx_queues; i++)
+                ixgbevf_disable_rx_queue(adapter, adapter->rx_ring[i]);
+
+        usleep_range(10000, 20000);
+
+        ixgbevf_irq_disable(adapter);
+
+        /* disable transmits in the hardware now that interrupts are off */
+        for (i = 0; i < adapter->num_tx_queues; i++) {
+                u8 reg_idx = adapter->tx_ring[i]->reg_idx;
+                IXGBE_WRITE_REG(hw, IXGBE_VFTXDCTL(reg_idx),
+                                IXGBE_TXDCTL_SWFLSH);
+        }
 }
 
 unsigned int ufp_bufsize_get(struct ufp_handle *ih)

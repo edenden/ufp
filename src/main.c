@@ -50,7 +50,7 @@ int main(int argc, char **argv)
 				ports_assigned = 0,
 				ports_up = 0,
 				tun_assigned = 0,
-				desc_assigned = 0;
+				pages_assigned = 0;
 	sigset_t		sigset;
 
 	/* set default values */
@@ -143,17 +143,37 @@ int main(int argc, char **argv)
 			ret = -1;
 			goto err_open;
 		}
+
+		/* calclulate maximum buf_size we should prepare */
+		if(ixmap_bufsize_get(ixmapfwd.ih_array[i]) > ixmapfwd.buf_size)
+			ixmapfwd.buf_size = ixmap_bufsize_get(ixmapfwd.ih_array[i]);
 	}
 
-	for(i = 0; i < ixmapfwd.num_cores; i++, desc_assigned++){
+	for(i = 0; i < ixmapfwd.num_cores; i++, pages_assigned++){
 		threads[i].desc = ixmap_desc_alloc(ixmapfwd.ih_array,
 			ixmapfwd.num_ports, i);
 		if(!threads[i].desc){
 			ixmapfwd_log(LOG_ERR, "failed to ixmap_alloc_descring, idx = %d", i);
 			ixmapfwd_log(LOG_ERR, "please decrease descripter or enable iommu");
-			ret = -1;
 			goto err_desc_alloc;
 		}
+
+		threads[i].buf = ixmap_buf_alloc(ixmapfwd.ih_array,
+			ixmapfwd.num_ports, ixmapfwd.buf_count, ixmapfwd.buf_size, i);
+		if(!threads[i].buf){
+			ixmapfwd_log(LOG_ERR, "failed to ixmap_alloc_buf, idx = %d", i);
+			ixmapfwd_log(LOG_ERR, "please decrease buffer or enable iommu");
+			goto err_buf_alloc;
+		}
+
+		continue;
+
+err_buf_alloc:
+		ixmap_desc_release(ixmapfwd.ih_array,
+			ixmapfwd.num_ports, i, threads[i].desc);
+err_desc_alloc:
+		ret = -1;
+		goto err_assign_pages;
 	}
 
 	for(i = 0; i < ixmapfwd.num_ports; i++, ports_up++){
@@ -163,10 +183,6 @@ int main(int argc, char **argv)
 			ret = -1;
 			goto err_up;
 		}
-
-		/* calclulate maximum buf_size we should prepare */
-		if(ixmap_bufsize_get(ixmapfwd.ih_array[i]) > ixmapfwd.buf_size)
-			ixmapfwd.buf_size = ixmap_bufsize_get(ixmapfwd.ih_array[i]);
 	}
 
 	for(i = 0; i < ixmapfwd.num_ports; i++, tun_assigned++){
@@ -184,14 +200,6 @@ int main(int argc, char **argv)
 	}
 
 	for(i = 0; i < ixmapfwd.num_cores; i++, cores_assigned++){
-		threads[i].buf = ixmap_buf_alloc(ixmapfwd.ih_array,
-			ixmapfwd.num_ports, ixmapfwd.buf_count, ixmapfwd.buf_size, i);
-		if(!threads[i].buf){
-			ixmapfwd_log(LOG_ERR, "failed to ixmap_alloc_buf, idx = %d", i);
-			ixmapfwd_log(LOG_ERR, "please decrease buffer or enable iommu");
-			goto err_buf_alloc;
-		}
-
 		threads[i].plane = ixmap_plane_alloc(ixmapfwd.ih_array,
 			threads[i].buf, ixmapfwd.num_ports, i);
 		if(!threads[i].plane){
@@ -217,9 +225,6 @@ err_tun_plane_alloc:
 		ixmap_plane_release(threads[i].plane,
 			ixmapfwd.num_ports);
 err_plane_alloc:
-		ixmap_buf_release(threads[i].buf,
-			ixmapfwd.ih_array, ixmapfwd.num_ports);
-err_buf_alloc:
 		ret = -1;
 		goto err_assign_cores;
 	}
@@ -238,8 +243,6 @@ err_assign_cores:
 			ixmapfwd.num_ports);
 		ixmap_plane_release(threads[i].plane,
 			ixmapfwd.num_ports);
-		ixmap_buf_release(threads[i].buf,
-			ixmapfwd.ih_array, ixmapfwd.num_ports);
 	}
 err_set_signal:
 err_tun_open:
@@ -250,8 +253,10 @@ err_up:
 	for(i = 0; i < ports_up; i++){
 		ixmap_down(ixmapfwd.ih_array[i]);
 	}
-err_desc_alloc:
-	for(i = 0; i < desc_assigned; i++){
+err_assign_pages:
+	for(i = 0; i < pages_assigned; i++){
+		ixmap_buf_release(threads[i].buf,
+			ixmapfwd.ih_array, ixmapfwd.num_ports);
 		ixmap_desc_release(ixmapfwd.ih_array,
 			ixmapfwd.num_ports, i, threads[i].desc);
 	}
