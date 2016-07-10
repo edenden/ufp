@@ -95,17 +95,14 @@ static int ufp_cmd_allocate(struct ufp_device *device, void __user *argp)
 	struct ufp_alloc_req req;
 	int err = 0;
 
-	if(device->allocated){
-		return -EALREADY;
+	err = copy_from_user(&req, argp, sizeof(req));
+	if(err){
+		err = -EFAULT;
+		goto err_copy_from_user;
 	}
 
-	if (copy_from_user(&req, argp, sizeof(req)))
-		return -EFAULT;
-
-	device->num_rx_queues = req.num_rx_queues;
-	device->num_tx_queues = req.num_tx_queues;
-
-	err = ufp_allocate(device);
+	err = ufp_allocate(device,
+		req.num_rx_queues, req.num_tx_queues);
 	if (err){
 		err = -EINVAL;
 		goto err_allocate;
@@ -114,18 +111,14 @@ static int ufp_cmd_allocate(struct ufp_device *device, void __user *argp)
 	return 0;
 
 err_allocate:
+err_copy_from_user:
 	return err;
 }
 
 static int ufp_cmd_release(struct ufp_device *device,
 	unsigned long arg)
 {
-	if(!device->allocated){
-		return -EALREADY;
-	}
-
 	ufp_release(device);
-
 	return 0;
 }
 
@@ -138,9 +131,6 @@ static int ufp_cmd_info(struct ufp_device *device,
 
 	req.mmio_base = device->iobase;
 	req.mmio_size = device->iolen;
-
-	req.num_rx_queues = device->num_rx_queues;
-	req.num_tx_queues = device->num_tx_queues;
 
 	req.device_id = pdev->device;
 	req.vendor_id = pdev->vendor;
@@ -265,7 +255,7 @@ static int ufp_close(struct inode *inode, struct file *file)
 	pr_info("close device=%p\n", device);
 
 	down(&device->sem);
-	ufp_cmd_release(device, 0);
+	ufp_release(device);
 	up(&device->sem);
 
 	ufp_device_put(device);

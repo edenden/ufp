@@ -209,9 +209,6 @@ struct ufp_info_req {
         __u64                   mmio_base;
         __u64                   mmio_size;
 
-        __u32                   num_rx_queues;
-        __u32                   num_tx_queues;
-
         __u16                   device_id;
         __u16                   vendor_id;
 };

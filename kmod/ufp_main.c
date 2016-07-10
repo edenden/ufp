@@ -350,13 +350,21 @@ static void ufp_interrupt_disable(struct ufp_device *device)
 	return;
 }
 
-int ufp_allocate(struct ufp_device *device)
+int ufp_allocate(struct ufp_device *device,
+	u32 num_rx_queues, u32 num_tx_queues)
 {
 	int err;
 
-	if(!device->num_rx_queues || !device->num_tx_queues){
+	if(device->allocated){
+		goto err_already;
+	}
+
+	if(!num_rx_queues || !num_tx_queues){
 		goto err_num_queues;
 	}
+
+	device->num_rx_queues = num_rx_queues;
+	device->num_tx_queues = num_tx_queues;
 
 	err = ufp_configure_msix(device);
         if(err < 0){
@@ -364,27 +372,32 @@ int ufp_allocate(struct ufp_device *device)
 		goto err_configure_msix;
 	}
 
-	/* User space application enables interrupts after */
 	device->allocated = 1;
-
 	return 0;
 
 err_configure_msix:
 err_num_queues:
+err_already:
 	return -1;
 }
 
 void ufp_release(struct ufp_device *device)
 {
+	if(!device->allocated){
+		goto err_already;
+	}
+
         ufp_interrupt_disable(device);
 
-	if (!pci_channel_offline(device->pdev))
-		pr_info("pci channel state is abnormal");
+	if (!pci_channel_offline(device->pdev)){
+		pr_err("pci channel state is abnormal");
+	}
 
         /* free irqs */
         ufp_free_msix(device);
         device->allocated = 0;
 
+err_already:
 	return;
 }
 
