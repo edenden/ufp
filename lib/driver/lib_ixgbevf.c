@@ -210,7 +210,7 @@ static int ufp_ixgbevf_tx_configure(struct ufp_handle *ih)
 
 	/* Setup the HW Tx Head and Tail descriptor pointers */
 	for (i = 0; i < ih->num_queues; i++)
-		ufp_ixgbevf_tx_configure_ring(adapter, adapter->tx_ring[i]);
+		ufp_ixgbevf_tx_configure_ring(ih, i, &ih->rx_ring[i]);
 }
 
 static int ufp_ixgbevf_rx_configure(struct ufp_handle *ih)
@@ -243,8 +243,9 @@ static int ufp_ixgbevf_rx_configure(struct ufp_handle *ih)
 	/* Setup the HW Rx Head and Tail Descriptor Pointers and
 	 * the Base and Length of the Rx Descriptor Ring
 	 */
+	ih->buf_size = IXGBEVF_RX_BUFSZ;
 	for (i = 0; i < ih->num_queues; i++)
-		ufp_ixgbevf_rx_configure_ring(adapter, adapter->rx_ring[i]);
+		ufp_ixgbevf_rx_configure_ring(ih, i, &ih->rx_ring[i]);
 
 	return 0;
 

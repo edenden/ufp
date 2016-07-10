@@ -248,8 +248,13 @@ int ufp_ixgbevf_set_rlpml(struct ufp_handle *ih)
 	if(err)
 		goto err_read;
 
+	msgbuf[0] &= ~IXGBE_VT_MSGTYPE_CTS;
+	if (msgbuf[0] != (IXGBE_VF_SET_LPE | IXGBE_VT_MSGTYPE_ACK))
+		goto err_ack;
+
 	return 0;
 
+err_ack:
 err_read:
 err_write:
 	return -1;
@@ -321,45 +326,106 @@ static void ixgbevf_configure_tx_ring(struct ixgbevf_adapter *adapter,
                 DPRINTK(PROBE, ERR, "Could not enable Tx Queue %d\n", reg_idx);
 }
 
-static void ixgbevf_configure_rx_ring(struct ixgbevf_adapter *adapter,
-                                      struct ixgbevf_ring *ring)
+static void ufp_ixgbevf_disable_rx_queue(struct ufp_handle *ih, uint8_t reg_idx)
 {
-        struct ixgbe_hw *hw = &adapter->hw;
-        u64 rdba = ring->dma;
-        u32 rxdctl;
-        u8 reg_idx = ring->reg_idx;
+	int wait_loop = IXGBEVF_MAX_RX_DESC_POLL;
+        uint32_t rxdctl;
+	struct timespec ts;
 
-        /* disable queue to avoid issues while updating state */
-        rxdctl = IXGBE_READ_REG(hw, IXGBE_VFRXDCTL(reg_idx));
-        ixgbevf_disable_rx_queue(adapter, ring);
+	ts.tv_sec = 0;
+	ts.tv_nsec = 10000;
 
-        IXGBE_WRITE_REG(hw, IXGBE_VFRDBAL(reg_idx), rdba & DMA_BIT_MASK(32));
-        IXGBE_WRITE_REG(hw, IXGBE_VFRDBAH(reg_idx), rdba >> 32);
-        IXGBE_WRITE_REG(hw, IXGBE_VFRDLEN(reg_idx),
-                        ring->count * sizeof(union ixgbe_adv_rx_desc));
+	rxdctl = ufp_read_reg(ih, IXGBE_VFRXDCTL(reg_idx));
+	rxdctl &= ~IXGBE_RXDCTL_ENABLE;
 
-        /* enable relaxed ordering */
-        IXGBE_WRITE_REG(hw, IXGBE_VFDCA_RXCTRL(reg_idx),
-                        IXGBE_DCA_RXCTRL_DESC_RRO_EN);
+	/* write value back with RXDCTL.ENABLE bit cleared */
+	ufp_write_reg(ih, IXGBE_VFRXDCTL(reg_idx), rxdctl);
 
-        /* reset head and tail pointers */
-        IXGBE_WRITE_REG(hw, IXGBE_VFRDH(reg_idx), 0);
-        IXGBE_WRITE_REG(hw, IXGBE_VFRDT(reg_idx), 0);
-        ring->tail = adapter->io_addr + IXGBE_VFRDT(reg_idx);
+	/* the hardware may take up to 100us to really disable the rx queue */
+	do {
+		nanosleep(&ts, NULL);
+		rxdctl = IXGBE_READ_REG(hw, IXGBE_VFRXDCTL(reg_idx));
+	} while (--wait_loop && (rxdctl & IXGBE_RXDCTL_ENABLE));
 
-        /* reset ntu and ntc to place SW in sync with hardwdare */
-        ring->next_to_clean = 0;
-        ring->next_to_use = 0;
-        ring->next_to_alloc = 0;
+	if (!wait_loop) {
+		printf("RXDCTL.ENABLE queue %d not cleared while polling\n",
+			reg_idx);
+	}
+	return;
+}
 
-        ixgbevf_configure_srrctl(adapter, reg_idx);
+static void ufp_ixgbevf_configure_srrctl(struct ufp_handle *ih, uint8_t reg_idx)
+{
+	uint32_t srrctl;
 
-        /* allow any size packet since we can handle overflow */
-        rxdctl &= ~IXGBE_RXDCTL_RLPML_EN;
+	srrctl = IXGBE_SRRCTL_DROP_EN;
 
-        rxdctl |= IXGBE_RXDCTL_ENABLE | IXGBE_RXDCTL_VME;
-        IXGBE_WRITE_REG(hw, IXGBE_VFRXDCTL(reg_idx), rxdctl);
+	/* As per the documentation for 82599 in order to support hardware RSC
+	 * the header size must be set.
+	 */
+	srrctl |= IXGBEVF_RX_HDR_SIZE << IXGBE_SRRCTL_BSIZEHDRSIZE_SHIFT;
+	srrctl |= ih->buf_size >> IXGBE_SRRCTL_BSIZEPKT_SHIFT;
+	srrctl |= IXGBE_SRRCTL_DESCTYPE_ADV_ONEBUF;
 
-        ixgbevf_rx_desc_queue_enable(adapter, ring);
-        ixgbevf_alloc_rx_buffers(ring, ixgbevf_desc_unused(ring));
+	ufp_write_reg(ih, IXGBE_VFSRRCTL(index), srrctl);
+}
+
+static void ufp_ixgbevf_rx_desc_queue_enable(struct ufp_handle *ih,
+	uint8_t reg_idx)
+{
+	int wait_loop = IXGBEVF_MAX_RX_DESC_POLL;
+	uint32_t rxdctl;
+	struct timespec ts;
+
+	ts.tv_sec = 0;
+	ts.tv_nsec = 1000000;
+
+	do {
+		nanosleep(&ts, NULL);
+		rxdctl = ufp_read_reg(ih, IXGBE_VFRXDCTL(reg_idx));
+	} while (--wait_loop && !(rxdctl & IXGBE_RXDCTL_ENABLE));
+
+	if (!wait_loop) {
+		printf("RXDCTL.ENABLE queue %d not set while polling\n",
+			reg_idx);
+	}
+	return;
+}
+
+void ufp_ixgbevf_configure_rx_ring(struct ufp_handle *ih,
+	uint8_t reg_idx, struct ufp_ring *ring)
+{
+	uint32_t rxdctl;
+	uint64_t addr_dma;
+
+	addr_dma = (uint64_t)ring->addr_dma;
+
+	/* disable queue to avoid issues while updating state */
+	rxdctl = ufp_read_reg(ih, IXGBE_VFRXDCTL(reg_idx));
+	ufp_ixgbevf_disable_rx_queue(adapter, reg_idx);
+
+	ufp_write_reg(ih, IXGBE_VFRDBAL(reg_idx), addr_dma & DMA_BIT_MASK(32));
+	ufp_write_reg(ih, IXGBE_VFRDBAH(reg_idx), addr_dma >> 32);
+	ufp_write_reg(ih, IXGBE_VFRDLEN(reg_idx),
+		ih->num_rx_desc * sizeof(union ixmap_adv_rx_desc);
+
+	/* enable relaxed ordering */
+	ufp_write_reg(ih, IXGBE_VFDCA_RXCTRL(reg_idx),
+		IXGBE_DCA_RXCTRL_DESC_RRO_EN);
+
+	/* reset head and tail pointers */
+	ufp_write_reg(ih, IXGBE_VFRDH(reg_idx), 0);
+	ufp_write_reg(ih, IXGBE_VFRDT(reg_idx), 0);
+	ring->tail = ih->bar + IXGBE_VFRDT(reg_idx);
+
+	ufp_ixgbevf_configure_srrctl(ih, reg_idx);
+
+	/* allow any size packet since we can handle overflow */
+	rxdctl &= ~IXGBE_RXDCTL_RLPML_EN;
+
+	rxdctl |= IXGBE_RXDCTL_ENABLE | IXGBE_RXDCTL_VME;
+	ufp_write_reg(ih, IXGBE_VFRXDCTL(reg_idx), rxdctl);
+
+	ufp_ixgbevf_rx_desc_queue_enable(ih, reg_idx);
+	return;
 }
