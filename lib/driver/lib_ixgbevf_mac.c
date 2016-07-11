@@ -1,34 +1,14 @@
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <stdint.h>
+#include <time.h>
 
-void ufp_ixgbevf_stop_adapter(struct ufp_handle *ih)
-{
-        uint32_t reg_val;
-        uint16_t i;
-
-	/* Clear interrupt mask to stop from interrupts being generated */
-	ufp_write_reg(ih, IXGBE_VTEIMC, IXGBE_VF_IRQ_CLEAR_MASK);
-
-	/* Clear any pending interrupts, flush previous writes */
-	ufp_read_reg(ih, IXGBE_VTEICR);
-
-	/* Disable the transmit unit.  Each queue must be disabled. */
-	for (i = 0; i < ih->num_queues; i++)
-		ufp_write_reg(ih, IXGBE_VFTXDCTL(i), IXGBE_TXDCTL_SWFLSH);
-
-	/* Disable the receive unit by stopping each queue */
-	for (i = 0; i < ih->num_queues; i++) {
-		reg_val = ufp_read_reg(ih, IXGBE_VFRXDCTL(i));
-		reg_val &= ~IXGBE_RXDCTL_ENABLE;
-		ufp_write_reg(ih, IXGBE_VFRXDCTL(i), reg_val);
-	}
-	/* Clear packet split and pool config */
-	ufp_write_reg(ih, IXGBE_VFPSRTYPE, 0);
-
-	/* flush all queues disables */
-	ufp_write_flush(ih);
-	msleep(2);
-
-	return 0;
-}
+#include "lib_ixgbevf.h"
+#include "lib_ixgbevf_mac.h"
 
 void ufp_ixgbevf_clr_reg(struct ufp_handle *ih)
 {
@@ -155,7 +135,7 @@ void ufp_ixgbevf_set_vfmrqc(struct ufp_handle *ih)
 {
 	uint32_t vfmrqc = 0, vfreta = 0;
 	uint16_t rss_i = ih->num_queues;
-        int i, j;
+	int i, j;
 
 	/* Fill out hash function seeds */
 	for(i = 0; i < IXGBEVF_VFRSSRK_REGS; i++)
@@ -199,7 +179,7 @@ int ufp_ixgbevf_set_rlpml(struct ufp_handle *ih)
 	msgbuf[0] = IXGBE_VF_SET_LPE;
 	msgbuf[1] = ih->mtu_frame;
 
-        err = mbx->ops.write_posted(hw, msgbuf, 2);
+	err = mbx->ops.write_posted(hw, msgbuf, 2);
 	if(err)
 		goto err_write;
 
@@ -222,14 +202,12 @@ err_write:
 void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
 	uint8_t reg_idx, struct ufp_ring *ring)
 {
-        int wait_loop = 10;
+	int wait_loop = 10;
 	uint32_t txdctl = IXGBE_TXDCTL_ENABLE;
 	uint64_t addr_dma;
 	struct timespec ts;
 
 	addr_dma = (uint64_t)ring->addr_dma;
-	ts.tv_sec = 0;
-	ts.tv_nsec = 1000000;
 
 	/* disable queue to avoid issues while updating state */
 	ufp_write_reg(ih, IXGBE_VFTXDCTL(reg_idx), IXGBE_TXDCTL_SWFLSH);
@@ -240,7 +218,7 @@ void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
 	ufp_write_reg(ih, IXGBE_VFTDLEN(reg_idx),
 		ih->num_tx_desc * sizeof(union ixmap_adv_tx_desc));
 
-        /* disable head writeback */
+	/* disable head writeback */
 	ufp_write_reg(ih, IXGBE_VFTDWBAH(reg_idx), 0);
 	ufp_write_reg(ih, IXGBE_VFTDWBAL(reg_idx), 0);
 
@@ -255,13 +233,13 @@ void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
 
 	ring->tail = ih->bar + IXGBE_TDT(reg_idx);
 
-        /* set WTHRESH to encourage burst writeback, it should not be set
-         * higher than 1 when ITR is 0 as it could cause false TX hangs
-         *
-         * In order to avoid issues WTHRESH + PTHRESH should always be equal
-         * to or less than the number of on chip descriptors, which is
-         * currently 40.
-         */
+	/* set WTHRESH to encourage burst writeback, it should not be set
+	 * higher than 1 when ITR is 0 as it could cause false TX hangs
+	 *
+	 * In order to avoid issues WTHRESH + PTHRESH should always be equal
+	 * to or less than the number of on chip descriptors, which is
+	 * currently 40.
+	 */
 	if(ih->num_interrupt_rate < 8)
 		txdctl |= (1 << 16);	/* WTHRESH = 1 */
 	else
@@ -276,11 +254,11 @@ void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
 
 	/* poll to verify queue is enabled */
 	do{
-		nanosleep(&ts, NULL);
+		msleep(ts, 1);
 		txdctl = ufp_read_reg(ih, IXGBE_VFTXDCTL(reg_idx));
 	}while(--wait_loop && !(txdctl & IXGBE_TXDCTL_ENABLE));
 
-        if (!wait_loop)
+	if (!wait_loop)
 		printf("Could not enable Tx Queue %d\n", reg_idx);
 	return;
 }
@@ -288,11 +266,8 @@ void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
 static void ufp_ixgbevf_disable_rx_queue(struct ufp_handle *ih, uint8_t reg_idx)
 {
 	int wait_loop = IXGBEVF_MAX_RX_DESC_POLL;
-        uint32_t rxdctl;
+	uint32_t rxdctl;
 	struct timespec ts;
-
-	ts.tv_sec = 0;
-	ts.tv_nsec = 10000;
 
 	rxdctl = ufp_read_reg(ih, IXGBE_VFRXDCTL(reg_idx));
 	rxdctl &= ~IXGBE_RXDCTL_ENABLE;
@@ -302,7 +277,7 @@ static void ufp_ixgbevf_disable_rx_queue(struct ufp_handle *ih, uint8_t reg_idx)
 
 	/* the hardware may take up to 100us to really disable the rx queue */
 	do {
-		nanosleep(&ts, NULL);
+		usleep(ts, 10);
 		rxdctl = IXGBE_READ_REG(hw, IXGBE_VFRXDCTL(reg_idx));
 	} while (--wait_loop && (rxdctl & IXGBE_RXDCTL_ENABLE));
 
@@ -336,11 +311,8 @@ static void ufp_ixgbevf_rx_desc_queue_enable(struct ufp_handle *ih,
 	uint32_t rxdctl;
 	struct timespec ts;
 
-	ts.tv_sec = 0;
-	ts.tv_nsec = 1000000;
-
 	do {
-		nanosleep(&ts, NULL);
+		msleep(ts, 1);
 		rxdctl = ufp_read_reg(ih, IXGBE_VFRXDCTL(reg_idx));
 	} while (--wait_loop && !(rxdctl & IXGBE_RXDCTL_ENABLE));
 

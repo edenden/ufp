@@ -1,17 +1,23 @@
-#include <linux/types.h>
-#include <linux/errno.h>
-#include <linux/pci.h>
-#include <linux/delay.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <stdint.h>
+#include <time.h>
 
 #include "ufp_ixgbevf.h"
 #include "ufp_ixgbevf_mbx.h"
 
-static int ufp_ixgbevf_get_queues(struct ufp_handle *ih);
+static int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih);
+static int ufp_ixgbevf_stop_adapter(struct ufp_handle *ih);
 static int ufp_ixgbevf_reset(struct ufp_handle *ih);
-static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih);
-
-static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode);
-static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size);
+static int ufp_ixgbevf_get_queues(struct ufp_handle *ih);
+static int ufp_ixgbevf_get_bufsize(struct ufp_handle *ih);
+static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih);
+static int ufp_ixgbevf_configure_tx(struct ufp_handle *ih);
+static int ufp_ixgbevf_configure_rx(struct ufp_handle *ih);
 
 int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops)
 {
@@ -49,7 +55,7 @@ void ufp_ixgbevf_destroy(struct ufp_ops *ops)
 	return;
 }
 
-int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih)
+static int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih)
 {
 	int32_t err, i = 0;
 	uint32_t msg[3];
@@ -97,33 +103,34 @@ err_write:
 
 static int ufp_ixgbevf_stop_adapter(struct ufp_handle *ih)
 {
-        uint32_t reg_val;
-        uint16_t i;
+	uint32_t reg_val;
+	uint16_t i;
+	struct timespec ts;
 
-        /* Clear interrupt mask to stop from interrupts being generated */
-        ufp_write_reg(ih, IXGBE_VTEIMC, IXGBE_VF_IRQ_CLEAR_MASK);
+	/* Clear interrupt mask to stop from interrupts being generated */
+	ufp_write_reg(ih, IXGBE_VTEIMC, IXGBE_VF_IRQ_CLEAR_MASK);
 
-        /* Clear any pending interrupts, flush previous writes */
-        ufp_read_reg(ih, IXGBE_VTEICR);
+	/* Clear any pending interrupts, flush previous writes */
+	ufp_read_reg(ih, IXGBE_VTEICR);
 
-        /* Disable the transmit unit.  Each queue must be disabled. */
-        for (i = 0; i < ih->num_queues; i++)
-                ufp_write_reg(ih, IXGBE_VFTXDCTL(i), IXGBE_TXDCTL_SWFLSH);
+	/* Disable the transmit unit.  Each queue must be disabled. */
+	for (i = 0; i < ih->num_queues; i++)
+		ufp_write_reg(ih, IXGBE_VFTXDCTL(i), IXGBE_TXDCTL_SWFLSH);
 
-        /* Disable the receive unit by stopping each queue */
-        for (i = 0; i < ih->num_queues; i++) {
-                reg_val = ufp_read_reg(ih, IXGBE_VFRXDCTL(i));
-                reg_val &= ~IXGBE_RXDCTL_ENABLE;
-                ufp_write_reg(ih, IXGBE_VFRXDCTL(i), reg_val);
-        }
-        /* Clear packet split and pool config */
-        ufp_write_reg(ih, IXGBE_VFPSRTYPE, 0);
+	/* Disable the receive unit by stopping each queue */
+	for (i = 0; i < ih->num_queues; i++) {
+		reg_val = ufp_read_reg(ih, IXGBE_VFRXDCTL(i));
+		reg_val &= ~IXGBE_RXDCTL_ENABLE;
+		ufp_write_reg(ih, IXGBE_VFRXDCTL(i), reg_val);
+	}
+	/* Clear packet split and pool config */
+	ufp_write_reg(ih, IXGBE_VFPSRTYPE, 0);
 
-        /* flush all queues disables */
-        ufp_write_flush(ih);
-        msleep(2);
+	/* flush all queues disables */
+	ufp_write_flush(ih);
+	msleep(ts, 2);
 
-        return 0;
+	return 0;
 }
 
 static int ufp_ixgbevf_reset(struct ufp_handle *ih)
@@ -131,22 +138,23 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 	uint32_t timeout = IXGBE_VF_INIT_TIMEOUT;
 	uint32_t msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
 	int err;
+	struct timespec ts;
 	int32_t mc_filter_type;
 
 	/* Call adapter stop to disable tx/rx and clear interrupts */
-	mac->ops.stop_adapter(hw);
-
-	pr_info("Issuing a function level reset to MAC\n");
+	err = stop_adapter(ih);
+	if(err < 0)
+		goto err_stop_adapter;
 
 	ufp_write_reg(hw, IXGBE_VFCTRL, IXGBE_CTRL_RST);
 	ufp_write_flush(hw);
 
-	msleep(50);
+	msleep(ts, 50);
 
 	/* we cannot reset while the RSTI / RSTD bits are asserted */
 	while (!mbx->ops.check_for_rst(hw) && timeout) {
 		timeout--;
-		udelay(5);
+		usleep(ts, 5);
 	}
 
 	if (!timeout)
@@ -159,9 +167,11 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 	mbx->timeout = IXGBE_VF_MBX_INIT_TIMEOUT;
 
 	msgbuf[0] = IXGBE_VF_RESET;
-	mbx->ops.write_posted(hw, msgbuf, 1);
+	err = mbx->ops.write_posted(hw, msgbuf, 1);
+	if(err)
+		goto err_write;
 
-	msleep(10);
+	msleep(ts, 10);
 
 	/*
 	 * set our "perm_addr" based on info provided by PF
@@ -170,7 +180,7 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 	 */
 	err = mbx->ops.read_posted(hw, msgbuf, IXGBE_VF_PERMADDR_MSG_LEN);
 	if (err)
-		goto err_read_mac_addr;
+		goto err_read;
 
 	if (msgbuf[0] != (IXGBE_VF_RESET | IXGBE_VT_MSGTYPE_ACK))
 		goto err_read_mac_addr;
@@ -183,7 +193,10 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 	return 0;
 
 err_read_mac_addr:
+err_read:
+err_write:
 err_reset_failed:
+err_stop_adapter:
 	return -1;
 }
 
@@ -265,7 +278,7 @@ static int ufp_ixgbevf_get_bufsize(struct ufp_handle *ih)
 	return 0;
 }
 
-static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih)
+static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih)
 {
 	unsigned int qmask = 0;
 
@@ -293,16 +306,16 @@ static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih)
 	ufp_write_reg(ih, IXGBE_VTEIMS, qmask);
 }
 
-static int ufp_ixgbevf_tx_configure(struct ufp_handle *ih)
+static int ufp_ixgbevf_configure_tx(struct ufp_handle *ih)
 {
 	int i;
 
 	/* Setup the HW Tx Head and Tail descriptor pointers */
 	for (i = 0; i < ih->num_queues; i++)
-		ufp_ixgbevf_tx_configure_ring(ih, i, &ih->rx_ring[i]);
+		ufp_ixgbevf_confiugre_tx_ring(ih, i, &ih->rx_ring[i]);
 }
 
-static int ufp_ixgbevf_rx_configure(struct ufp_handle *ih)
+static int ufp_ixgbevf_configure_rx(struct ufp_handle *ih)
 {
 	int i, err;
 
@@ -333,7 +346,7 @@ static int ufp_ixgbevf_rx_configure(struct ufp_handle *ih)
 	 * the Base and Length of the Rx Descriptor Ring
 	 */
 	for (i = 0; i < ih->num_queues; i++)
-		ufp_ixgbevf_rx_configure_ring(ih, i, &ih->rx_ring[i]);
+		ufp_ixgbevf_configure_rx_ring(ih, i, &ih->rx_ring[i]);
 
 	return 0;
 

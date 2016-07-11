@@ -34,31 +34,6 @@
 #define ufp_print(args...)
 #endif
 
-#define DMA_64BIT_MASK		0xffffffffffffffffULL
-#define DMA_BIT_MASK(n)		(((n) == 64) ? \
-				DMA_64BIT_MASK : ((1ULL<<(n))-1))
-
-/* General Registers */
-#define IXGBE_STATUS		0x00008
-
-/* Interrupt Registers */
-#define IXGBE_EIMS		0x00880
-#define IXGBE_EIMS_EX(_i)	(0x00AA0 + (_i) * 4)
-
-#define IXGBE_EICR_RTX_QUEUE	0x0000FFFF /* RTx Queue Interrupt */
-#define IXGBE_EICR_LSC		0x00100000 /* Link Status Change */
-#define IXGBE_EICR_TCP_TIMER	0x40000000 /* TCP Timer */
-#define IXGBE_EICR_OTHER	0x80000000 /* Interrupt Cause Active */
-#define IXGBE_EIMS_RTX_QUEUE	IXGBE_EICR_RTX_QUEUE /* RTx Queue Interrupt */
-#define IXGBE_EIMS_LSC		IXGBE_EICR_LSC /* Link Status Change */
-#define IXGBE_EIMS_TCP_TIMER	IXGBE_EICR_TCP_TIMER /* TCP Timer */
-#define IXGBE_EIMS_OTHER	IXGBE_EICR_OTHER /* INT Cause Active */
-#define IXGBE_EIMS_ENABLE_MASK ( \
-				IXGBE_EIMS_RTX_QUEUE    | \
-				IXGBE_EIMS_LSC          | \
-				IXGBE_EIMS_TCP_TIMER    | \
-				IXGBE_EIMS_OTHER)
-
 struct ufp_ring {
 	void		*addr_virt;
 	unsigned long	addr_dma;

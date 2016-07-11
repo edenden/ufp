@@ -1,5 +1,5 @@
-#ifndef _UFP_MAC_H__
-#define _UFP_MAC_H__
+#ifndef _IXGBEVF_H__
+#define _IXGBEVF_H__
 
 #define IXGBE_VF_IRQ_CLEAR_MASK	7
 #define IXGBE_VF_MAX_TX_QUEUES	8
@@ -88,12 +88,23 @@
 #define IXGBE_MAX_EITR			0x00000FF8
 #define IXGBE_EITR_CNT_WDIS		0x80000000
 
+#define DMA_64BIT_MASK		0xffffffffffffffffULL
+#define DMA_BIT_MASK(n)		(((n) == 64) ? \
+				DMA_64BIT_MASK : ((1ULL<<(n))-1))
+
+#define msleep(ts, n)		ts.tv_sec = 0; \
+				ts.tv_nsec = ((n) * 1000000); \
+				nanosleep(&ts, NULL);
+#define usleep(ts, n)		ts.tv_sec = 0; \
+				ts.tv_nsec = ((n) * 1000); \
+				nanosleep(&ts, NULL);
+
 struct ufp_ixgbevf_data {
 	int32_t		mc_filter_type;
 	int		api_version;
 };
 
-int ufp_ixgbevf_init(struct ufp_ops *ops);
+int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops);
 void ufp_ixgbevf_destroy(struct ufp_ops *ops);
 
-#endif /* _UFP_MAC_H__ */
+#endif /* _IXGBEVF_H__ */
