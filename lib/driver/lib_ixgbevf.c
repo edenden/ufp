@@ -41,14 +41,8 @@ int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops)
 	ops->configure_rx	= ufp_ixgbevf_configure_rx;
 	ops->stop_adapter	= ufp_ixgbevf_stop_adapter;
 
-	err = ufp_ixgbevf_negotiate_api(ih);
-	if(err < 0)
-		goto err_nego_api;
-
 	return 0;
 
-err_nego_api:
-	free(ops->data);
 err_alloc_data:
 	return -1;
 }
@@ -57,52 +51,6 @@ void ufp_ixgbevf_destroy(struct ufp_ops *ops)
 {
 	free(ops->data);
 	return;
-}
-
-static int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih)
-{
-	int32_t err, i = 0;
-	uint32_t msg[3];
-	struct ufp_ixgbevf_data *data;
-
-	data = ih->ops.data;
-
-	enum ufp_mbx_api_rev api[] = {
-		ixgbe_mbox_api_12,
-		ixgbe_mbox_api_11,
-		ixgbe_mbox_api_10,
-		ixgbe_mbox_api_unknown
-	};
-
-	while (api[i] != ixgbe_mbox_api_unknown) {
-
-		/* Negotiate the mailbox API version */
-		msg[0] = IXGBE_VF_API_NEGOTIATE;
-		msg[1] = api[i];
-		msg[2] = 0;
-
-		err = mbx->ops.write_posted(hw, msg, 3);
-		if(err) 
-			goto err_write;
-
-		err = mbx->ops.read_posted(hw, msg, 3);
-		if(err) 
-			goto err_read;
-
-		msg[0] &= ~IXGBE_VT_MSGTYPE_CTS;
-
-		if (msg[0] == (IXGBE_VF_API_NEGOTIATE | IXGBE_VT_MSGTYPE_ACK))
-			break;
-
-		i++;
-	}
-
-	data->api_version = api[i];
-	return 0;
-
-err_read:
-err_write:
-	return -1;
 }
 
 static int ufp_ixgbevf_stop_adapter(struct ufp_handle *ih)
@@ -150,27 +98,27 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_stop_adapter;
 
-	ufp_write_reg(hw, IXGBE_VFCTRL, IXGBE_CTRL_RST);
-	ufp_write_flush(hw);
+	ufp_write_reg(ih, IXGBE_VFCTRL, IXGBE_CTRL_RST);
+	ufp_write_flush(ih);
 
 	msleep(&ts, 50);
 
 	/* we cannot reset while the RSTI / RSTD bits are asserted */
 	timeout = data->mbx_timeout;
-	while (!mbx->ops.check_for_rst(hw) && timeout) {
+	while (!ufp_ixgbevf_mbx_check_for_rst(hw) && timeout) {
 		timeout--;
 		usleep(&ts, 5);
 	}
 
 	if (!timeout)
-		goto err_reset_failed;
+		goto err_check_for_rst;
 
 	/* Reset VF registers to initial values */
-	ufp_mac_clr_reg(hw);
+	ufp_ixgbevf_clr_reg(ih);
 
 	msgbuf[0] = IXGBE_VF_RESET;
-	err = mbx->ops.write_posted(hw, msgbuf, 1);
-	if(err)
+	err = ufp_ixgbevf_mbx_write_posted(ih, msgbuf, 1);
+	if(err < 0)
 		goto err_write;
 
 	msleep(&ts, 10);
@@ -180,24 +128,29 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 	 * also set up the mc_filter_type which is piggy backed
 	 * on the mac address in word 3
 	 */
-	err = mbx->ops.read_posted(hw, msgbuf, IXGBE_VF_PERMADDR_MSG_LEN);
-	if (err)
+	err = ufp_ixgbevf_mbx_read_posted(ih, msgbuf, IXGBE_VF_PERMADDR_MSG_LEN);
+	if (err < 0)
 		goto err_read;
 
 	if (msgbuf[0] != (IXGBE_VF_RESET | IXGBE_VT_MSGTYPE_ACK))
-		goto err_read_mac_addr;
+		goto err_reset_failed;
 
 	memcpy(ih->mac_addr, &msgbuf[1], 6);
 
 	/* Currently mc filter is not used */
 	mc_filter_type = msgbuf[IXGBE_VF_MC_TYPE_WORD];
 
+	err = ufp_ixgbevf_negotiate_api(ih);
+	if(err < 0)
+		goto err_nego_api;
+
 	return 0;
 
-err_read_mac_addr:
+err_nego_api:
+err_reset_failed:
 err_read:
 err_write:
-err_reset_failed:
+err_check_for_rst:
 err_stop_adapter:
 	return -1;
 }
