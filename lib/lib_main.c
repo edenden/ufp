@@ -519,7 +519,7 @@ void ufp_close(struct ufp_handle *ih)
 int ufp_up(struct ufp_handle *ih)
 {
 	struct ufp_alloc_req req_alloc;
-	int err = 0;
+	int err;
 
 	memset(&req_alloc, 0, sizeof(struct ufp_alloc_req));
 	req_up.num_rx_queues = ih->num_queues;
@@ -550,20 +550,18 @@ err_ioctl_alloc:
 
 void ufp_down(struct ufp_handle *ih)
 {
-        /* disable all enabled rx queues */
-        for (i = 0; i < adapter->num_rx_queues; i++)
-                ixgbevf_disable_rx_queue(adapter, adapter->rx_ring[i]);
+	int err;
 
-        usleep_range(10000, 20000);
+	err = ih->ops->stop_adapter(ih);
+	if(err < 0)
+		goto err_stop_adapter;
 
-        ixgbevf_irq_disable(adapter);
+	if(ioctl(ih->fd, IXMAP_RELEASE, 0) < 0)
+		goto err_ioctl_release;
 
-        /* disable transmits in the hardware now that interrupts are off */
-        for (i = 0; i < adapter->num_tx_queues; i++) {
-                u8 reg_idx = adapter->tx_ring[i]->reg_idx;
-                IXGBE_WRITE_REG(hw, IXGBE_VFTXDCTL(reg_idx),
-                                IXGBE_TXDCTL_SWFLSH);
-        }
+err_ioctl_release:
+err_stop_adapter:
+	return;
 }
 
 unsigned int ufp_bufsize_get(struct ufp_handle *ih)

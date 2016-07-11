@@ -13,7 +13,7 @@ static int ufp_ixgbevf_irq_configure(struct ufp_handle *ih);
 static int32_t ufp_mac_update_xcast_mode(struct ufp_hw *hw, int xcast_mode);
 static int32_t ufp_mac_set_rlpml(struct ufp_hw *hw, uint16_t max_size);
 
-int ufp_ixgbevf_init(struct ufp_ops *ops)
+int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops)
 {
 	struct ufp_ixgbevf_data *data;
 
@@ -26,12 +26,19 @@ int ufp_ixgbevf_init(struct ufp_ops *ops)
 	ops->reset_hw		= ufp_ixgbevf_reset;
 	ops->get_queues		= ufp_ixgbevf_get_queues;
 	ops->get_bufsize	= ufp_ixgbevf_get_bufsize;
-	ops->irq_configure	= ufp_ixgbevf_irq_configure;
-	ops->tx_configure	= ufp_ixgbevf_tx_configure;
-	ops->rx_configure	= ufp_ixgbevf_rx_configure;
+	ops->configure_irq	= ufp_ixgbevf_configure_irq;
+	ops->configure_tx	= ufp_ixgbevf_configure_tx;
+	ops->configure_rx	= ufp_ixgbevf_configure_rx;
+	ops->stop_adapter	= ufp_ixgbevf_stop_adapter;
+
+	err = ufp_ixgbevf_negotiate_api(ih);
+	if(err < 0)
+		goto err_nego_api;
 
 	return 0;
 
+err_nego_api:
+	free(ops->data);
 err_alloc_data:
 	return -1;
 }
@@ -42,65 +49,142 @@ void ufp_ixgbevf_destroy(struct ufp_ops *ops)
 	return;
 }
 
-static int ufp_ixgbevf_reset(struct ufp_handle *ih)
+int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih)
 {
-        uint32_t timeout = IXGBE_VF_INIT_TIMEOUT;
-        uint32_t msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
-        int err;
-        int32_t mc_filter_type;
+	int32_t err, i = 0;
+	uint32_t msg[3];
+	struct ufp_ixgbevf_data *data;
 
-        /* Call adapter stop to disable tx/rx and clear interrupts */
-        mac->ops.stop_adapter(hw);
+	data = ih->ops.data;
 
-        pr_info("Issuing a function level reset to MAC\n");
+	enum ufp_mbx_api_rev api[] = {
+		ixgbe_mbox_api_12,
+		ixgbe_mbox_api_11,
+		ixgbe_mbox_api_10,
+		ixgbe_mbox_api_unknown
+	};
 
-        ufp_write_reg(hw, IXGBE_VFCTRL, IXGBE_CTRL_RST);
-        ufp_write_flush(hw);
+	while (api[i] != ixgbe_mbox_api_unknown) {
 
-        msleep(50);
+		/* Negotiate the mailbox API version */
+		msg[0] = IXGBE_VF_API_NEGOTIATE;
+		msg[1] = api[i];
+		msg[2] = 0;
 
-        /* we cannot reset while the RSTI / RSTD bits are asserted */
-        while (!mbx->ops.check_for_rst(hw) && timeout) {
-                timeout--;
-                udelay(5);
+		err = mbx->ops.write_posted(hw, msg, 3);
+		if(err) 
+			goto err_write;
+
+		err = mbx->ops.read_posted(hw, msg, 3);
+		if(err) 
+			goto err_read;
+
+		msg[0] &= ~IXGBE_VT_MSGTYPE_CTS;
+
+		if (msg[0] == (IXGBE_VF_API_NEGOTIATE | IXGBE_VT_MSGTYPE_ACK))
+			break;
+
+		i++;
+	}
+
+	data->api_version = api[i];
+	return 0;
+
+err_read:
+err_write:
+	return -1;
+}
+
+static int ufp_ixgbevf_stop_adapter(struct ufp_handle *ih)
+{
+        uint32_t reg_val;
+        uint16_t i;
+
+        /* Clear interrupt mask to stop from interrupts being generated */
+        ufp_write_reg(ih, IXGBE_VTEIMC, IXGBE_VF_IRQ_CLEAR_MASK);
+
+        /* Clear any pending interrupts, flush previous writes */
+        ufp_read_reg(ih, IXGBE_VTEICR);
+
+        /* Disable the transmit unit.  Each queue must be disabled. */
+        for (i = 0; i < ih->num_queues; i++)
+                ufp_write_reg(ih, IXGBE_VFTXDCTL(i), IXGBE_TXDCTL_SWFLSH);
+
+        /* Disable the receive unit by stopping each queue */
+        for (i = 0; i < ih->num_queues; i++) {
+                reg_val = ufp_read_reg(ih, IXGBE_VFRXDCTL(i));
+                reg_val &= ~IXGBE_RXDCTL_ENABLE;
+                ufp_write_reg(ih, IXGBE_VFRXDCTL(i), reg_val);
         }
+        /* Clear packet split and pool config */
+        ufp_write_reg(ih, IXGBE_VFPSRTYPE, 0);
 
-        if (!timeout)
-                goto err_reset_failed;
-
-        /* Reset VF registers to initial values */
-        ufp_mac_clr_reg(hw);
-
-        /* mailbox timeout can now become active */
-        mbx->timeout = IXGBE_VF_MBX_INIT_TIMEOUT;
-
-        msgbuf[0] = IXGBE_VF_RESET;
-        mbx->ops.write_posted(hw, msgbuf, 1);
-
-        msleep(10);
-
-        /*
-         * set our "perm_addr" based on info provided by PF
-         * also set up the mc_filter_type which is piggy backed
-         * on the mac address in word 3
-         */
-        err = mbx->ops.read_posted(hw, msgbuf, IXGBE_VF_PERMADDR_MSG_LEN);
-        if (err)
-                goto err_read_mac_addr;
-
-        if (msgbuf[0] != (IXGBE_VF_RESET | IXGBE_VT_MSGTYPE_ACK))
-                goto err_read_mac_addr;
-
-        memcpy(ih->mac_addr, &msgbuf[1], 6);
-
-        /* Currently mc filter is not used */
-        mc_filter_type = msgbuf[IXGBE_VF_MC_TYPE_WORD];
+        /* flush all queues disables */
+        ufp_write_flush(ih);
+        msleep(2);
 
         return 0;
+}
+
+static int ufp_ixgbevf_reset(struct ufp_handle *ih)
+{
+	uint32_t timeout = IXGBE_VF_INIT_TIMEOUT;
+	uint32_t msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
+	int err;
+	int32_t mc_filter_type;
+
+	/* Call adapter stop to disable tx/rx and clear interrupts */
+	mac->ops.stop_adapter(hw);
+
+	pr_info("Issuing a function level reset to MAC\n");
+
+	ufp_write_reg(hw, IXGBE_VFCTRL, IXGBE_CTRL_RST);
+	ufp_write_flush(hw);
+
+	msleep(50);
+
+	/* we cannot reset while the RSTI / RSTD bits are asserted */
+	while (!mbx->ops.check_for_rst(hw) && timeout) {
+		timeout--;
+		udelay(5);
+	}
+
+	if (!timeout)
+		goto err_reset_failed;
+
+	/* Reset VF registers to initial values */
+	ufp_mac_clr_reg(hw);
+
+	/* mailbox timeout can now become active */
+	mbx->timeout = IXGBE_VF_MBX_INIT_TIMEOUT;
+
+	msgbuf[0] = IXGBE_VF_RESET;
+	mbx->ops.write_posted(hw, msgbuf, 1);
+
+	msleep(10);
+
+	/*
+	 * set our "perm_addr" based on info provided by PF
+	 * also set up the mc_filter_type which is piggy backed
+	 * on the mac address in word 3
+	 */
+	err = mbx->ops.read_posted(hw, msgbuf, IXGBE_VF_PERMADDR_MSG_LEN);
+	if (err)
+		goto err_read_mac_addr;
+
+	if (msgbuf[0] != (IXGBE_VF_RESET | IXGBE_VT_MSGTYPE_ACK))
+		goto err_read_mac_addr;
+
+	memcpy(ih->mac_addr, &msgbuf[1], 6);
+
+	/* Currently mc filter is not used */
+	mc_filter_type = msgbuf[IXGBE_VF_MC_TYPE_WORD];
+
+	return 0;
 
 err_read_mac_addr:
 err_reset_failed:
-        return -1;
+	return -1;
 }
 
 static int ufp_ixgbevf_get_queues(struct ufp_handle *ih)
@@ -109,10 +193,6 @@ static int ufp_ixgbevf_get_queues(struct ufp_handle *ih)
 	uint32_t msg[5];
 	uint32_t num_tcs, default_tc;
 	uint32_t max_tx_queues, max_rx_queues;
-
-	err = ufp_ixgbevf_negotiate_api(ih);
-	if(err < 0)
-		goto err_nego_api;
 
 	/* do nothing if API doesn't support ixgbevf_get_queues */
 	switch (hw->api_version) {
@@ -171,13 +251,12 @@ static int ufp_ixgbevf_get_queues(struct ufp_handle *ih)
 		*default_tc = 0;
 
 	ih->num_queues = min(max_tx_queues, max_rx_queues);
-        return 0;
+	return 0;
 
 err_get_queues:
 err_read:
 err_write:
-err_nego_api:
-        return -1;
+	return -1;
 }
 
 static int ufp_ixgbevf_get_bufsize(struct ufp_handle *ih)
