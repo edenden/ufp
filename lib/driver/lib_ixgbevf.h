@@ -102,6 +102,10 @@
 struct ufp_ixgbevf_data {
 	int32_t		mc_filter_type;
 	int		api_version;
+	uint32_t	mbx_timeout;
+	uint32_t	mbx_udelay;
+	uint32_t	mbx_v2p_mailbox;
+	uint16_t	mbx_size;
 };
 
 int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops);

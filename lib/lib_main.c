@@ -449,6 +449,10 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	if(!ih->ops)
 		goto err_ops_init;
 
+	err = ih->ops->reset_hw(ih);
+	if(err < 0)
+		goto err_ops_reset_hw;
+
 	err = ih->ops->get_queues(ih);
 	if(err < 0)
 		goto err_ops_get_queues;
@@ -458,10 +462,6 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	err = ih->ops->get_bufsize(ih);
 	if(err < 0)
 		goto err_get_bufsize;
-
-	err = ih->ops->reset_hw(ih);
-	if(err < 0)
-		goto err_ops_reset_hw;
 
 	ih->rx_ring = malloc(sizeof(struct ufp_ring) * ih->num_queues);
 	if(!ih->rx_ring)
@@ -488,9 +488,9 @@ err_alloc_tx_ring:
 	free(ih->rx_ring);
 err_alloc_rx_ring:
 
-err_ops_reset_hw:
 err_ops_get_bufsize:
 err_ops_get_queues:
+err_ops_reset_hw:
 	ufp_ops_destroy(ih->ops);
 err_ops_init:
 	munmap(ih->bar, ih->bar_size);

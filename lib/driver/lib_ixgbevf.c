@@ -29,6 +29,10 @@ int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops)
 
 	ops->data		= data;
 
+	mbx_timeout		= IXGBE_VF_INIT_TIMEOUT;
+	mbx_udelay		= IXGBE_VF_MBX_INIT_DELAY;
+	mbx_size		= IXGBE_VFMAILBOX_SIZE;
+
 	ops->reset_hw		= ufp_ixgbevf_reset;
 	ops->get_queues		= ufp_ixgbevf_get_queues;
 	ops->get_bufsize	= ufp_ixgbevf_get_bufsize;
@@ -114,11 +118,11 @@ static int ufp_ixgbevf_stop_adapter(struct ufp_handle *ih)
 	ufp_read_reg(ih, IXGBE_VTEICR);
 
 	/* Disable the transmit unit.  Each queue must be disabled. */
-	for (i = 0; i < ih->num_queues; i++)
+	for (i = 0; i < IXGBE_VF_MAX_TX_QUEUES; i++)
 		ufp_write_reg(ih, IXGBE_VFTXDCTL(i), IXGBE_TXDCTL_SWFLSH);
 
 	/* Disable the receive unit by stopping each queue */
-	for (i = 0; i < ih->num_queues; i++) {
+	for (i = 0; i < IXGBE_VF_MAX_RX_QUEUES; i++) {
 		reg_val = ufp_read_reg(ih, IXGBE_VFRXDCTL(i));
 		reg_val &= ~IXGBE_RXDCTL_ENABLE;
 		ufp_write_reg(ih, IXGBE_VFRXDCTL(i), reg_val);
@@ -135,8 +139,8 @@ static int ufp_ixgbevf_stop_adapter(struct ufp_handle *ih)
 
 static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 {
-	uint32_t timeout = IXGBE_VF_INIT_TIMEOUT;
 	uint32_t msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
+	uint32_t timeout;
 	int err;
 	struct timespec ts;
 	int32_t mc_filter_type;
@@ -152,6 +156,7 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 	msleep(&ts, 50);
 
 	/* we cannot reset while the RSTI / RSTD bits are asserted */
+	timeout = data->mbx_timeout;
 	while (!mbx->ops.check_for_rst(hw) && timeout) {
 		timeout--;
 		usleep(&ts, 5);
@@ -162,9 +167,6 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 
 	/* Reset VF registers to initial values */
 	ufp_mac_clr_reg(hw);
-
-	/* mailbox timeout can now become active */
-	mbx->timeout = IXGBE_VF_MBX_INIT_TIMEOUT;
 
 	msgbuf[0] = IXGBE_VF_RESET;
 	err = mbx->ops.write_posted(hw, msgbuf, 1);
