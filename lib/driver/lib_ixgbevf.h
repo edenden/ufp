@@ -92,12 +92,12 @@
 #define DMA_BIT_MASK(n)		(((n) == 64) ? \
 				DMA_64BIT_MASK : ((1ULL<<(n))-1))
 
-#define msleep(ts, n)		ts.tv_sec = 0; \
-				ts.tv_nsec = ((n) * 1000000); \
-				nanosleep(&ts, NULL);
-#define usleep(ts, n)		ts.tv_sec = 0; \
-				ts.tv_nsec = ((n) * 1000); \
-				nanosleep(&ts, NULL);
+#define msleep(t, n)		(t)->tv_sec = 0; \
+				(t)->tv_nsec = ((n) * 1000000); \
+				nanosleep((t), NULL);
+#define usleep(t, n)		(t)->tv_sec = 0; \
+				(t)->tv_nsec = ((n) * 1000); \
+				nanosleep((t), NULL);
 
 struct ufp_ixgbevf_data {
 	int32_t		mc_filter_type;

@@ -254,7 +254,7 @@ void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
 
 	/* poll to verify queue is enabled */
 	do{
-		msleep(ts, 1);
+		msleep(&ts, 1);
 		txdctl = ufp_read_reg(ih, IXGBE_VFTXDCTL(reg_idx));
 	}while(--wait_loop && !(txdctl & IXGBE_TXDCTL_ENABLE));
 
@@ -277,7 +277,7 @@ static void ufp_ixgbevf_disable_rx_queue(struct ufp_handle *ih, uint8_t reg_idx)
 
 	/* the hardware may take up to 100us to really disable the rx queue */
 	do {
-		usleep(ts, 10);
+		usleep(&ts, 10);
 		rxdctl = IXGBE_READ_REG(hw, IXGBE_VFRXDCTL(reg_idx));
 	} while (--wait_loop && (rxdctl & IXGBE_RXDCTL_ENABLE));
 
@@ -312,7 +312,7 @@ static void ufp_ixgbevf_rx_desc_queue_enable(struct ufp_handle *ih,
 	struct timespec ts;
 
 	do {
-		msleep(ts, 1);
+		msleep(&ts, 1);
 		rxdctl = ufp_read_reg(ih, IXGBE_VFRXDCTL(reg_idx));
 	} while (--wait_loop && !(rxdctl & IXGBE_RXDCTL_ENABLE));
 

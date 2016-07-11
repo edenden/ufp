@@ -128,7 +128,7 @@ static int ufp_ixgbevf_stop_adapter(struct ufp_handle *ih)
 
 	/* flush all queues disables */
 	ufp_write_flush(ih);
-	msleep(ts, 2);
+	msleep(&ts, 2);
 
 	return 0;
 }
@@ -149,12 +149,12 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 	ufp_write_reg(hw, IXGBE_VFCTRL, IXGBE_CTRL_RST);
 	ufp_write_flush(hw);
 
-	msleep(ts, 50);
+	msleep(&ts, 50);
 
 	/* we cannot reset while the RSTI / RSTD bits are asserted */
 	while (!mbx->ops.check_for_rst(hw) && timeout) {
 		timeout--;
-		usleep(ts, 5);
+		usleep(&ts, 5);
 	}
 
 	if (!timeout)
@@ -171,7 +171,7 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 	if(err)
 		goto err_write;
 
-	msleep(ts, 10);
+	msleep(&ts, 10);
 
 	/*
 	 * set our "perm_addr" based on info provided by PF
