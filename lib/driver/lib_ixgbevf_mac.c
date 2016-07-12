@@ -33,6 +33,7 @@ void ufp_ixgbevf_clr_reg(struct ufp_handle *ih)
 
 	ufp_write_reg(ih, IXGBE_VFPSRTYPE, 0);
 
+	/* XXX: Why '7' iterations are hard-coded? */
 	for (i = 0; i < 7; i++) {
 		ufp_write_reg(ih, IXGBE_VFRDH(i), 0);
 		ufp_write_reg(ih, IXGBE_VFRDT(i), 0);
