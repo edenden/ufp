@@ -419,7 +419,7 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 {
 	struct ufp_handle *ih;
 	char filename[FILENAME_SIZE];
-	struct ufp_info_req req_info;
+	struct ufp_info_req req;
 	int err;
 
 	ih = malloc(sizeof(struct ufp_handle));
@@ -434,18 +434,18 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 		goto err_open;
 
 	/* Get device information */
-	memset(&req_info, 0, sizeof(struct ufp_info_req));
-	err = ioctl(ih->fd, IXMAP_INFO, (unsigned long)&req_info);
+	memset(&req, 0, sizeof(struct ufp_info_req));
+	err = ioctl(ih->fd, UFP_INFO, (unsigned long)&req);
 	if(err < 0)
 		goto err_ioctl_info;
 
 	/* Map PCI config register space */
-	ih->bar = mmap(NULL, req_info.mmio_size,
+	ih->bar = mmap(NULL, req.mmio_size,
 		PROT_READ | PROT_WRITE, MAP_SHARED, ih->fd, 0);
 	if(ih->bar == MAP_FAILED)
 		goto err_mmap;
 
-	ih->ops = ufp_ops_init(req_info.device_id);
+	ih->ops = ufp_ops_init(req.device_id);
 	if(!ih->ops)
 		goto err_ops_init;
 
@@ -472,7 +472,7 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 		goto err_alloc_tx_ring;
 
 	ih->num_interrupt_rate = intr_rate;
-	ih->bar_size = req_info.mmio_size;
+	ih->bar_size = req.mmio_size;
 	ih->promisc = !!promisc;
 	ih->rx_budget = rx_budget;
 	ih->tx_budget = tx_budget;
@@ -518,14 +518,14 @@ void ufp_close(struct ufp_handle *ih)
 
 int ufp_up(struct ufp_handle *ih)
 {
-	struct ufp_alloc_req req_alloc;
+	struct ufp_start_req req;
 	int err;
 
-	memset(&req_alloc, 0, sizeof(struct ufp_alloc_req));
-	req_up.num_rx_queues = ih->num_queues;
-	req_up.num_tx_queues = ih->num_queues;
-	if(ioctl(ih->fd, IXMAP_ALLOCATE, (unsigned long)&req_alloc) < 0)
-		goto err_ioctl_alloc;
+	memset(&req, 0, sizeof(struct ufp_alloc_req));
+	req.num_rx_queues = ih->num_queues;
+	req.num_tx_queues = ih->num_queues;
+	if(ioctl(ih->fd, UFP_START, (unsigned long)&req) < 0)
+		goto err_ioctl_start;
 
 	err = ih->ops->irq_configure(ih);
 	if(err < 0)
@@ -544,7 +544,7 @@ int ufp_up(struct ufp_handle *ih)
 err_configure_rx:
 err_configure_tx:
 err_ops_irq_configure:
-err_ioctl_alloc:
+err_ioctl_start:
 	return -1;
 }
 
@@ -556,10 +556,10 @@ void ufp_down(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_stop_adapter;
 
-	if(ioctl(ih->fd, IXMAP_RELEASE, 0) < 0)
-		goto err_ioctl_release;
+	if(ioctl(ih->fd, UFP_STOP, 0) < 0)
+		goto err_ioctl_stop;
 
-err_ioctl_release:
+err_ioctl_stop:
 err_stop_adapter:
 	return;
 }
@@ -585,7 +585,7 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 	struct ufp_irq_handle *irqh;
 	uint64_t qmask;
 	int efd, ret;
-	struct ufp_irq_req req;
+	struct ufp_irqbind_req req;
 
 	if(core_id >= ih->num_queues){
 		goto err_invalid_core_id;
@@ -599,10 +599,10 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 	req.queue_idx	= core_id;
 	req.event_fd	= efd;
 
-	ret = ioctl(ih->fd, IXMAP_IRQ, (unsigned long)&req);
+	ret = ioctl(ih->fd, UFP_IRQBIND, (unsigned long)&req);
 	if(ret < 0){
 		printf("failed to IXMAP_IRQ\n");
-		goto err_irq_assign;
+		goto err_irq_bind;
 	}
 
 	ret = ufp_irq_setaffinity(req.vector, core_id);
@@ -636,7 +636,7 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 err_alloc_handle:
 err_undefined_type:
 err_irq_setaffinity:
-err_irq_assign:
+err_irq_bind:
 	close(efd);
 err_open_efd:
 err_invalid_core_id:

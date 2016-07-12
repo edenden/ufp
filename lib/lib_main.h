@@ -188,13 +188,13 @@ struct ufp_info_req {
         __u16                   vendor_id;
 };
 
-#define UFP_ALLOCATE		_IOW('E', 202, int)
-struct ufp_alloc_req {
+#define UFP_START		_IOW('E', 202, int)
+struct ufp_start_req {
         __u32                   num_rx_queues;
         __u32                   num_tx_queues;
 };
 
-#define UFP_RELEASE		_IOW('E', 203, int)
+#define UFP_STOP		_IOW('E', 203, int)
 
 #define UFP_MAP			_IOW('U', 210, int)
 struct ufp_map_req {
@@ -209,8 +209,8 @@ struct ufp_unmap_req {
         __u64                   addr_dma;
 };
 
-#define UFP_IRQ         _IOW('E', 220, int)
-struct ufp_irq_req {
+#define UFP_IRQBIND		_IOW('E', 220, int)
+struct ufp_irqbind_req {
         enum ufp_irq_type       type;
         __u32                   queue_idx;
         __s32                   event_fd;
