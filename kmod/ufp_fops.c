@@ -15,11 +15,12 @@
 #include "ufp_dma.h"
 #include "ufp_fops.h"
 
-static int ufp_cmd_allocate(struct ufp_device *device, void __user *argp);
-static int ufp_cmd_release(struct ufp_device *device, unsigned long arg);
+static int ufp_cmd_start(struct ufp_device *device, void __user *argp);
+static int ufp_cmd_stop(struct ufp_device *device, unsigned long arg);
 static int ufp_cmd_info(struct ufp_device *device, void __user *argp);
 static int ufp_cmd_map(struct ufp_device *device, void __user *argp);
 static int ufp_cmd_unmap(struct ufp_device *device, void __user *argp);
+static int ufp_cmd_irqbind(struct ufp_device *device, void __user *argp);
 static ssize_t ufp_read(struct file *file, char __user *buf,
 	size_t count, loff_t *pos);
 static ssize_t ufp_write(struct file *file, const char __user *buf,
@@ -75,7 +76,7 @@ int ufp_miscdev_register(struct ufp_device *device)
 	return 0;
 
 err_misc_register:
-        kfree(device->miscdev.name);
+	kfree(device->miscdev.name);
 err_alloc_name:
 	return -1;
 }
@@ -90,9 +91,9 @@ void ufp_miscdev_deregister(struct ufp_device *device)
 	return;
 }
 
-static int ufp_cmd_allocate(struct ufp_device *device, void __user *argp)
+static int ufp_cmd_start(struct ufp_device *device, void __user *argp)
 {
-	struct ufp_alloc_req req;
+	struct ufp_start_req req;
 	int err = 0;
 
 	err = copy_from_user(&req, argp, sizeof(req));
@@ -101,29 +102,27 @@ static int ufp_cmd_allocate(struct ufp_device *device, void __user *argp)
 		goto err_copy_from_user;
 	}
 
-	err = ufp_allocate(device,
+	err = ufp_start(device,
 		req.num_rx_queues, req.num_tx_queues);
 	if (err){
 		err = -EINVAL;
-		goto err_allocate;
+		goto err_start;
 	}
 
 	return 0;
 
-err_allocate:
+err_start:
 err_copy_from_user:
 	return err;
 }
 
-static int ufp_cmd_release(struct ufp_device *device,
-	unsigned long arg)
+static int ufp_cmd_stop(struct ufp_device *device, unsigned long arg)
 {
-	ufp_release(device);
+	ufp_stop(device);
 	return 0;
 }
 
-static int ufp_cmd_info(struct ufp_device *device,
-	void __user *argp)
+static int ufp_cmd_info(struct ufp_device *device, void __user *argp)
 {
 	struct ufp_info_req req;
 	struct pci_dev *pdev = device->pdev;
@@ -144,8 +143,7 @@ out:
 	return err;
 }
 
-static int ufp_cmd_map(struct ufp_device *device,
-	void __user *argp)
+static int ufp_cmd_map(struct ufp_device *device, void __user *argp)
 {
 	struct ufp_map_req req;
 	unsigned long addr_dma;
@@ -171,8 +169,7 @@ static int ufp_cmd_map(struct ufp_device *device,
 	return 0;
 }
 
-static int ufp_cmd_unmap(struct ufp_device *device,
-	void __user *argp)
+static int ufp_cmd_unmap(struct ufp_device *device, void __user *argp)
 {
 	struct ufp_unmap_req req;
 	int ret;
@@ -187,23 +184,22 @@ static int ufp_cmd_unmap(struct ufp_device *device,
 	return 0;
 }
 
-static int ufp_cmd_irq(struct ufp_device *device,
-	void __user *argp)
+static int ufp_cmd_irqbind(struct ufp_device *device, void __user *argp)
 {
-	struct ufp_irq_req req;
+	struct ufp_irqbind_req req;
 	int ret;
 
 	if (copy_from_user(&req, argp, sizeof(req)))
 		return -EFAULT;
 
-	ret = ufp_irq_assign(device, req.type, req.queue_idx,
+	ret = ufp_irq_bind(device, req.type, req.queue_idx,
 		req.event_fd, &req.vector, &req.entry);
 	if(ret != 0)
 		return ret;
 
 	if (copy_to_user(argp, &req, sizeof(req))) {
 		return -EFAULT;
-        }
+	}
 
 	return 0;
 }
@@ -255,7 +251,7 @@ static int ufp_close(struct inode *inode, struct file *file)
 	pr_info("close device=%p\n", device);
 
 	down(&device->sem);
-	ufp_release(device);
+	ufp_stop(device);
 	up(&device->sem);
 
 	ufp_device_put(device);
@@ -343,8 +339,8 @@ static long ufp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		err = ufp_cmd_info(device, argp);
 		break;
 
-	case UFP_ALLOCATE:
-		err = ufp_cmd_allocate(device, argp);
+	case UFP_START:
+		err = ufp_cmd_start(device, argp);
 		break;
 
 	case UFP_MAP:
@@ -355,12 +351,12 @@ static long ufp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		err = ufp_cmd_unmap(device, argp);
 		break;
 
-	case UFP_RELEASE:
-		err = ufp_cmd_release(device, arg);
+	case UFP_STOP:
+		err = ufp_cmd_stop(device, arg);
 		break;
 
-	case UFP_IRQ:
-		err = ufp_cmd_irq(device, argp);
+	case UFP_IRQBIND:
+		err = ufp_cmd_irqbind(device, argp);
 		break;
 
 	default:

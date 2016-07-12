@@ -143,8 +143,8 @@ dma_addr_t ufp_dma_map(struct ufp_device *device,
 	}
 
 	addr_dma = sg_dma_address(sgt->sgl);
-        where = ufp_dma_area_whereto(device, addr_dma, size);
-        if (!where)
+	where = ufp_dma_area_whereto(device, addr_dma, size);
+	if (!where)
 		goto err_area_whereto;
 
 	area = kzalloc(sizeof(struct ufp_dma_area), GFP_KERNEL);
