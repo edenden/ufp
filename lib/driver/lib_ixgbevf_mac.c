@@ -97,11 +97,86 @@ err_write:
 	return -1;
 }
 
-void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector)
+int ufp_ixgbevf_get_queues(struct ufp_handle *ih, uint32_t num_queues_req)
+{
+	int32_t err;
+	uint32_t msg[5];
+	uint32_t num_tcs, default_tc;
+	uint32_t max_tx_queues, max_rx_queues;
+
+	/* do nothing if API doesn't support ixgbevf_get_queues */
+	switch (hw->api_version) {
+	case ixgbe_mbox_api_11:
+	case ixgbe_mbox_api_12:
+		break;
+	default:
+		/* assume legacy case in which
+		 * PF would only give VF 2 queue pairs
+		 */
+		ih->num_queues = min(num_queues_req, 2);
+		return 0;
+	}
+
+	/* Fetch queue configuration from the PF */
+	msg[0] = IXGBE_VF_GET_QUEUES;
+	msg[1] = msg[2] = msg[3] = msg[4] = 0;
+	err = mbx->ops.write_posted(hw, msg, 5);
+	if(err)
+		goto err_write;
+
+	err = mbx->ops.read_posted(hw, msg, 5);
+	if(err)
+		goto err_read;
+
+	msg[0] &= ~IXGBE_VT_MSGTYPE_CTS;
+
+	/*
+	 * if we we didn't get an ACK there must have been
+	 * some sort of mailbox error so we should treat it
+	 * as such
+	 */
+	if (msg[0] != (IXGBE_VF_GET_QUEUES | IXGBE_VT_MSGTYPE_ACK))
+		goto err_get_queues;
+
+	/* record and validate values from message */
+	max_tx_queues = msg[IXGBE_VF_TX_QUEUES];
+	if(max_tx_queues == 0 ||
+	max_tx_queues > IXGBE_VF_MAX_TX_QUEUES)
+		max_tx_queues = IXGBE_VF_MAX_TX_QUEUES;
+
+	max_rx_queues = msg[IXGBE_VF_RX_QUEUES];
+	if(max_rx_queues == 0 ||
+	max_rx_queues > IXGBE_VF_MAX_RX_QUEUES)
+		max_rx_queues = IXGBE_VF_MAX_RX_QUEUES;
+
+	/* Currently tc related parameters are not used */
+	*num_tcs = msg[IXGBE_VF_TRANS_VLAN];
+	/* in case of unknown state assume we cannot tag frames */
+	if (*num_tcs > mac->max_rx_queues)
+		*num_tcs = 1;
+
+	*default_tc = msg[IXGBE_VF_DEF_QUEUE];
+	/* default to queue 0 on out-of-bounds queue number */
+	if (*default_tc >= mac->max_tx_queues)
+		*default_tc = 0;
+
+	ih->num_queues = min(max_tx_queues, max_rx_queues);
+	ih->num_queues = min(num_queues_req, ih->num_queues);
+
+	return 0;
+
+err_get_queues:
+err_read:
+err_write:
+	return -1;
+}
+
+void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector, uint32_t rate)
 {
 	uint32_t itr_reg;
 
-	itr_reg = ih->num_interrupt_rate & IXGBE_MAX_EITR;
+	itr_reg = rate & IXGBE_MAX_EITR;
+	ih->irq_rate = itr_reg;
 
 	/*
 	 * set the WDIS bit to not clear the timer bits and cause an
@@ -109,6 +184,8 @@ void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector)
 	 */
 	itr_reg |= IXGBE_EITR_CNT_WDIS;
 	ufp_write_reg(ih, IXGBE_VTEITR(vector), itr_reg);
+
+	return;
 }
 
 void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
@@ -210,21 +287,21 @@ void ufp_ixgbevf_set_vfmrqc(struct ufp_handle *ih)
 	ufp_write_reg(ih, IXGBE_VFMRQC, vfmrqc);
 }
 
-int ufp_ixgbevf_set_rlpml(struct ufp_handle *ih)
+int ufp_ixgbevf_set_rlpml(struct ufp_handle *ih, uint32_t mtu_frame)
 {
 	uint32_t msgbuf[2];
 	uint32_t retmsg[IXGBE_VFMAILBOX_SIZE];
 	int err;
 
 	/* adjust max frame to be at least the size of a standard frame */
-	if(ih->mtu_frame < (VLAN_ETH_FRAME_LEN + ETH_FCS_LEN))
-		ih->mtu_frame = (VLAN_ETH_FRAME_LEN + ETH_FCS_LEN);
+	if(mtu_frame < (VLAN_ETH_FRAME_LEN + ETH_FCS_LEN))
+		mtu_frame = (VLAN_ETH_FRAME_LEN + ETH_FCS_LEN);
 
-	if(ih->mtu_frame > IXGBE_MAX_JUMBO_FRAME_SIZE)
-		ih->mtu_frame = IXGBE_MAX_JUMBO_FRAME_SIZE;
+	if(mtu_frame > IXGBE_MAX_JUMBO_FRAME_SIZE)
+		mtu_frame = IXGBE_MAX_JUMBO_FRAME_SIZE;
 
 	msgbuf[0] = IXGBE_VF_SET_LPE;
-	msgbuf[1] = ih->mtu_frame;
+	msgbuf[1] = mtu_frame;
 
 	err = mbx->ops.write_posted(hw, msgbuf, 2);
 	if(err)
@@ -238,6 +315,7 @@ int ufp_ixgbevf_set_rlpml(struct ufp_handle *ih)
 	if (msgbuf[0] != (IXGBE_VF_SET_LPE | IXGBE_VT_MSGTYPE_ACK))
 		goto err_ack;
 
+	ih->mtu_frame = mtu_frame;
 	return 0;
 
 err_ack:
@@ -287,7 +365,7 @@ void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
 	 * to or less than the number of on chip descriptors, which is
 	 * currently 40.
 	 */
-	if(ih->num_interrupt_rate < 8)
+	if(ih->irq_rate < 8)
 		txdctl |= (1 << 16);	/* WTHRESH = 1 */
 	else
 		txdctl |= (8 << 16);	/* WTHRESH = 8 */

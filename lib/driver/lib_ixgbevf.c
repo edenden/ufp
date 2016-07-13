@@ -34,8 +34,7 @@ int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops)
 	mbx_size		= IXGBE_VFMAILBOX_SIZE;
 
 	ops->reset_hw		= ufp_ixgbevf_reset;
-	ops->get_queues		= ufp_ixgbevf_get_queues;
-	ops->get_bufsize	= ufp_ixgbevf_get_bufsize;
+	ops->set_device_params	= ufp_ixgbevf_set_device_params;
 	ops->configure_irq	= ufp_ixgbevf_configure_irq;
 	ops->configure_tx	= ufp_ixgbevf_configure_tx;
 	ops->configure_rx	= ufp_ixgbevf_configure_rx;
@@ -155,85 +154,41 @@ err_stop_adapter:
 	return -1;
 }
 
-static int ufp_ixgbevf_get_queues(struct ufp_handle *ih)
+static int ufp_ixgbevf_set_device_params(struct ufp_handle *ih,
+	uint32_t num_queues_req, uint32_t num_rx_desc, uint32_t num_tx_desc)
 {
-	int32_t err;
-	uint32_t msg[5];
-	uint32_t num_tcs, default_tc;
-	uint32_t max_tx_queues, max_rx_queues;
+	int err;
 
-	/* do nothing if API doesn't support ixgbevf_get_queues */
-	switch (hw->api_version) {
-	case ixgbe_mbox_api_11:
-	case ixgbe_mbox_api_12:
-		break;
-	default:
-		/* assume legacy case in which
-		 * PF would only give VF 2 queue pairs
-		 */
-		ih->num_queues = 2;
-		return 0;
-	}
-
-	/* Fetch queue configuration from the PF */
-	msg[0] = IXGBE_VF_GET_QUEUES;
-	msg[1] = msg[2] = msg[3] = msg[4] = 0;
-	err = mbx->ops.write_posted(hw, msg, 5);
-	if(err)
-		goto err_write;
-
-	err = mbx->ops.read_posted(hw, msg, 5);
-	if(err)
-		goto err_read;
-
-	msg[0] &= ~IXGBE_VT_MSGTYPE_CTS;
-
-	/*
-	 * if we we didn't get an ACK there must have been
-	 * some sort of mailbox error so we should treat it
-	 * as such
-	 */
-	if (msg[0] != (IXGBE_VF_GET_QUEUES | IXGBE_VT_MSGTYPE_ACK))
+	err = ufp_ixgbevf_get_queues(ih, num_queues_req);
+	if(err < 0)
 		goto err_get_queues;
 
-	/* record and validate values from message */
-	max_tx_queues = msg[IXGBE_VF_TX_QUEUES];
-	if(max_tx_queues == 0 ||
-	max_tx_queues > IXGBE_VF_MAX_TX_QUEUES)
-		max_tx_queues = IXGBE_VF_MAX_TX_QUEUES;
+	if(num_rx_desc > IXGBE_MAX_RXD)
+		ih->num_rx_desc = IXGBE_MAX_RXD;
+	else if(num_rx_desc < IXGBE_MIN_RXD)
+		ih->num_rx_desc = IXGBE_MIN_RXD;
+	else
+		ih->num_rx_desc = num_rx_desc;
 
-	max_rx_queues = msg[IXGBE_VF_RX_QUEUES];
-	if(max_rx_queues == 0 ||
-	max_rx_queues > IXGBE_VF_MAX_RX_QUEUES)
-		max_rx_queues = IXGBE_VF_MAX_RX_QUEUES;
+	if(num_tx_desc > IXGBE_MAX_TXD)
+		ih->num_tx_desc = IXGBE_MAX_TXD;
+	else if(num_tx_desc < IXGBE_MAX_TXD)
+                ih->num_tx_desc = IXGBE_MIN_TXD;
+	else
+		ih->num_tx_desc = num_tx_desc;
 
-	/* Currently tc related parameters are not used */
-	*num_tcs = msg[IXGBE_VF_TRANS_VLAN];
-	/* in case of unknown state assume we cannot tag frames */
-	if (*num_tcs > mac->max_rx_queues)
-		*num_tcs = 1;
+	ih->size_rx_desc = sizeof(union ixgbe_adv_rx_desc) * ih->num_rx_desc;
+	ih->size_tx_desc = sizeof(union ixgbe_adv_tx_desc) * ih->num_tx_desc;
 
-	*default_tc = msg[IXGBE_VF_DEF_QUEUE];
-	/* default to queue 0 on out-of-bounds queue number */
-	if (*default_tc >= mac->max_tx_queues)
-		*default_tc = 0;
+	ih->buf_size = IXGBEVF_RX_BUFSZ;
 
-	ih->num_queues = min(max_tx_queues, max_rx_queues);
 	return 0;
 
 err_get_queues:
-err_read:
-err_write:
 	return -1;
 }
 
-static int ufp_ixgbevf_get_bufsize(struct ufp_handle *ih)
-{
-	ih->buf_size = IXGBEVF_RX_BUFSZ;
-	return 0;
-}
-
-static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih)
+static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih, uint32_t rate)
 {
 	unsigned int qmask = 0;
 
@@ -241,7 +196,7 @@ static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih)
 	queue_idx++, vector++){
 		/* set RX queue interrupt */
 		ufp_set_ivar(ih, 0, queue_idx, vector);
-		ufp_write_eitr(ih, vector);
+		ufp_write_eitr(ih, vector, rate);
 		qmask |= 1 << vector;
 	}
 
@@ -249,7 +204,7 @@ static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih)
 	queue_idx++, vector++){
 		/* set TX queue interrupt */
 		ufp_set_ivar(ih, 1, queue_idx, vector);
-		ufp_write_eitr(ih, vector);
+		ufp_write_eitr(ih, vector, rate);
 		qmask |= 1 << vector;
 	}
 
@@ -270,13 +225,16 @@ static int ufp_ixgbevf_configure_tx(struct ufp_handle *ih)
 		ufp_ixgbevf_confiugre_tx_ring(ih, i, &ih->rx_ring[i]);
 }
 
-static int ufp_ixgbevf_configure_rx(struct ufp_handle *ih)
+static int ufp_ixgbevf_configure_rx(struct ufp_handle *ih,
+	uint32_t mtu_frame, uint32_t promisc)
 {
 	int i, err;
 
 	/* VF can't support promiscuous mode */
-	if(ih->promisc)
+	if(promisc)
 		goto err_promisc;
+
+	ih->promisc = promisc;
 
 	err = ufp_ixgbevf_update_xcast_mode(ih, IXGBEVF_XCAST_MODE_ALLMULTI);
 	if(err < 0)
@@ -293,7 +251,7 @@ static int ufp_ixgbevf_configure_rx(struct ufp_handle *ih)
 		break;
 	}
 
-	err = ufp_ixgbevf_set_rlpml(ih);
+	err = ufp_ixgbevf_set_rlpml(ih, mtu_frame);
 	if(err < 0)
 		goto err_set_rlpml;
 

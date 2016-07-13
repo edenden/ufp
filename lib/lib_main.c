@@ -173,10 +173,9 @@ struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
 
 		ih = ih_list[i];
 
-		size_rx_desc = sizeof(union ufp_adv_rx_desc) * ih->num_rx_desc;
-		size_rx_desc = ALIGN(size_rx_desc, 128); /* needs 128-byte alignment */
-		size_tx_desc = sizeof(union ufp_adv_tx_desc) * ih->num_tx_desc;
-		size_tx_desc = ALIGN(size_tx_desc, 128); /* needs 128-byte alignment */
+		/* PCI-E can't cross 4K boundary */
+		size_rx_desc = ALIGN(ih->size_rx_desc, 4096);
+		size_tx_desc = ALIGN(ih->size_tx_desc, 4096);
 
 		/* Rx descripter ring allocation */
 		ret = ufp_dma_map(ih, addr_virt, &addr_dma, size_rx_desc);
@@ -412,10 +411,8 @@ static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma)
 }
 
 struct ufp_handle *ufp_open(unsigned int port_index,
-	unsigned int num_queues_req, unsigned int intr_rate,
-	unsigned int rx_budget, unsigned int tx_budget,
-	unsigned int mtu_frame, unsigned int promisc,
-	unsigned int num_rx_desc, unsigned int num_tx_desc)
+	unsigned int num_queues_req, unsigned int num_rx_desc,
+	unsigned int num_tx_desc)
 {
 	struct ufp_handle *ih;
 	char filename[FILENAME_SIZE];
@@ -439,8 +436,10 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	if(err < 0)
 		goto err_ioctl_info;
 
+	ih->bar_size = req.mmio_size;
+
 	/* Map PCI config register space */
-	ih->bar = mmap(NULL, req.mmio_size,
+	ih->bar = mmap(NULL, ih->bar_size,
 		PROT_READ | PROT_WRITE, MAP_SHARED, ih->fd, 0);
 	if(ih->bar == MAP_FAILED)
 		goto err_mmap;
@@ -453,15 +452,10 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	if(err < 0)
 		goto err_ops_reset_hw;
 
-	err = ih->ops->get_queues(ih);
+	err = ih->ops->set_device_params(ih, num_queues_req,
+		num_rx_desc, num_tx_desc);
 	if(err < 0)
-		goto err_ops_get_queues;
-
-	ih->num_queues = min(ih->num_queues, num_queues_req);
-
-	err = ih->ops->get_bufsize(ih);
-	if(err < 0)
-		goto err_get_bufsize;
+		goto err_ops_get_device_params;
 
 	ih->rx_ring = malloc(sizeof(struct ufp_ring) * ih->num_queues);
 	if(!ih->rx_ring)
@@ -471,14 +465,6 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	if(!ih->tx_ring)
 		goto err_alloc_tx_ring;
 
-	ih->num_interrupt_rate = intr_rate;
-	ih->bar_size = req.mmio_size;
-	ih->promisc = !!promisc;
-	ih->rx_budget = rx_budget;
-	ih->tx_budget = tx_budget;
-	ih->mtu_frame = mtu_frame;
-	ih->num_rx_desc = num_rx_desc;
-	ih->num_tx_desc = num_tx_desc;
 	snprintf(ih->interface_name, sizeof(ih->interface_name), "%s%d",
 		IXMAP_IFNAME, port_index);
 
@@ -488,8 +474,7 @@ err_alloc_tx_ring:
 	free(ih->rx_ring);
 err_alloc_rx_ring:
 
-err_ops_get_bufsize:
-err_ops_get_queues:
+err_ops_get_device_params:
 err_ops_reset_hw:
 	ufp_ops_destroy(ih->ops);
 err_ops_init:
@@ -516,7 +501,9 @@ void ufp_close(struct ufp_handle *ih)
 	return;
 }
 
-int ufp_up(struct ufp_handle *ih)
+int ufp_up(struct ufp_handle *ih, unsigned int irq_rate,
+	unsigned int mtu_frame, unsigned int promisc,
+	unsigned int rx_budget, unsigned int tx_budget)
 {
 	struct ufp_start_req req;
 	int err;
@@ -527,23 +514,26 @@ int ufp_up(struct ufp_handle *ih)
 	if(ioctl(ih->fd, UFP_START, (unsigned long)&req) < 0)
 		goto err_ioctl_start;
 
-	err = ih->ops->irq_configure(ih);
+	err = ih->ops->configure_irq(ih, irq_rate);
 	if(err < 0)
-		goto err_ops_irq_configure;
+		goto err_ops_configure_irq;
 
 	err = ih->ops->configure_tx(ih);
 	if(err < 0)
 		goto err_configure_tx;
 
-	err = ih->ops->configure_rx(ih);
+	err = ih->ops->configure_rx(ih, mtu_frame, !!promisc);
 	if(err < 0)
 		goto err_configure_rx;
+
+	ih->rx_budget = rx_budget;
+	ih->tx_budget = tx_budget;
 
 	return err;
 
 err_configure_rx:
 err_configure_tx:
-err_ops_irq_configure:
+err_ops_configure_irq:
 err_ioctl_start:
 	return -1;
 }

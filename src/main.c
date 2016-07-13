@@ -135,8 +135,7 @@ int main(int argc, char **argv)
 	}
 
 	for(i = 0; i < ixmapfwd.num_ports; i++, ports_assigned++){
-		ixmapfwd.ih_array[i] = ixmap_open(i, ixmapfwd.num_cores, ixmapfwd.intr_rate,
-			IXMAP_RX_BUDGET, IXMAP_TX_BUDGET, ixmapfwd.mtu_frame, ixmapfwd.promisc,
+		ixmapfwd.ih_array[i] = ixmap_open(i, ixmapfwd.num_cores,
 			IXGBE_MAX_RXD, IXGBE_MAX_TXD);
 		if(!ixmapfwd.ih_array[i]){
 			ixmapfwd_log(LOG_ERR, "failed to ixmap_open, idx = %d", i);
@@ -177,7 +176,9 @@ err_desc_alloc:
 	}
 
 	for(i = 0; i < ixmapfwd.num_ports; i++, ports_up++){
-		ret = ixmap_up(ixmapfwd.ih_array[i]);
+		ret = ixmap_up(ixmapfwd.ih_array[i], ixmapfwd.intr_rate,
+			ixmapfwd.mtu_frame, ixmapfwd.promisc,
+			IXMAP_RX_BUDGET, IXMAP_TX_BUDGET);
 		if(ret < 0){
 			ixmapfwd_log(LOG_ERR, "failed to ixmap_up, idx = %d", i);
 			ret = -1;

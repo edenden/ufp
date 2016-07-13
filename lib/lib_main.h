@@ -69,12 +69,15 @@ struct ufp_handle {
 	struct ufp_ring		*rx_ring;
 
 	uint32_t		num_tx_desc;
+	unsigned long		size_tx_desc;
 	uint32_t		num_rx_desc;
+	unsigned long		size_rx_desc;
+
 	uint32_t		rx_budget;
 	uint32_t		tx_budget;
 
 	uint32_t		num_queues;
-	uint32_t		num_interrupt_rate;
+	uint32_t		irq_rate;
 	uint32_t		promisc;
 	uint32_t		mtu_frame;
 	uint32_t		buf_size;
