@@ -136,51 +136,6 @@ enum ufp_irq_type {
 	IXMAP_IRQ_TX,
 };
 
-/* Receive Descriptor - Advanced */
-union ufp_adv_rx_desc {
-	struct {
-		uint64_t pkt_addr; /* Packet buffer address */
-		uint64_t hdr_addr; /* Header buffer address */
-	} read;
-	struct {
-		struct {
-			union {
-				uint32_t data;
-				struct {
-					uint16_t pkt_info; /* RSS, Pkt type */
-					uint16_t hdr_info; /* Splithdr, hdrlen */
-				} hs_rss;
-			} lo_dword;
-			union {
-				uint32_t rss; /* RSS Hash */
-				struct {
-					uint16_t ip_id; /* IP id */
-					uint16_t csum; /* Packet Checksum */
-				} csum_ip;
-			} hi_dword;
-		} lower;
-		struct {
-			uint32_t status_error; /* ext status/error */
-			uint16_t length; /* Packet length */
-			uint16_t vlan; /* VLAN tag */
-		} upper;
-	} wb;  /* writeback */
-};
-
-/* Transmit Descriptor - Advanced */
-union ufp_adv_tx_desc {
-	struct {
-		uint64_t buffer_addr; /* Address of descriptor's data buf */
-		uint32_t cmd_type_len;
-		uint32_t olinfo_status;
-	} read;
-	struct {
-		uint64_t rsvd; /* Reserved */
-		uint32_t nxtseq_seed;
-		uint32_t status;
-	} wb;
-};
-
 #define UFP_INFO                _IOW('E', 201, int)
 /* MAC and PHY info */
 struct ufp_info_req {

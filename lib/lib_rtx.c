@@ -79,7 +79,6 @@ void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,
 {
 	struct ufp_port *port;
 	struct ufp_ring *rx_ring;
-	union ufp_adv_rx_desc *rx_desc;
 	unsigned int total_allocated;
 	uint16_t max_allocation;
 
@@ -107,10 +106,7 @@ void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,
 		addr_dma = (uint64_t)ufp_slot_addr_dma(buf,
 				slot_index, port_index);
 
-		rx_desc = IXGBE_RX_DESC(rx_ring, rx_ring->next_to_use);
-
-		rx_desc->read.pkt_addr = htole64(addr_dma);
-		rx_desc->read.hdr_addr = 0;
+		ufp_ixgbevf_rx_desc_set(rx_ring, rx_ring->next_to_use, addr_dma);
 
 		next_to_use = rx_ring->next_to_use + 1;
 		rx_ring->next_to_use =
@@ -137,13 +133,9 @@ void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
 {
 	struct ufp_port *port;
 	struct ufp_ring *tx_ring;
-	union ufp_adv_tx_desc *tx_desc;
 	uint16_t unused_count;
-	uint32_t tx_flags;
 	uint16_t next_to_use;
 	uint64_t addr_dma;
-	uint32_t cmd_type;
-	uint32_t olinfo_status;
 
 	port = &plane->ports[port_index];
 	tx_ring = port->tx_ring;
@@ -166,16 +158,7 @@ void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
 	ufp_print("Tx: packet sending DMAaddr = %p size = %d\n",
 		(void *)addr_dma, packet->slot_size);
 
-	/* set type for advanced descriptor with frame checksum insertion */
-	tx_desc = IXGBE_TX_DESC(tx_ring, tx_ring->next_to_use);
-	tx_flags = IXGBE_ADVTXD_DTYP_DATA | IXGBE_ADVTXD_DCMD_DEXT
-		| IXGBE_ADVTXD_DCMD_IFCS;
-	cmd_type = packet->slot_size | IXGBE_TXD_CMD_EOP | IXGBE_TXD_CMD_RS | tx_flags;
-	olinfo_status = packet->slot_size << IXGBE_ADVTXD_PAYLEN_SHIFT;
-
-	tx_desc->read.buffer_addr = htole64(addr_dma);
-	tx_desc->read.cmd_type_len = htole32(cmd_type);
-	tx_desc->read.olinfo_status = htole32(olinfo_status);
+	ufp_ixgbevf_tx_desc_set(tx_ring, tx_ring->next_to_use, addr_dma, packet->slot_size);
 
 	next_to_use = tx_ring->next_to_use + 1;
 	tx_ring->next_to_use =

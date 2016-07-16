@@ -269,3 +269,37 @@ err_promisc:
 	return -1;
 }
 
+void ufp_ixgbevf_rx_desc_set(struct ufp_ring *rx_ring, uint16_t index,
+	uint64_t addr_dma)
+{
+	union ufp_adv_ixgbevf_desc *rx_desc;
+
+	rx_desc = IXGBE_RX_DESC(rx_ring, index);
+
+	rx_desc->read.pkt_addr = htole64(addr_dma);
+	rx_desc->read.hdr_addr = 0;
+
+	return;
+}
+
+void ufp_ixgbevf_tx_desc_set(struct ufp_ring *tx_ring, uint16_t index,
+	uint64_t addr_dma, uint32_t size)
+{
+	union ufp_ixgbevf_tx_desc *tx_desc;
+	uint32_t tx_flags;
+	uint32_t cmd_type;
+	uint32_t olinfo_status;
+
+	/* set type for advanced descriptor with frame checksum insertion */
+	tx_desc = IXGBE_TX_DESC(tx_ring, index);
+	tx_flags = IXGBE_ADVTXD_DTYP_DATA | IXGBE_ADVTXD_DCMD_DEXT
+		| IXGBE_ADVTXD_DCMD_IFCS;
+	cmd_type = size | IXGBE_TXD_CMD_EOP | IXGBE_TXD_CMD_RS | tx_flags;
+	olinfo_status = size << IXGBE_ADVTXD_PAYLEN_SHIFT;
+
+	tx_desc->read.buffer_addr = htole64(addr_dma);
+	tx_desc->read.cmd_type_len = htole32(cmd_type);
+	tx_desc->read.olinfo_status = htole32(olinfo_status);
+
+	return;
+}
