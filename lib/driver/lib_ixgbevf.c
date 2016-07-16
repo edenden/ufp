@@ -272,7 +272,7 @@ err_promisc:
 void ufp_ixgbevf_rx_desc_set(struct ufp_ring *rx_ring, uint16_t index,
 	uint64_t addr_dma)
 {
-	union ufp_adv_ixgbevf_desc *rx_desc;
+	union ufp_ixgbevf_rx_desc *rx_desc;
 
 	rx_desc = IXGBE_RX_DESC(rx_ring, index);
 
@@ -302,4 +302,61 @@ void ufp_ixgbevf_tx_desc_set(struct ufp_ring *tx_ring, uint16_t index,
 	tx_desc->read.olinfo_status = htole32(olinfo_status);
 
 	return;
+}
+
+static inline uint32_t ufp_test_staterr(union ufp_adv_rx_desc *rx_desc,
+        const uint32_t stat_err_bits)
+{
+	return rx_desc->wb.upper.status_error & htole32(stat_err_bits);
+}
+
+int ufp_ixgbevf_rx_desc_check(struct ufp_ring *rx_ring, uint16_t index)
+{
+	union ufp_ixgbevf_rx_desc *rx_desc;
+
+	rx_desc = IXGBE_RX_DESC(rx_ring, index);
+
+	if (!ufp_test_staterr(rx_desc, IXGBE_RXD_STAT_DD)){
+		goto not_received;
+	}
+
+	return 0;
+
+not_received:
+	return -1;
+}
+
+unsigned int ufp_ixgbevf_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index)
+{
+	union ufp_ixgbevf_rx_desc *rx_desc;
+
+	rx_desc = IXGBE_RX_DESC(rx_ring, index);
+
+	/*
+	 * Confirm: We have not to check IXGBE_RXD_STAT_EOP here
+	 * because we have skipped to enable(= disabled) hardware RSC.
+	 */
+
+	/* XXX: ERR_MASK will only have valid bits if EOP set ? */
+	if (unlikely(ufp_test_staterr(rx_desc,
+	IXGBE_RXDADV_ERR_FRAME_ERR_MASK))) {
+		printf("frame error\n");
+	}
+
+	return le16toh(rx_desc->wb.upper.length);
+}
+
+int ufp_ixgbevf_tx_desc_check(struct ufp_ring *tx_ring, uint16_t index)
+{
+	union ufp_ixgbevf_tx_desc *tx_desc;
+
+	tx_desc = IXGBE_TX_DESC(tx_ring, index);
+
+	if (!(tx_desc->wb.status & htole32(IXGBE_TXD_STAT_DD)))
+		goto not_sent;
+
+	return 0;
+
+not_sent:
+	return -1;
 }

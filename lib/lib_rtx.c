@@ -17,8 +17,6 @@
 
 static inline uint16_t ufp_desc_unused(struct ufp_ring *ring,
 	uint16_t num_desc);
-static inline uint32_t ufp_test_staterr(union ufp_adv_rx_desc *rx_desc,
-	const uint32_t stat_err_bits);
 static inline void ufp_write_tail(struct ufp_ring *ring, uint32_t value);
 inline int ufp_slot_assign(struct ufp_buf *buf,
 	struct ufp_plane *plane, unsigned int port_index);
@@ -42,12 +40,6 @@ static inline uint16_t ufp_desc_unused(struct ufp_ring *ring,
 	return next_to_clean > next_to_use
 		? next_to_clean - next_to_use - 1
 		: (num_desc - next_to_use) + next_to_clean - 1;
-}
-
-static inline uint32_t ufp_test_staterr(union ufp_adv_rx_desc *rx_desc,
-	const uint32_t stat_err_bits)
-{
-	return rx_desc->wb.upper.status_error & htole32(stat_err_bits);
 }
 
 static inline void ufp_write_tail(struct ufp_ring *ring, uint32_t value)
@@ -200,6 +192,7 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 	struct ufp_ring *rx_ring;
 	union ufp_adv_rx_desc *rx_desc;
 	unsigned int total_rx_packets;
+	int err;
 
 	port = &plane->ports[port_index];
 	rx_ring = port->rx_ring;
@@ -207,19 +200,15 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 	total_rx_packets = 0;
 	while(likely(total_rx_packets < port->rx_budget)){
 		uint16_t next_to_clean;
-		int slot_index;
-		unsigned int slot_size;
-		void *slot_buf;
+		int slot_size;
 
 		if(unlikely(rx_ring->next_to_clean == rx_ring->next_to_use)){
 			break;
 		}
 
-		rx_desc = IXGBE_RX_DESC(rx_ring, rx_ring->next_to_clean);
-
-		if (!ufp_test_staterr(rx_desc, IXGBE_RXD_STAT_DD)){
+		err = ufp_ixgbevf_rx_desc_check(rx_ring, rx_ring->next_to_clean);
+		if(err < 0)
 			break;
-		}
 
 		/*
 		 * This memory barrier is needed to keep us from reading
@@ -228,26 +217,15 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 		 */
 		rmb();
 
-		/*
-		 * Confirm: We have not to check IXGBE_RXD_STAT_EOP here
-		 * because we have skipped to enable(= disabled) hardware RSC.
-		 */
-
-		/* XXX: ERR_MASK will only have valid bits if EOP set ? */
-		if (unlikely(ufp_test_staterr(rx_desc,
-			IXGBE_RXDADV_ERR_FRAME_ERR_MASK))) {
-			printf("frame error detected\n");
-		}
-
-		/* retrieve a buffer address from the ring */
-		slot_index = ufp_slot_detach(rx_ring, rx_ring->next_to_clean);
-		slot_size = le16toh(rx_desc->wb.upper.length);
-		slot_buf = ufp_slot_addr_virt(buf, slot_index);
+		slot_size = ufp_ixgbevf_rx_desc_get(rx_ring, rx_ring->next_to_clean);
 		ufp_print("Rx: packet received size = %d\n", slot_size);
 
-		packet[total_rx_packets].slot_index = slot_index;
+		/* retrieve a buffer address from the ring */
+		packet[total_rx_packets].slot_index =
+			ufp_slot_detach(rx_ring, rx_ring->next_to_clean);
+		packet[total_rx_packets].slot_buf =
+			ufp_slot_addr_virt(buf, slot_index);
 		packet[total_rx_packets].slot_size = slot_size;
-		packet[total_rx_packets].slot_buf = slot_buf;
 
 		next_to_clean = rx_ring->next_to_clean + 1;
 		rx_ring->next_to_clean = 
@@ -267,6 +245,7 @@ void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
 	struct ufp_ring *tx_ring;
 	union ufp_adv_tx_desc *tx_desc;
 	unsigned int total_tx_packets;
+	int err;
 
 	port = &plane->ports[port_index];
 	tx_ring = port->tx_ring;
@@ -280,9 +259,8 @@ void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
 			break;
 		}
 
-		tx_desc = IXGBE_TX_DESC(tx_ring, tx_ring->next_to_clean);
-
-		if (!(tx_desc->wb.status & htole32(IXGBE_TXD_STAT_DD)))
+		err = ufp_ixgbevf_tx_desc_check(tx_ring, tx_ring->next_to_clean);
+		if(err < 0)
 			break;
 
 		/* Release unused buffer */
