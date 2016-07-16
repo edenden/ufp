@@ -33,12 +33,20 @@ int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops)
 	mbx_udelay		= IXGBE_VF_MBX_INIT_DELAY;
 	mbx_size		= IXGBE_VFMAILBOX_SIZE;
 
+	/* Configuration related functions*/
 	ops->reset_hw		= ufp_ixgbevf_reset;
 	ops->set_device_params	= ufp_ixgbevf_set_device_params;
 	ops->configure_irq	= ufp_ixgbevf_configure_irq;
 	ops->configure_tx	= ufp_ixgbevf_configure_tx;
 	ops->configure_rx	= ufp_ixgbevf_configure_rx;
 	ops->stop_adapter	= ufp_ixgbevf_stop_adapter;
+
+	/* RxTx related functions */
+	ops->set_rx_desc	= ufp_ixgbevf_rx_desc_set;
+	ops->check_rx_desc	= ufp_ixgbevf_rx_desc_check;
+	ops->get_rx_desc	= ufp_ixgbevf_rx_desc_get;
+	ops->set_tx_desc	= ufp_ixgbevf_tx_desc_set;
+	ops->check_tx_desc	= ufp_ixgbevf_tx_desc_check;
 
 	return 0;
 
@@ -269,7 +277,7 @@ err_promisc:
 	return -1;
 }
 
-void ufp_ixgbevf_rx_desc_set(struct ufp_ring *rx_ring, uint16_t index,
+static void ufp_ixgbevf_rx_desc_set(struct ufp_ring *rx_ring, uint16_t index,
 	uint64_t addr_dma)
 {
 	union ufp_ixgbevf_rx_desc *rx_desc;
@@ -282,7 +290,7 @@ void ufp_ixgbevf_rx_desc_set(struct ufp_ring *rx_ring, uint16_t index,
 	return;
 }
 
-void ufp_ixgbevf_tx_desc_set(struct ufp_ring *tx_ring, uint16_t index,
+static void ufp_ixgbevf_tx_desc_set(struct ufp_ring *tx_ring, uint16_t index,
 	uint64_t addr_dma, uint32_t size)
 {
 	union ufp_ixgbevf_tx_desc *tx_desc;
@@ -310,7 +318,7 @@ static inline uint32_t ufp_test_staterr(union ufp_adv_rx_desc *rx_desc,
 	return rx_desc->wb.upper.status_error & htole32(stat_err_bits);
 }
 
-int ufp_ixgbevf_rx_desc_check(struct ufp_ring *rx_ring, uint16_t index)
+static int ufp_ixgbevf_rx_desc_check(struct ufp_ring *rx_ring, uint16_t index)
 {
 	union ufp_ixgbevf_rx_desc *rx_desc;
 
@@ -326,7 +334,7 @@ not_received:
 	return -1;
 }
 
-unsigned int ufp_ixgbevf_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index)
+static unsigned int ufp_ixgbevf_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index)
 {
 	union ufp_ixgbevf_rx_desc *rx_desc;
 
@@ -346,7 +354,7 @@ unsigned int ufp_ixgbevf_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index)
 	return le16toh(rx_desc->wb.upper.length);
 }
 
-int ufp_ixgbevf_tx_desc_check(struct ufp_ring *tx_ring, uint16_t index)
+static int ufp_ixgbevf_tx_desc_check(struct ufp_ring *tx_ring, uint16_t index)
 {
 	union ufp_ixgbevf_tx_desc *tx_desc;
 

@@ -95,6 +95,7 @@ struct ufp_port {
 	void			*irqreg[2];
 	struct ufp_ring		*rx_ring;
 	struct ufp_ring		*tx_ring;
+	struct ufp_ops		*ops;
 	struct ufp_irq_handle	*rx_irq;
 	struct ufp_irq_handle	*tx_irq;
 	uint32_t		rx_slot_next;

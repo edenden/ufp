@@ -98,7 +98,7 @@ void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,
 		addr_dma = (uint64_t)ufp_slot_addr_dma(buf,
 				slot_index, port_index);
 
-		ufp_ixgbevf_rx_desc_set(rx_ring, rx_ring->next_to_use, addr_dma);
+		port->ops->set_rx_desc(rx_ring, rx_ring->next_to_use, addr_dma);
 
 		next_to_use = rx_ring->next_to_use + 1;
 		rx_ring->next_to_use =
@@ -150,7 +150,8 @@ void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
 	ufp_print("Tx: packet sending DMAaddr = %p size = %d\n",
 		(void *)addr_dma, packet->slot_size);
 
-	ufp_ixgbevf_tx_desc_set(tx_ring, tx_ring->next_to_use, addr_dma, packet->slot_size);
+	port->ops->set_tx_desc(tx_ring, tx_ring->next_to_use,
+		addr_dma, packet->slot_size);
 
 	next_to_use = tx_ring->next_to_use + 1;
 	tx_ring->next_to_use =
@@ -206,7 +207,7 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 			break;
 		}
 
-		err = ufp_ixgbevf_rx_desc_check(rx_ring, rx_ring->next_to_clean);
+		err = port->ops->check_rx_desc(rx_ring, rx_ring->next_to_clean);
 		if(err < 0)
 			break;
 
@@ -217,7 +218,7 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 		 */
 		rmb();
 
-		slot_size = ufp_ixgbevf_rx_desc_get(rx_ring, rx_ring->next_to_clean);
+		slot_size = port->ops->get_rx_desc(rx_ring, rx_ring->next_to_clean);
 		ufp_print("Rx: packet received size = %d\n", slot_size);
 
 		/* retrieve a buffer address from the ring */
@@ -259,7 +260,7 @@ void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
 			break;
 		}
 
-		err = ufp_ixgbevf_tx_desc_check(tx_ring, tx_ring->next_to_clean);
+		err = port->ops->check_tx_desc(tx_ring, tx_ring->next_to_clean);
 		if(err < 0)
 			break;
 
