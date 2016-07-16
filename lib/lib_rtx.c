@@ -12,28 +12,28 @@
 #include <sys/signalfd.h>
 #include <pthread.h>
 
-#include "ixmap.h"
+#include "ufp.h"
 #include "driver.h"
 
-static inline uint16_t ixmap_desc_unused(struct ixmap_ring *ring,
+static inline uint16_t ufp_desc_unused(struct ufp_ring *ring,
 	uint16_t num_desc);
-static inline uint32_t ixmap_test_staterr(union ixmap_adv_rx_desc *rx_desc,
+static inline uint32_t ufp_test_staterr(union ufp_adv_rx_desc *rx_desc,
 	const uint32_t stat_err_bits);
-static inline void ixmap_write_tail(struct ixmap_ring *ring, uint32_t value);
-inline int ixmap_slot_assign(struct ixmap_buf *buf,
-	struct ixmap_plane *plane, unsigned int port_index);
-static inline void ixmap_slot_attach(struct ixmap_ring *ring,
+static inline void ufp_write_tail(struct ufp_ring *ring, uint32_t value);
+inline int ufp_slot_assign(struct ufp_buf *buf,
+	struct ufp_plane *plane, unsigned int port_index);
+static inline void ufp_slot_attach(struct ufp_ring *ring,
 	uint16_t desc_index, int slot_index);
-static inline int ixmap_slot_detach(struct ixmap_ring *ring,
+static inline int ufp_slot_detach(struct ufp_ring *ring,
 	uint16_t desc_index);
-inline void ixmap_slot_release(struct ixmap_buf *buf,
+inline void ufp_slot_release(struct ufp_buf *buf,
 	int slot_index);
-static inline unsigned long ixmap_slot_addr_dma(struct ixmap_buf *buf,
+static inline unsigned long ufp_slot_addr_dma(struct ufp_buf *buf,
 	int slot_index, int port_index);
-inline void *ixmap_slot_addr_virt(struct ixmap_buf *buf,
+inline void *ufp_slot_addr_virt(struct ufp_buf *buf,
 	uint16_t slot_index);
 
-static inline uint16_t ixmap_desc_unused(struct ixmap_ring *ring,
+static inline uint16_t ufp_desc_unused(struct ufp_ring *ring,
 	uint16_t num_desc)
 {
         uint16_t next_to_clean = ring->next_to_clean;
@@ -44,49 +44,49 @@ static inline uint16_t ixmap_desc_unused(struct ixmap_ring *ring,
 		: (num_desc - next_to_use) + next_to_clean - 1;
 }
 
-static inline uint32_t ixmap_test_staterr(union ixmap_adv_rx_desc *rx_desc,
+static inline uint32_t ufp_test_staterr(union ufp_adv_rx_desc *rx_desc,
 	const uint32_t stat_err_bits)
 {
 	return rx_desc->wb.upper.status_error & htole32(stat_err_bits);
 }
 
-static inline void ixmap_write_tail(struct ixmap_ring *ring, uint32_t value)
+static inline void ufp_write_tail(struct ufp_ring *ring, uint32_t value)
 {
-	ixmap_writel(value, ring->tail);
+	ufp_writel(value, ring->tail);
 	return;
 }
 
-inline void ixmap_irq_unmask_queues(struct ixmap_plane *plane,
-	unsigned int port_index, struct ixmap_irq_handle *irqh)
+inline void ufp_irq_unmask_queues(struct ufp_plane *plane,
+	unsigned int port_index, struct ufp_irq_handle *irqh)
 {
-	struct ixmap_port *port;
+	struct ufp_port *port;
 	uint32_t mask;
 
 	port = &plane->ports[port_index];
 
 	mask = (irqh->qmask & 0xFFFFFFFF);
 	if (mask)
-		ixmap_writel(mask, port->irqreg[0]);
+		ufp_writel(mask, port->irqreg[0]);
 	mask = (irqh->qmask >> 32);
 	if (mask)
-		ixmap_writel(mask, port->irqreg[1]);
+		ufp_writel(mask, port->irqreg[1]);
 
 	return;
 }
 
-void ixmap_rx_assign(struct ixmap_plane *plane, unsigned int port_index,
-	struct ixmap_buf *buf)
+void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,
+	struct ufp_buf *buf)
 {
-	struct ixmap_port *port;
-	struct ixmap_ring *rx_ring;
-	union ixmap_adv_rx_desc *rx_desc;
+	struct ufp_port *port;
+	struct ufp_ring *rx_ring;
+	union ufp_adv_rx_desc *rx_desc;
 	unsigned int total_allocated;
 	uint16_t max_allocation;
 
 	port = &plane->ports[port_index];
 	rx_ring = port->rx_ring;
 
-	max_allocation = ixmap_desc_unused(rx_ring, port->num_rx_desc);
+	max_allocation = ufp_desc_unused(rx_ring, port->num_rx_desc);
 	if (!max_allocation)
 		return;
 
@@ -96,15 +96,15 @@ void ixmap_rx_assign(struct ixmap_plane *plane, unsigned int port_index,
 		uint64_t addr_dma;
 		int slot_index;
 
-		slot_index = ixmap_slot_assign(buf, plane, port_index);
+		slot_index = ufp_slot_assign(buf, plane, port_index);
 		if(slot_index < 0){
 			port->count_rx_alloc_failed +=
 				(max_allocation - total_allocated);
 			break;
 		}
 
-		ixmap_slot_attach(rx_ring, rx_ring->next_to_use, slot_index);
-		addr_dma = (uint64_t)ixmap_slot_addr_dma(buf,
+		ufp_slot_attach(rx_ring, rx_ring->next_to_use, slot_index);
+		addr_dma = (uint64_t)ufp_slot_addr_dma(buf,
 				slot_index, port_index);
 
 		rx_desc = IXGBE_RX_DESC(rx_ring, rx_ring->next_to_use);
@@ -128,16 +128,16 @@ void ixmap_rx_assign(struct ixmap_plane *plane, unsigned int port_index,
 		 */
 		/* XXX: Do we need this write memory barrier ? */
 		wmb();
-		ixmap_write_tail(rx_ring, rx_ring->next_to_use);
+		ufp_write_tail(rx_ring, rx_ring->next_to_use);
 	}
 }
 
-void ixmap_tx_assign(struct ixmap_plane *plane, unsigned int port_index,
-	struct ixmap_buf *buf, struct ixmap_packet *packet)
+void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
+	struct ufp_buf *buf, struct ufp_packet *packet)
 {
-	struct ixmap_port *port;
-	struct ixmap_ring *tx_ring;
-	union ixmap_adv_tx_desc *tx_desc;
+	struct ufp_port *port;
+	struct ufp_ring *tx_ring;
+	union ufp_adv_tx_desc *tx_desc;
 	uint16_t unused_count;
 	uint32_t tx_flags;
 	uint16_t next_to_use;
@@ -148,22 +148,22 @@ void ixmap_tx_assign(struct ixmap_plane *plane, unsigned int port_index,
 	port = &plane->ports[port_index];
 	tx_ring = port->tx_ring;
 
-	unused_count = ixmap_desc_unused(tx_ring, port->num_tx_desc);
+	unused_count = ufp_desc_unused(tx_ring, port->num_tx_desc);
 	if(!unused_count){
 		port->count_tx_xmit_failed++;
-		ixmap_slot_release(buf, packet->slot_index);
+		ufp_slot_release(buf, packet->slot_index);
 		return;
 	}
 
 	if(unlikely(packet->slot_size > IXGBE_MAX_DATA_PER_TXD)){
 		port->count_tx_xmit_failed++;
-		ixmap_slot_release(buf, packet->slot_index);
+		ufp_slot_release(buf, packet->slot_index);
 		return;
 	}
 
-	ixmap_slot_attach(tx_ring, tx_ring->next_to_use, packet->slot_index);
-	addr_dma = (uint64_t)ixmap_slot_addr_dma(buf, packet->slot_index, port_index);
-	ixmap_print("Tx: packet sending DMAaddr = %p size = %d\n",
+	ufp_slot_attach(tx_ring, tx_ring->next_to_use, packet->slot_index);
+	addr_dma = (uint64_t)ufp_slot_addr_dma(buf, packet->slot_index, port_index);
+	ufp_print("Tx: packet sending DMAaddr = %p size = %d\n",
 		(void *)addr_dma, packet->slot_size);
 
 	/* set type for advanced descriptor with frame checksum insertion */
@@ -185,10 +185,10 @@ void ixmap_tx_assign(struct ixmap_plane *plane, unsigned int port_index,
 	return;
 }
 
-void ixmap_tx_xmit(struct ixmap_plane *plane, unsigned int port_index)
+void ufp_tx_xmit(struct ufp_plane *plane, unsigned int port_index)
 {
-	struct ixmap_port *port;
-	struct ixmap_ring *tx_ring;
+	struct ufp_port *port;
+	struct ufp_ring *tx_ring;
 
 	port = &plane->ports[port_index];
 	tx_ring = port->tx_ring;
@@ -203,19 +203,19 @@ void ixmap_tx_xmit(struct ixmap_plane *plane, unsigned int port_index)
 		 * status bits have been updated before next_to_watch is written.
 		 */
 		wmb();
-		ixmap_write_tail(tx_ring, tx_ring->next_to_use);
+		ufp_write_tail(tx_ring, tx_ring->next_to_use);
 		port->tx_suspended = 0;
 	}
 
 	return;
 }
 
-unsigned int ixmap_rx_clean(struct ixmap_plane *plane, unsigned int port_index,
-	struct ixmap_buf *buf, struct ixmap_packet *packet)
+unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
+	struct ufp_buf *buf, struct ufp_packet *packet)
 {
-	struct ixmap_port *port;
-	struct ixmap_ring *rx_ring;
-	union ixmap_adv_rx_desc *rx_desc;
+	struct ufp_port *port;
+	struct ufp_ring *rx_ring;
+	union ufp_adv_rx_desc *rx_desc;
 	unsigned int total_rx_packets;
 
 	port = &plane->ports[port_index];
@@ -234,7 +234,7 @@ unsigned int ixmap_rx_clean(struct ixmap_plane *plane, unsigned int port_index,
 
 		rx_desc = IXGBE_RX_DESC(rx_ring, rx_ring->next_to_clean);
 
-		if (!ixmap_test_staterr(rx_desc, IXGBE_RXD_STAT_DD)){
+		if (!ufp_test_staterr(rx_desc, IXGBE_RXD_STAT_DD)){
 			break;
 		}
 
@@ -251,16 +251,16 @@ unsigned int ixmap_rx_clean(struct ixmap_plane *plane, unsigned int port_index,
 		 */
 
 		/* XXX: ERR_MASK will only have valid bits if EOP set ? */
-		if (unlikely(ixmap_test_staterr(rx_desc,
+		if (unlikely(ufp_test_staterr(rx_desc,
 			IXGBE_RXDADV_ERR_FRAME_ERR_MASK))) {
 			printf("frame error detected\n");
 		}
 
 		/* retrieve a buffer address from the ring */
-		slot_index = ixmap_slot_detach(rx_ring, rx_ring->next_to_clean);
+		slot_index = ufp_slot_detach(rx_ring, rx_ring->next_to_clean);
 		slot_size = le16toh(rx_desc->wb.upper.length);
-		slot_buf = ixmap_slot_addr_virt(buf, slot_index);
-		ixmap_print("Rx: packet received size = %d\n", slot_size);
+		slot_buf = ufp_slot_addr_virt(buf, slot_index);
+		ufp_print("Rx: packet received size = %d\n", slot_size);
 
 		packet[total_rx_packets].slot_index = slot_index;
 		packet[total_rx_packets].slot_size = slot_size;
@@ -277,12 +277,12 @@ unsigned int ixmap_rx_clean(struct ixmap_plane *plane, unsigned int port_index,
 	return total_rx_packets;
 }
 
-void ixmap_tx_clean(struct ixmap_plane *plane, unsigned int port_index,
-	struct ixmap_buf *buf)
+void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
+	struct ufp_buf *buf)
 {
-	struct ixmap_port *port;
-	struct ixmap_ring *tx_ring;
-	union ixmap_adv_tx_desc *tx_desc;
+	struct ufp_port *port;
+	struct ufp_ring *tx_ring;
+	union ufp_adv_tx_desc *tx_desc;
 	unsigned int total_tx_packets;
 
 	port = &plane->ports[port_index];
@@ -303,8 +303,8 @@ void ixmap_tx_clean(struct ixmap_plane *plane, unsigned int port_index,
 			break;
 
 		/* Release unused buffer */
-		slot_index = ixmap_slot_detach(tx_ring, tx_ring->next_to_clean);
-		ixmap_slot_release(buf, slot_index);
+		slot_index = ufp_slot_detach(tx_ring, tx_ring->next_to_clean);
+		ufp_slot_release(buf, slot_index);
 
 		next_to_clean = tx_ring->next_to_clean + 1;
 		tx_ring->next_to_clean =
@@ -317,16 +317,16 @@ void ixmap_tx_clean(struct ixmap_plane *plane, unsigned int port_index,
 	return;
 }
 
-uint8_t *ixmap_macaddr(struct ixmap_plane *plane,
+uint8_t *ufp_macaddr(struct ufp_plane *plane,
 	unsigned int port_index)
 {
 	return plane->ports[port_index].mac_addr;
 }
 
-inline int ixmap_slot_assign(struct ixmap_buf *buf,
-	struct ixmap_plane *plane, unsigned int port_index)
+inline int ufp_slot_assign(struct ufp_buf *buf,
+	struct ufp_plane *plane, unsigned int port_index)
 {
-	struct ixmap_port *port;
+	struct ufp_port *port;
 	int slot_next, slot_index, i;
 
 	port = &plane->ports[port_index];
@@ -354,62 +354,62 @@ out:
 	return slot_index;
 }
 
-static inline void ixmap_slot_attach(struct ixmap_ring *ring,
+static inline void ufp_slot_attach(struct ufp_ring *ring,
 	uint16_t desc_index, int slot_index)
 {
 	ring->slot_index[desc_index] = slot_index;
 	return;
 }
 
-static inline int ixmap_slot_detach(struct ixmap_ring *ring,
+static inline int ufp_slot_detach(struct ufp_ring *ring,
 	uint16_t desc_index)
 {
 	return ring->slot_index[desc_index];
 }
 
-inline void ixmap_slot_release(struct ixmap_buf *buf,
+inline void ufp_slot_release(struct ufp_buf *buf,
 	int slot_index)
 {
 	buf->slots[slot_index] = 0;
 	return;
 }
 
-static inline unsigned long ixmap_slot_addr_dma(struct ixmap_buf *buf,
+static inline unsigned long ufp_slot_addr_dma(struct ufp_buf *buf,
 	int slot_index, int port_index)
 {
 	return buf->addr_dma[port_index] + (buf->buf_size * slot_index);
 }
 
-inline void *ixmap_slot_addr_virt(struct ixmap_buf *buf,
+inline void *ufp_slot_addr_virt(struct ufp_buf *buf,
 	uint16_t slot_index)
 {
 	return buf->addr_virt + (buf->buf_size * slot_index);
 }
 
-inline unsigned int ixmap_slot_size(struct ixmap_buf *buf)
+inline unsigned int ufp_slot_size(struct ufp_buf *buf)
 {
 	return buf->buf_size;
 }
 
-inline unsigned long ixmap_count_rx_alloc_failed(struct ixmap_plane *plane,
+inline unsigned long ufp_count_rx_alloc_failed(struct ufp_plane *plane,
 	unsigned int port_index)
 {
 	return plane->ports[port_index].count_rx_alloc_failed;
 }
 
-inline unsigned long ixmap_count_rx_clean_total(struct ixmap_plane *plane,
+inline unsigned long ufp_count_rx_clean_total(struct ufp_plane *plane,
 	unsigned int port_index)
 {
 	return plane->ports[port_index].count_rx_clean_total;
 }
 
-inline unsigned long ixmap_count_tx_xmit_failed(struct ixmap_plane *plane,
+inline unsigned long ufp_count_tx_xmit_failed(struct ufp_plane *plane,
 	unsigned int port_index)
 {
 	return plane->ports[port_index].count_tx_xmit_failed;
 }
 
-inline unsigned long ixmap_count_tx_clean_total(struct ixmap_plane *plane,
+inline unsigned long ufp_count_tx_clean_total(struct ufp_plane *plane,
 	unsigned int port_index)
 {
 	return plane->ports[port_index].count_tx_clean_total;

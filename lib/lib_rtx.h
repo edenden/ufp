@@ -1,5 +1,5 @@
-#ifndef _IXMAP_DRIVER_H
-#define _IXMAP_DRIVER_H
+#ifndef _LIBUFP_RTX_H
+#define _LIBUFP_RTX_H
 
 /* Receive Descriptor bit definitions */
 #define IXGBE_RXD_STAT_DD	0x01 /* Descriptor Done */
@@ -55,4 +55,4 @@
 #define IXGBE_TX_DESC(R, i)	\
 	(&(((union ixmap_adv_tx_desc *)((R)->addr_virt))[i]))
 
-#endif /* _IXMAP_DRIVER_H */
+#endif /* _LIBUFP_RTX_H */
