@@ -126,7 +126,6 @@ void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
 	uint16_t unused_count;
 	uint16_t next_to_use;
 	uint64_t addr_dma;
-	int err;
 
 	port = &plane->ports[port_index];
 	tx_ring = port->tx_ring;
