@@ -290,16 +290,14 @@ static void ufp_ixgbevf_rx_desc_set(struct ufp_ring *rx_ring, uint16_t index,
 	return;
 }
 
-static int ufp_ixgbevf_tx_desc_set(struct ufp_ring *tx_ring, uint16_t index,
+static void ufp_ixgbevf_tx_desc_set(struct ufp_ring *tx_ring, uint16_t index,
 	uint64_t addr_dma, struct ufp_packet *packet)
 {
 	union ufp_ixgbevf_tx_desc *tx_desc;
 	uint32_t cmd_type;
 	uint32_t olinfo_status;
 
-	if(unlikely(packet->slot_size > IXGBE_MAX_DATA_PER_TXD)){
-		goto err_packet_size;
-	}
+	/* XXX: Each buffer size must be less than IXGBE_MAX_DATA_PER_TXD */
 
 	/* set type for advanced descriptor with frame checksum insertion */
 	tx_desc = IXGBE_TX_DESC(tx_ring, index);
@@ -321,10 +319,7 @@ static int ufp_ixgbevf_tx_desc_set(struct ufp_ring *tx_ring, uint16_t index,
 	tx_desc->read.cmd_type_len = htole32(cmd_type);
 	tx_desc->read.olinfo_status = htole32(olinfo_status);
 
-	return 0;
-
-err_packet_size:
-	return -1;
+	return;
 }
 
 static inline uint32_t ufp_test_staterr(union ufp_adv_rx_desc *rx_desc,
