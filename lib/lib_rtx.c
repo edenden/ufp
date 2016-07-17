@@ -94,11 +94,10 @@ void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,
 			break;
 		}
 
-		ufp_slot_attach(rx_ring, rx_ring->next_to_use, slot_index);
 		addr_dma = (uint64_t)ufp_slot_addr_dma(buf,
 				slot_index, port_index);
-
 		port->ops->set_rx_desc(rx_ring, rx_ring->next_to_use, addr_dma);
+		ufp_slot_attach(rx_ring, rx_ring->next_to_use, slot_index);
 
 		next_to_use = rx_ring->next_to_use + 1;
 		rx_ring->next_to_use =
@@ -128,36 +127,37 @@ void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
 	uint16_t unused_count;
 	uint16_t next_to_use;
 	uint64_t addr_dma;
+	int err;
 
 	port = &plane->ports[port_index];
 	tx_ring = port->tx_ring;
 
 	unused_count = ufp_desc_unused(tx_ring, port->num_tx_desc);
 	if(!unused_count){
-		port->count_tx_xmit_failed++;
-		ufp_slot_release(buf, packet->slot_index);
-		return;
+		goto tx_failed;
 	}
 
-	if(unlikely(packet->slot_size > IXGBE_MAX_DATA_PER_TXD)){
-		port->count_tx_xmit_failed++;
-		ufp_slot_release(buf, packet->slot_index);
-		return;
-	}
-
-	ufp_slot_attach(tx_ring, tx_ring->next_to_use, packet->slot_index);
 	addr_dma = (uint64_t)ufp_slot_addr_dma(buf, packet->slot_index, port_index);
+
+	err = port->ops->set_tx_desc(tx_ring, tx_ring->next_to_use,
+		addr_dma, packet->slot_size);
+	if(unlikely(err < 0)){
+		goto tx_failed;
+	}
+	ufp_slot_attach(tx_ring, tx_ring->next_to_use, packet->slot_index);
 	ufp_print("Tx: packet sending DMAaddr = %p size = %d\n",
 		(void *)addr_dma, packet->slot_size);
-
-	port->ops->set_tx_desc(tx_ring, tx_ring->next_to_use,
-		addr_dma, packet->slot_size);
 
 	next_to_use = tx_ring->next_to_use + 1;
 	tx_ring->next_to_use =
 		(next_to_use < port->num_tx_desc) ? next_to_use : 0;
 
 	port->tx_suspended++;
+	return;
+
+tx_failed:
+	port->count_tx_xmit_failed++;
+	ufp_slot_release(buf, packet->slot_index);
 	return;
 }
 
@@ -208,7 +208,7 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 		}
 
 		err = port->ops->check_rx_desc(rx_ring, rx_ring->next_to_clean);
-		if(err < 0)
+		if(unlikely(err < 0))
 			break;
 
 		/*
@@ -261,7 +261,7 @@ void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
 		}
 
 		err = port->ops->check_tx_desc(tx_ring, tx_ring->next_to_clean);
-		if(err < 0)
+		if(unlikely(err < 0))
 			break;
 
 		/* Release unused buffer */

@@ -290,26 +290,41 @@ static void ufp_ixgbevf_rx_desc_set(struct ufp_ring *rx_ring, uint16_t index,
 	return;
 }
 
-static void ufp_ixgbevf_tx_desc_set(struct ufp_ring *tx_ring, uint16_t index,
-	uint64_t addr_dma, uint32_t size)
+static int ufp_ixgbevf_tx_desc_set(struct ufp_ring *tx_ring, uint16_t index,
+	uint64_t addr_dma, struct ufp_packet *packet)
 {
 	union ufp_ixgbevf_tx_desc *tx_desc;
-	uint32_t tx_flags;
 	uint32_t cmd_type;
 	uint32_t olinfo_status;
 
+	if(unlikely(packet->slot_size > IXGBE_MAX_DATA_PER_TXD)){
+		goto err_packet_size;
+	}
+
 	/* set type for advanced descriptor with frame checksum insertion */
 	tx_desc = IXGBE_TX_DESC(tx_ring, index);
-	tx_flags = IXGBE_ADVTXD_DTYP_DATA | IXGBE_ADVTXD_DCMD_DEXT
-		| IXGBE_ADVTXD_DCMD_IFCS;
-	cmd_type = size | IXGBE_TXD_CMD_EOP | IXGBE_TXD_CMD_RS | tx_flags;
-	olinfo_status = size << IXGBE_ADVTXD_PAYLEN_SHIFT;
+
+	cmd_type =	IXGBE_ADVTXD_DTYP_DATA |
+			IXGBE_ADVTXD_DCMD_DEXT |
+			IXGBE_ADVTXD_DCMD_IFCS;
+
+	if(unlikely(packet->flag & UFP_PACKET_NOTEOP)){
+		cmd_type |= packet->slot_size;
+		olinfo_status = 0;
+	}else{
+		cmd_type |= packet->slot_size | IXGBE_TXD_CMD_EOP | IXGBE_TXD_CMD_RS;
+		olinfo_status =	(packet->slot_size << IXGBE_ADVTXD_PAYLEN_SHIFT) |
+				IXGBE_ADVTXD_CC;
+	}
 
 	tx_desc->read.buffer_addr = htole64(addr_dma);
 	tx_desc->read.cmd_type_len = htole32(cmd_type);
 	tx_desc->read.olinfo_status = htole32(olinfo_status);
 
-	return;
+	return 0;
+
+err_packet_size:
+	return -1;
 }
 
 static inline uint32_t ufp_test_staterr(union ufp_adv_rx_desc *rx_desc,
