@@ -124,6 +124,7 @@ struct ufp_packet {
 	void			*slot_buf;
 	unsigned int		slot_size;
 	int			slot_index;
+	unsigned int		flag;
 };
 
 enum {

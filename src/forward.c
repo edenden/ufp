@@ -57,6 +57,11 @@ void forward_process(struct ixmapfwd_thread *thread, unsigned int port_index,
 		forward_dump(&packet[i]);
 #endif
 
+		if(packet[i].flag & UFP_PACKET_ERROR)
+			goto packet_drop;
+
+		/* TBD: Support jumbo frame */
+
 		eth = (struct ethhdr *)packet[i].slot_buf;
 		switch(ntohs(eth->h_proto)){
 		case ETH_P_ARP:

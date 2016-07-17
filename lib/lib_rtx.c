@@ -218,7 +218,8 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 		 */
 		rmb();
 
-		slot_size = port->ops->get_rx_desc(rx_ring, rx_ring->next_to_clean);
+		port->ops->get_rx_desc(rx_ring, rx_ring->next_to_clean,
+			packet[total_rx_packets]);
 		ufp_print("Rx: packet received size = %d\n", slot_size);
 
 		/* retrieve a buffer address from the ring */
@@ -226,7 +227,6 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 			ufp_slot_detach(rx_ring, rx_ring->next_to_clean);
 		packet[total_rx_packets].slot_buf =
 			ufp_slot_addr_virt(buf, slot_index);
-		packet[total_rx_packets].slot_size = slot_size;
 
 		next_to_clean = rx_ring->next_to_clean + 1;
 		rx_ring->next_to_clean = 

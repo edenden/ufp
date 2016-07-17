@@ -17,7 +17,8 @@ struct ufp_ops {
 	void		(*set_rx_desc)(struct ufp_ring *, uint16_t,
 				uint64_t);
 	int		(*check_rx_desc)(struct ufp_ring *, uint16_t);
-	unsigned int	(*get_rx_desc)(struct ufp_ring *, uint16_t);
+	void		(*get_rx_desc)(struct ufp_ring *, uint16_t,
+				struct ufp_packet *);
 	void		(*set_tx_desc)(struct ufp_ring *, uint16_t,
 				uint64_t, uint32_t);
 	int		(*check_tx_desc)(struct ufp_ring *, uint16_t);

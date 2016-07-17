@@ -334,24 +334,25 @@ not_received:
 	return -1;
 }
 
-static unsigned int ufp_ixgbevf_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index)
+static void ufp_ixgbevf_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index,
+	struct ufp_packet *packet)
 {
 	union ufp_ixgbevf_rx_desc *rx_desc;
 
 	rx_desc = IXGBE_RX_DESC(rx_ring, index);
 
-	/*
-	 * Confirm: We have not to check IXGBE_RXD_STAT_EOP here
-	 * because we have skipped to enable(= disabled) hardware RSC.
-	 */
+	packet->flag = 0;
 
-	/* XXX: ERR_MASK will only have valid bits if EOP set ? */
-	if (unlikely(ufp_test_staterr(rx_desc,
-	IXGBE_RXDADV_ERR_FRAME_ERR_MASK))) {
-		printf("frame error\n");
-	}
+	if(unlikely(!ufp_test_staterr(rx_desc, IXGBE_RXD_STAT_EOP)))
+		packet->flag |= UFP_PAKCET_NOTEOP;
 
-	return le16toh(rx_desc->wb.upper.length);
+	if(unlikely(ufp_test_staterr(rx_desc,
+		IXGBE_RXDADV_ERR_FRAME_ERR_MASK)))
+		packet->flag |= UFP_PAKCET_ERROR;
+
+	packet->slot_size = le16toh(rx_desc->wb.upper.length);
+
+	return;
 }
 
 static int ufp_ixgbevf_tx_desc_check(struct ufp_ring *tx_ring, uint16_t index)
