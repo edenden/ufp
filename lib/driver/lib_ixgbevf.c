@@ -42,6 +42,7 @@ int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops)
 	ops->stop_adapter	= ufp_ixgbevf_stop_adapter;
 
 	/* RxTx related functions */
+	ops->unmask_queues	= ufp_ixgbevf_unmask_queues;
 	ops->set_rx_desc	= ufp_ixgbevf_rx_desc_set;
 	ops->check_rx_desc	= ufp_ixgbevf_rx_desc_check;
 	ops->get_rx_desc	= ufp_ixgbevf_rx_desc_get;
@@ -378,4 +379,15 @@ static int ufp_ixgbevf_tx_desc_check(struct ufp_ring *tx_ring, uint16_t index)
 
 not_sent:
 	return -1;
+}
+
+static void ufp_ixgbevf_unmask_queues(void *bar, uint64_t qmask)
+{
+	uint32_t qmask_low;
+
+	qmask_low = (qmask & 0xFFFFFFFF);
+	if(qmask_low)
+		ufp_writel(qmask, bar + IXGBE_VTEIMS);
+
+        return;
 }

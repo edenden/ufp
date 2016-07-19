@@ -48,20 +48,13 @@ static inline void ufp_write_tail(struct ufp_ring *ring, uint32_t value)
 	return;
 }
 
-inline void ufp_irq_unmask_queues(struct ufp_plane *plane,
+void ufp_irq_unmask_queues(struct ufp_plane *plane,
 	unsigned int port_index, struct ufp_irq_handle *irqh)
 {
 	struct ufp_port *port;
-	uint32_t mask;
 
 	port = &plane->ports[port_index];
-
-	mask = (irqh->qmask & 0xFFFFFFFF);
-	if (mask)
-		ufp_writel(mask, port->irqreg[0]);
-	mask = (irqh->qmask >> 32);
-	if (mask)
-		ufp_writel(mask, port->irqreg[1]);
+	port->ops->unmask_queues(port->bar, irqh->qmask);
 
 	return;
 }

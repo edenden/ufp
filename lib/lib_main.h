@@ -73,6 +73,7 @@ struct ufp_ops {
 	int			(*stop_adapter)(struct ufp_handle *);
 
 	/* For forwarding */
+	void			(*unmask_queues)(void *, uint64_t)
 	void			(*set_rx_desc)(struct ufp_ring *, uint16_t,
 					uint64_t);
 	int			(*check_rx_desc)(struct ufp_ring *, uint16_t);
@@ -118,7 +119,7 @@ struct ufp_irq_handle {
 };
 
 struct ufp_port {
-	void			*irqreg[2];
+	void			*bar;
 	struct ufp_ring		*rx_ring;
 	struct ufp_ring		*tx_ring;
 	struct ufp_ops		*ops;

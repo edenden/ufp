@@ -74,8 +74,7 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
 
 	for(i = 0; i < ih_num; i++, ports_assigned++){
 		plane->ports[i].interface_name = ih_list[i]->interface_name;
-		plane->ports[i].irqreg[0] = ih_list[i]->bar + IXGBE_EIMS_EX(0);
-		plane->ports[i].irqreg[1] = ih_list[i]->bar + IXGBE_EIMS_EX(1);
+		plane->ports[i].bar = ih_list[i]->bar;
 		plane->ports[i].rx_ring = &(ih_list[i]->rx_ring[core_id]);
 		plane->ports[i].tx_ring = &(ih_list[i]->tx_ring[core_id]);
 		plane->ports[i].ops = ih_list[i]->ops;
