@@ -34,8 +34,8 @@ inline void *ufp_slot_addr_virt(struct ufp_buf *buf,
 static inline uint16_t ufp_desc_unused(struct ufp_ring *ring,
 	uint16_t num_desc)
 {
-        uint16_t next_to_clean = ring->next_to_clean;
-        uint16_t next_to_use = ring->next_to_use;
+	uint16_t next_to_clean = ring->next_to_clean;
+	uint16_t next_to_use = ring->next_to_use;
 
 	return next_to_clean > next_to_use
 		? next_to_clean - next_to_use - 1
@@ -270,12 +270,6 @@ void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
 	return;
 }
 
-uint8_t *ufp_macaddr(struct ufp_plane *plane,
-	unsigned int port_index)
-{
-	return plane->ports[port_index].mac_addr;
-}
-
 inline int ufp_slot_assign(struct ufp_buf *buf,
 	struct ufp_plane *plane, unsigned int port_index)
 {
@@ -343,28 +337,3 @@ inline unsigned int ufp_slot_size(struct ufp_buf *buf)
 {
 	return buf->buf_size;
 }
-
-inline unsigned long ufp_count_rx_alloc_failed(struct ufp_plane *plane,
-	unsigned int port_index)
-{
-	return plane->ports[port_index].count_rx_alloc_failed;
-}
-
-inline unsigned long ufp_count_rx_clean_total(struct ufp_plane *plane,
-	unsigned int port_index)
-{
-	return plane->ports[port_index].count_rx_clean_total;
-}
-
-inline unsigned long ufp_count_tx_xmit_failed(struct ufp_plane *plane,
-	unsigned int port_index)
-{
-	return plane->ports[port_index].count_tx_xmit_failed;
-}
-
-inline unsigned long ufp_count_tx_clean_total(struct ufp_plane *plane,
-	unsigned int port_index)
-{
-	return plane->ports[port_index].count_tx_clean_total;
-}
-

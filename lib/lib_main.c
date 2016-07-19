@@ -411,6 +411,56 @@ static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma)
 	return 0;
 }
 
+struct ufp_ops *ufp_ops_alloc(uint16_t device_id)
+{
+	struct ufp_ops *ops;
+	int err;
+
+	ops = malloc(sizeof(struct ufp_ops));
+	if(!ops)
+		goto err_alloc_ops;
+
+	memset(ops, 0, sizeof(struct ufp_ops));
+
+	switch(device_id){
+	case IXGBE_DEV_ID_82599_VF:
+	case IXGBE_DEV_ID_X540_VF:
+	case IXGBE_DEV_ID_X550_VF:
+	case IXGBE_DEV_ID_X550EM_X_VF:
+		err = ufp_ixgbevf_init(ops);
+		if(err)
+			goto err_init_device;
+		break;
+	default:
+		goto err_init_device;
+	}
+
+	ops->device_id = device_id;
+	return ops;
+
+err_init_device:
+	free(ops);
+err_alloc_ops:
+	return NULL;
+}
+
+void ufp_ops_release(struct ufp_ops *ops)
+{
+	switch(ops->device_id){
+	case IXGBE_DEV_ID_82599_VF:
+	case IXGBE_DEV_ID_X540_VF:
+	case IXGBE_DEV_ID_X550_VF:
+	case IXGBE_DEV_ID_X550EM_X_VF:
+		ufp_ixgbevf_destroy(ops);
+		break;
+	default:
+		break;
+	}
+
+	free(ops);
+	return;
+}
+
 struct ufp_handle *ufp_open(unsigned int port_index,
 	unsigned int num_queues_req, unsigned int num_rx_desc,
 	unsigned int num_tx_desc)
@@ -445,9 +495,9 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	if(ih->bar == MAP_FAILED)
 		goto err_mmap;
 
-	ih->ops = ufp_ops_init(req.device_id);
+	ih->ops = ufp_ops_alloc(req.device_id);
 	if(!ih->ops)
-		goto err_ops_init;
+		goto err_ops_alloc;
 
 	err = ih->ops->reset_hw(ih);
 	if(err < 0)
@@ -477,8 +527,8 @@ err_alloc_rx_ring:
 
 err_ops_get_device_params:
 err_ops_reset_hw:
-	ufp_ops_destroy(ih->ops);
-err_ops_init:
+	ufp_ops_release(ih->ops);
+err_ops_alloc:
 	munmap(ih->bar, ih->bar_size);
 err_mmap:
 err_ioctl_info:
@@ -494,7 +544,7 @@ void ufp_close(struct ufp_handle *ih)
 	free(ih->tx_ring);
 	free(ih->rx_ring);
 
-	ufp_ops_destroy(ih->ops);
+	ufp_ops_release(ih->ops);
 	munmap(ih->bar, ih->bar_size);
 	close(ih->fd);
 	free(ih);
@@ -553,21 +603,6 @@ void ufp_down(struct ufp_handle *ih)
 err_ioctl_stop:
 err_stop_adapter:
 	return;
-}
-
-unsigned int ufp_bufsize_get(struct ufp_handle *ih)
-{
-	return ih->buf_size;
-}
-
-uint8_t *ufp_macaddr_default(struct ufp_handle *ih)
-{
-	return ih->mac_addr;
-}
-
-unsigned int ufp_mtu_get(struct ufp_handle *ih)
-{
-	return ih->mtu_frame;
 }
 
 static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
@@ -675,52 +710,3 @@ err_open_proc:
 	return -1;
 }
 
-int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_index,
-	enum ufp_irq_type type)
-{
-	struct ufp_port *port;
-	struct ufp_irq_handle *irqh;
-
-	port = &plane->ports[port_index];
-
-	switch(type){
-	case IXMAP_IRQ_RX:
-		irqh = port->rx_irq;
-		break;
-	case IXMAP_IRQ_TX:
-		irqh = port->tx_irq;
-		break;
-	default:
-		goto err_undefined_type;
-	}
-
-	return irqh->fd;
-
-err_undefined_type:
-	return -1;
-}
-
-struct ufp_irq_handle *ufp_irq_handle(struct ufp_plane *plane,
-	unsigned int port_index, enum ufp_irq_type type)
-{
-	struct ufp_port *port;
-	struct ufp_irq_handle *irqh;
-
-	port = &plane->ports[port_index];
-
-	switch(type){
-	case IXMAP_IRQ_RX:
-		irqh = port->rx_irq;
-		break;
-	case IXMAP_IRQ_TX:
-		irqh = port->tx_irq;
-		break;
-	default:
-		goto err_undefined_type;
-	}
-
-	return irqh;
-
-err_undefined_type:
-	return NULL;
-}

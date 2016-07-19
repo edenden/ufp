@@ -60,6 +60,32 @@ struct ufp_buf {
 	int32_t			*slots;
 };
 
+struct ufp_ops {
+	/* For configuration */
+	int			(*reset_hw)(struct ufp_handle *);
+	int			(*set_device_params)(struct ufp_handle *,
+					uint32, uint32, uint32);
+	int			(*configure_irq)(struct ufp_handle *,
+					uint32);
+	int			(*configure_tx)(struct ufp_handle *);
+	int			(*configure_rx)(struct ufp_handle *,
+					uint32, uint32);
+	int			(*stop_adapter)(struct ufp_handle *);
+
+	/* For forwarding */
+	void			(*set_rx_desc)(struct ufp_ring *, uint16_t,
+					uint64_t);
+	int			(*check_rx_desc)(struct ufp_ring *, uint16_t);
+	void			(*get_rx_desc)(struct ufp_ring *, uint16_t,
+					struct ufp_packet *);
+	void			(*set_tx_desc)(struct ufp_ring *, uint16_t,
+					uint64_t, struct ufp_packet *);
+	int			(*check_tx_desc)(struct ufp_ring *, uint16_t);
+
+	void			*data;
+	uint16_t		device_id;
+};
+
 struct ufp_handle {
  	int			fd;
 	void			*bar;
@@ -138,45 +164,45 @@ enum ufp_irq_type {
 	IXMAP_IRQ_TX,
 };
 
-#define UFP_INFO                _IOW('E', 201, int)
+#define UFP_INFO		_IOW('E', 201, int)
 /* MAC and PHY info */
 struct ufp_info_req {
-        __u64                   mmio_base;
-        __u64                   mmio_size;
+	__u64			mmio_base;
+	__u64			mmio_size;
 
-        __u16                   device_id;
-        __u16                   vendor_id;
+	__u16			device_id;
+	__u16			vendor_id;
 };
 
 #define UFP_START		_IOW('E', 202, int)
 struct ufp_start_req {
-        __u32                   num_rx_queues;
-        __u32                   num_tx_queues;
+	__u32			num_rx_queues;
+	__u32			num_tx_queues;
 };
 
 #define UFP_STOP		_IOW('E', 203, int)
 
 #define UFP_MAP			_IOW('U', 210, int)
 struct ufp_map_req {
-        __u64                   addr_virtual;
-        __u64                   addr_dma;
-        __u64                   size;
-        __u8                    cache;
+	__u64			addr_virtual;
+	__u64			addr_dma;
+	__u64			size;
+	__u8			cache;
 };
 
-#define UFP_UNMAP               _IOW('U', 211, int)
+#define UFP_UNMAP		_IOW('U', 211, int)
 struct ufp_unmap_req {
-        __u64                   addr_dma;
+	__u64			addr_dma;
 };
 
 #define UFP_IRQBIND		_IOW('E', 220, int)
 struct ufp_irqbind_req {
-        enum ufp_irq_type       type;
-        __u32                   queue_idx;
-        __s32                   event_fd;
+	enum ufp_irq_type	type;
+	__u32			queue_idx;
+	__s32			event_fd;
 
-        __u32                   vector;
-        __u16                   entry;
+	__u32			vector;
+	__u16			entry;
 };
 
 inline uint32_t ufp_readl(const volatile void *addr);
