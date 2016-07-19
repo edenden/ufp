@@ -4,26 +4,24 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <net/ethernet.h>
-#include <numa.h>
 
-#include "ixmap.h"
+#include "ufp.h"
 #include "memory.h"
 
-static struct ixmap_mnode *ixmap_mnode_alloc(struct ixmap_mnode *parent,
-	void *ptr, unsigned int size, unsigned int index, int core_id);
-static void ixmap_mnode_release(struct ixmap_mnode *node);
-static void _ixmap_mem_destroy(struct ixmap_mnode *node);
-static struct ixmap_mnode *_ixmap_mem_alloc(struct ixmap_mnode *node,
-	unsigned int size, int core_id);
-static void _ixmap_mem_free(struct ixmap_mnode *node);
+static struct ufp_mnode *ufp_mnode_alloc(struct ufp_mnode *parent,
+	void *ptr, unsigned int size, unsigned int index);
+static void ufp_mnode_release(struct ufp_mnode *node);
+static void _ufp_mem_destroy(struct ufp_mnode *node);
+static struct ufp_mnode *_ufp_mem_alloc(struct ufp_mnode *node,
+	unsigned int size);
+static void _ufp_mem_free(struct ufp_mnode *node);
 
-static struct ixmap_mnode *ixmap_mnode_alloc(struct ixmap_mnode *parent,
-	void *ptr, unsigned int size, unsigned int index, int core_id)
+static struct ufp_mnode *ufp_mnode_alloc(struct ufp_mnode *parent,
+	void *ptr, unsigned int size, unsigned int index)
 {
-	struct ixmap_mnode *node;
+	struct ufp_mnode *node;
 
-	node = numa_alloc_onnode(sizeof(struct ixmap_mnode),
-		numa_node_of_cpu(core_id));
+	node = malloc(sizeof(struct ufp_mnode));
 	if(!node)
 		goto err_alloc_node;
 
@@ -41,23 +39,23 @@ err_alloc_node:
 	return NULL;
 }
 
-static void ixmap_mnode_release(struct ixmap_mnode *node)
+static void ufp_mnode_release(struct ufp_mnode *node)
 {
-	struct ixmap_mnode *parent;
+	struct ufp_mnode *parent;
 
 	parent = node->parent;
 	if(parent)
 		parent->child[node->index] = NULL;
 
-	numa_free(node, sizeof(struct ixmap_mnode));
+	free(node);
 	return;
 }
 
-struct ixmap_mnode *ixmap_mem_init(void *ptr, unsigned int size, int core_id)
+struct ufp_mnode *ufp_mem_init(void *ptr, unsigned int size)
 {
-	struct ixmap_mnode *root;
+	struct ufp_mnode *root;
 
-	root = ixmap_mnode_alloc(NULL, ptr, size, 0, core_id);
+	root = ufp_mnode_alloc(NULL, ptr, size, 0);
 	if(!root)
 		goto err_alloc_root;
 
@@ -67,36 +65,35 @@ err_alloc_root:
 	return NULL;
 }
 
-void ixmap_mem_destroy(struct ixmap_mnode *node)
+void ufp_mem_destroy(struct ufp_mnode *node)
 {
-	_ixmap_mem_destroy(node);
+	_ufp_mem_destroy(node);
 }
 
-static void _ixmap_mem_destroy(struct ixmap_mnode *node)
+static void _ufp_mem_destroy(struct ufp_mnode *node)
 {
-	struct ixmap_mnode *child;
+	struct ufp_mnode *child;
 	int i;
 
 	for(i = 0; i < 2; i++){
 		child = node->child[i];
 		if(child)
-			_ixmap_mem_destroy(child);
+			_ufp_mem_destroy(child);
 	}
 
-	ixmap_mnode_release(node);
+	ufp_mnode_release(node);
 	return;
 }
 
-void *ixmap_mem_alloc(struct ixmap_desc *desc,
+void *ufp_mem_alloc(struct ufp_desc *desc,
 	unsigned int size)
 {
-	struct ixmap_mnode *node;
+	struct ufp_mnode *node;
 	unsigned long *header;
 
-	node = _ixmap_mem_alloc(desc->node,
+	node = _ufp_mem_alloc(desc->node,
 		ALIGN(size, L1_CACHE_BYTES) +
-		ALIGN(sizeof(unsigned long), L1_CACHE_BYTES),
-		desc->core_id);
+		ALIGN(sizeof(unsigned long), L1_CACHE_BYTES));
 
 	if(!node)
 		goto err_alloc;
@@ -109,11 +106,11 @@ err_alloc:
 	return NULL;
 }
 
-static struct ixmap_mnode *_ixmap_mem_alloc(struct ixmap_mnode *node,
-	unsigned int size, int core_id)
+static struct ufp_mnode *_ufp_mem_alloc(struct ufp_mnode *node,
+	unsigned int size)
 {
 	void *ptr_new;
-	struct ixmap_mnode *ret;
+	struct ufp_mnode *ret;
 	unsigned int size_new;
 	int i, buddy_allocated;
 
@@ -133,15 +130,14 @@ static struct ixmap_mnode *_ixmap_mem_alloc(struct ixmap_mnode *node,
 			for(i = 0, buddy_allocated = 0; i < 2; i++, buddy_allocated++){
 				ptr_new = node->ptr + (size_new * i);
 
-				node->child[i] = ixmap_mnode_alloc(node, ptr_new, size_new,
-					i, core_id);
+				node->child[i] = ufp_mnode_alloc(node, ptr_new, size_new, i);
 				if(!node->child[i])
 					goto err_alloc_child;
 			}
 		}
 
 		for(i = 0; i < 2; i++){
-			ret = _ixmap_mem_alloc(node->child[i], size, core_id);
+			ret = _ufp_mem_alloc(node->child[i], size);
 			if(ret)
 				break;
 		}
@@ -155,23 +151,23 @@ ign_node:
 
 err_alloc_child:
 	for(i = 0; i < buddy_allocated; i++)
-		ixmap_mnode_release(node->child[i]);
+		ufp_mnode_release(node->child[i]);
 	return NULL;
 }
 
-void ixmap_mem_free(void *addr_free)
+void ufp_mem_free(void *addr_free)
 {
-	struct ixmap_mnode *node;
+	struct ufp_mnode *node;
 	unsigned long *header;
 
 	header = addr_free - ALIGN(sizeof(unsigned long), L1_CACHE_BYTES);
-	node = (struct ixmap_mnode *)*header;
-	_ixmap_mem_free(node);
+	node = (struct ufp_mnode *)*header;
+	_ufp_mem_free(node);
 }
 
-static void _ixmap_mem_free(struct ixmap_mnode *node)
+static void _ufp_mem_free(struct ufp_mnode *node)
 {
-	struct ixmap_mnode *parent, *buddy;
+	struct ufp_mnode *parent, *buddy;
 
 	node->allocated = 0;
 	
@@ -183,9 +179,9 @@ static void _ixmap_mem_free(struct ixmap_mnode *node)
 	if(buddy->allocated)
 		goto out;
 
-	ixmap_mnode_release(buddy);
-	ixmap_mnode_release(node);
-	_ixmap_mem_free(parent);
+	ufp_mnode_release(buddy);
+	ufp_mnode_release(node);
+	_ufp_mem_free(parent);
 
 	return;
 

@@ -12,7 +12,6 @@
 #include <net/ethernet.h>
 #include <signal.h>
 #include <pthread.h>
-#include <numa.h>
 
 #include "lib_main.h"
 #include "lib_mem.h"
@@ -60,13 +59,11 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
 	struct ufp_plane *plane;
 	int i, ports_assigned = 0;
 
-	plane = numa_alloc_onnode(sizeof(struct ufp_plane),
-		numa_node_of_cpu(core_id));
+	plane = malloc(sizeof(struct ufp_plane));
 	if(!plane)
 		goto err_plane_alloc;
 
-	plane->ports = numa_alloc_onnode(sizeof(struct ufp_port) * ih_num,
-		numa_node_of_cpu(core_id));
+	plane->ports = malloc(sizeof(struct ufp_port) * ih_num);
 	if(!plane->ports){
 		printf("failed to allocate port for each plane\n");
 		goto err_alloc_ports;
@@ -119,9 +116,9 @@ err_alloc_plane:
 		ufp_irq_close(plane->ports[i].rx_irq);
 		ufp_irq_close(plane->ports[i].tx_irq);
 	}
-	numa_free(plane->ports, sizeof(struct ufp_port) * ih_num);
+	free(plane->ports);
 err_alloc_ports:
-	numa_free(plane, sizeof(struct ufp_plane));
+	free(plane);
 err_plane_alloc:
 	return NULL;
 }
@@ -135,8 +132,8 @@ void ufp_plane_release(struct ufp_plane *plane, int ih_num)
 		ufp_irq_close(plane->ports[i].tx_irq);
 	}
 
-	numa_free(plane->ports, sizeof(struct ufp_port) * ih_num);
-	numa_free(plane, sizeof(struct ufp_plane));
+	free(plane->ports);
+	free(plane);
 
 	return;
 }
@@ -150,14 +147,11 @@ struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
 	int i, ret;
 	int desc_assigned = 0;
 
-	desc = numa_alloc_onnode(sizeof(struct ufp_desc),
-		numa_node_of_cpu(core_id));
+	desc = malloc(sizeof(struct ufp_desc));
 	if(!desc)
 		goto err_alloc_desc;
 
 	size = SIZE_1GB;
-	numa_set_preferred(numa_node_of_cpu(core_id));
-
 	addr_virt = mmap(NULL, size, PROT_READ | PROT_WRITE,
 		MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, 0, 0);
 	if(addr_virt == MAP_FAILED){
@@ -186,8 +180,7 @@ struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
 		ih->rx_ring[core_id].addr_dma = addr_dma;
 		ih->rx_ring[core_id].addr_virt = addr_virt;
 
-		slot_index = numa_alloc_onnode(sizeof(int32_t) * ih->num_rx_desc,
-			numa_node_of_cpu(core_id));
+		slot_index = malloc(sizeof(int32_t) * ih->num_rx_desc);
 		if(!slot_index){
 			goto err_rx_assign;
 		}
@@ -207,8 +200,7 @@ struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
 		ih->tx_ring[core_id].addr_dma = addr_dma;
 		ih->tx_ring[core_id].addr_virt = addr_virt;
 
-		slot_index = numa_alloc_onnode(sizeof(int32_t) * ih->num_tx_desc,
-			numa_node_of_cpu(core_id));
+		slot_index = malloc(sizeof(int32_t) * ih->num_tx_desc);
 		if(!slot_index){
 			goto err_tx_assign;
 		}
@@ -224,8 +216,7 @@ struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
 err_tx_assign:
 		ufp_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
 err_tx_dma_map:
-		numa_free(ih->rx_ring[core_id].slot_index,
-			sizeof(int32_t) * ih->num_rx_desc);
+		free(ih->rx_ring[core_id].slot_index);
 err_rx_assign:
 		ufp_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
 err_rx_dma_map:
@@ -247,16 +238,14 @@ err_desc_assign:
 		struct ufp_handle *ih;
 
 		ih = ih_list[i];
-		numa_free(ih->tx_ring[core_id].slot_index,
-			sizeof(int32_t) * ih->num_tx_desc);
+		free(ih->tx_ring[core_id].slot_index);
 		ufp_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
-		numa_free(ih->rx_ring[core_id].slot_index,
-			sizeof(int32_t) * ih->num_rx_desc);
+		free(ih->rx_ring[core_id].slot_index);
 		ufp_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
 	}
 	munmap(desc->addr_virt, size);
 err_mmap:
-	numa_free(desc, sizeof(struct ufp_desc));
+	free(desc);
 err_alloc_desc:
 	return NULL;
 }
@@ -272,16 +261,14 @@ void ufp_desc_release(struct ufp_handle **ih_list, int ih_num,
 		struct ufp_handle *ih;
 
 		ih = ih_list[i];
-		numa_free(ih->tx_ring[core_id].slot_index,
-			sizeof(int32_t) * ih->num_tx_desc);
+		free(ih->tx_ring[core_id].slot_index);
 		ufp_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
-		numa_free(ih->rx_ring[core_id].slot_index,
-			sizeof(int32_t) * ih->num_rx_desc);
+		free(ih->rx_ring[core_id].slot_index);
 		ufp_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
 	}
 
 	munmap(desc->addr_virt, SIZE_1GB);
-	numa_free(desc, sizeof(struct ufp_desc));
+	free(desc);
 	return;
 }
 
@@ -294,13 +281,11 @@ struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
 	int *slots;
 	int ret, i, mapped_ports = 0;
 
-	buf = numa_alloc_onnode(sizeof(struct ufp_buf),
-		numa_node_of_cpu(core_id));
+	buf = malloc(sizeof(struct ufp_buf));
 	if(!buf)
 		goto err_alloc_buf;
 
-	buf->addr_dma = numa_alloc_onnode(sizeof(unsigned long) * ih_num,
-		numa_node_of_cpu(core_id));
+	buf->addr_dma = malloc(sizeof(unsigned long) * ih_num);
 	if(!buf->addr_dma)
 		goto err_alloc_buf_addr_dma;
 
@@ -309,8 +294,6 @@ struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
 	 * DPDK does so in rte_mempool.c/optimize_object_size().
 	 */
 	size = buf_size * (ih_num * count);
-	numa_set_preferred(numa_node_of_cpu(core_id));
-
 	addr_virt = mmap(NULL, size, PROT_READ | PROT_WRITE,
 		MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, 0, 0);
 	if(addr_virt == MAP_FAILED)
@@ -324,8 +307,7 @@ struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
 		buf->addr_dma[i] = addr_dma;
 	}
 
-	slots = numa_alloc_onnode(sizeof(int32_t) * (count * ih_num),
-		numa_node_of_cpu(core_id));
+	slots = malloc(sizeof(int32_t) * (count * ih_num));
 	if(!slots)
 		goto err_alloc_slots;
 
@@ -347,11 +329,9 @@ err_ufp_dma_map:
 	}
 	munmap(addr_virt, size);
 err_mmap:
-	numa_free(buf->addr_dma,
-		sizeof(unsigned long) * ih_num);
+	free(buf->addr_dma);
 err_alloc_buf_addr_dma:
-	numa_free(buf,
-		sizeof(struct ufp_buf));
+	free(buf);
 err_alloc_buf:
 	return NULL;
 }
@@ -362,8 +342,7 @@ void ufp_buf_release(struct ufp_buf *buf,
 	int i, ret;
 	unsigned long size;
 
-	numa_free(buf->slots,
-		sizeof(int32_t) * (buf->count * ih_num));
+	free(buf->slots);
 
 	for(i = 0; i < ih_num; i++){
 		ret = ufp_dma_unmap(ih_list[i], buf->addr_dma[i]);
@@ -373,10 +352,8 @@ void ufp_buf_release(struct ufp_buf *buf,
 
 	size = buf->buf_size * (ih_num * buf->count);
 	munmap(buf->addr_virt, size);
-	numa_free(buf->addr_dma,
-		sizeof(unsigned long) * ih_num);
-	numa_free(buf,
-		sizeof(struct ufp_buf));
+	free(buf->addr_dma);
+	free(buf);
 
 	return;
 }
@@ -647,8 +624,7 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 		goto err_undefined_type;
 	}
 
-	irqh = numa_alloc_onnode(sizeof(struct ufp_irq_handle),
-		numa_node_of_cpu(core_id));
+	irqh = malloc(sizeof(struct ufp_irq_handle));
 	if(!irqh)
 		goto err_alloc_handle;
 
@@ -671,7 +647,7 @@ err_invalid_core_id:
 static void ufp_irq_close(struct ufp_irq_handle *irqh)
 {
 	close(irqh->fd);
-	numa_free(irqh, sizeof(struct ufp_irq_handle));
+	free(irqh);
 
 	return;
 }
