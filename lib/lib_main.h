@@ -1,7 +1,7 @@
 #ifndef _LIBUFP_MAIN_H
 #define _LIBUFP_MAIN_H
 
-#include <config.h>
+/*#include <config.h>*/
 #include <net/if.h>
 
 #define ALIGN(x,a)		__ALIGN_MASK(x,(typeof(x))(a)-1)
