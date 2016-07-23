@@ -12,8 +12,8 @@
 #include <sys/signalfd.h>
 #include <pthread.h>
 
-#include "ufp.h"
-#include "driver.h"
+#include "lib_main.h"
+#include "lib_rtx.h"
 
 static inline uint16_t ufp_desc_unused(struct ufp_ring *ring,
 	uint16_t num_desc);
@@ -132,7 +132,7 @@ void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
 
 	addr_dma = (uint64_t)ufp_slot_addr_dma(buf, packet->slot_index, port_index);
 	port->ops->set_tx_desc(tx_ring, tx_ring->next_to_use,
-		addr_dma, packet->slot_size);
+		addr_dma, packet);
 	ufp_slot_attach(tx_ring, tx_ring->next_to_use, packet->slot_index);
 	ufp_print("Tx: packet sending DMAaddr = %p size = %d\n",
 		(void *)addr_dma, packet->slot_size);
@@ -175,7 +175,6 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 {
 	struct ufp_port *port;
 	struct ufp_ring *rx_ring;
-	union ufp_adv_rx_desc *rx_desc;
 	unsigned int total_rx_packets;
 	int err;
 
@@ -185,7 +184,7 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 	total_rx_packets = 0;
 	while(likely(total_rx_packets < port->rx_budget)){
 		uint16_t next_to_clean;
-		int slot_size;
+		int slot_index;
 
 		if(unlikely(rx_ring->next_to_clean == rx_ring->next_to_use)){
 			break;
@@ -203,12 +202,12 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 		rmb();
 
 		port->ops->get_rx_desc(rx_ring, rx_ring->next_to_clean,
-			packet[total_rx_packets]);
+			&packet[total_rx_packets]);
 		ufp_print("Rx: packet received size = %d\n", slot_size);
 
 		/* retrieve a buffer address from the ring */
-		packet[total_rx_packets].slot_index =
-			ufp_slot_detach(rx_ring, rx_ring->next_to_clean);
+		slot_index = ufp_slot_detach(rx_ring, rx_ring->next_to_clean);
+		packet[total_rx_packets].slot_index = slot_index;
 		packet[total_rx_packets].slot_buf =
 			ufp_slot_addr_virt(buf, slot_index);
 
@@ -228,7 +227,6 @@ void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
 {
 	struct ufp_port *port;
 	struct ufp_ring *tx_ring;
-	union ufp_adv_tx_desc *tx_desc;
 	unsigned int total_tx_packets;
 	int err;
 
@@ -274,7 +272,7 @@ inline int ufp_slot_assign(struct ufp_buf *buf,
 
 	for(i = 0; i < buf->count; i++){
 		slot_index = port->rx_slot_offset + slot_next;
-		if(!(buf->slots[slot_index] & IXMAP_SLOT_INFLIGHT)){
+		if(!(buf->slots[slot_index] & UFP_SLOT_INFLIGHT)){
 			goto out;
 		}
 
@@ -290,7 +288,7 @@ out:
 	if(port->rx_slot_next == buf->count)
 		port->rx_slot_next = 0;
 
-	buf->slots[slot_index] |= IXMAP_SLOT_INFLIGHT;
+	buf->slots[slot_index] |= UFP_SLOT_INFLIGHT;
 	return slot_index;
 }
 

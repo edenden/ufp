@@ -10,7 +10,6 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/eventfd.h>
-#include <net/ethernet.h>
 #include <signal.h>
 #include <pthread.h>
 

@@ -3,6 +3,9 @@
 
 /*#include <config.h>*/
 #include <net/if.h>
+#include <stdint.h>
+#include <linux/types.h>
+#include <net/ethernet.h>
 
 #define IXGBE_DEV_ID_82599_VF		0x10ED
 #define IXGBE_DEV_ID_X540_VF		0x1515

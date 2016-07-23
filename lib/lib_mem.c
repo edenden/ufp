@@ -5,8 +5,8 @@
 #include <stdint.h>
 #include <net/ethernet.h>
 
-#include "ufp.h"
-#include "memory.h"
+#include "lib_main.h"
+#include "lib_mem.h"
 
 static struct ufp_mnode *ufp_mnode_alloc(struct ufp_mnode *parent,
 	void *ptr, unsigned int size, unsigned int index);

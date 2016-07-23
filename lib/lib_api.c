@@ -1,3 +1,14 @@
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <stdint.h>
+
+#include "lib_main.h"
+#include "lib_api.h"
+
 unsigned int ufp_bufsize_get(struct ufp_handle *ih)
 {
 	return ih->buf_size;
@@ -28,10 +39,10 @@ int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_index,
 	port = &plane->ports[port_index];
 
 	switch(type){
-	case IXMAP_IRQ_RX:
+	case UFP_IRQ_RX:
 		irqh = port->rx_irq;
 		break;
-	case IXMAP_IRQ_TX:
+	case UFP_IRQ_TX:
 		irqh = port->tx_irq;
 		break;
 	default:
@@ -53,10 +64,10 @@ struct ufp_irq_handle *ufp_irq_handle(struct ufp_plane *plane,
 	port = &plane->ports[port_index];
 
 	switch(type){
-	case IXMAP_IRQ_RX:
+	case UFP_IRQ_RX:
 		irqh = port->rx_irq;
 		break;
-	case IXMAP_IRQ_TX:
+	case UFP_IRQ_TX:
 		irqh = port->tx_irq;
 		break;
 	default:
