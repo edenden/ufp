@@ -3,7 +3,7 @@ driver/lib_ixgbevf.c driver/lib_ixgbevf_mac.c driver/lib_ixgbevf_mbx.c
 OBJS = $(SRCS:.c=.o)
 TARGET = libufp.so
 CXX = gcc
-CXXFLAGS = -O3 -Wall -fPIC -I./driver/
+CXXFLAGS = -O3 -Wall -fPIC -I./driver/ -I./
 LDFLAGS = -shared
 $LIBS = 
 

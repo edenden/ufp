@@ -10,6 +10,14 @@
 #include "lib_ixgbevf.h"
 #include "lib_ixgbevf_mac.h"
 
+static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector, uint32_t rate);
+static void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
+	int8_t direction, uint8_t queue, uint8_t msix_vector);
+static void ufp_ixgbevf_disable_rx_queue(struct ufp_handle *ih, uint8_t reg_idx);
+static void ufp_ixgbevf_configure_srrctl(struct ufp_handle *ih, uint8_t reg_idx);
+static void ufp_ixgbevf_rx_desc_queue_enable(struct ufp_handle *ih,
+	uint8_t reg_idx);
+
 void ufp_ixgbevf_clr_reg(struct ufp_handle *ih)
 {
 	int i;
@@ -171,7 +179,7 @@ err_write:
 	return -1;
 }
 
-void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector, uint32_t rate)
+static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector, uint32_t rate)
 {
 	uint32_t itr_reg;
 
@@ -188,7 +196,7 @@ void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector, uint32_t rate)
 	return;
 }
 
-void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
+static void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
 	int8_t direction, uint8_t queue, uint8_t msix_vector)
 {
 	uint32_t ivar, index;

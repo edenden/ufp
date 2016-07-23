@@ -3,28 +3,34 @@
 #include <linux/pci.h>
 #include <linux/delay.h>
 
-#include "ufp_main.h"
-#include "ufp_mbx.h"
+#include "lib_ixgbevf.h"
+#include "lib_ixgbevf_mbx.h"
 
-int ufp_ixgbevf_mbx_poll_for_msg(struct ufp_handle *ih)
+static int ufp_ixgbevf_mbx_poll_for_msg(struct ufp_handle *ih);
+static int ufp_ixgbevf_mbx_poll_for_ack(struct ufp_handle *ih);
+static uint32_t ufp_ixgbevf_mbx_read_v2p_mailbox(struct ufp_handle *ih);
+static int ufp_ixgbevf_mbx_check_for_bit(struct ufp_handle *ih, uint32_t mask);
+static int ufp_ixgbevf_mbx_check_for_msg(struct ufp_handle *ih);
+static int ufp_ixgbevf_mbx_check_for_ack(struct ufp_handle *ih);
+static int ufp_ixgbevf_mbx_check_for_rst(struct ufp_handle *ih);
+static int ufp_ixgbevf_mbx_obtain_lock(struct ufp_handle *ih);
+
+static int ufp_ixgbevf_mbx_poll_for_msg(struct ufp_handle *ih)
 {
 	struct ufp_ixgbevf_data *data;
+	struct timespec ts;
 	int countdown;
 
 	data = ih->ops->data;
 	countdown = data->mbx_timeout;
 
 	while(countdown && ufp_ixgbevf_mbx_check_for_msg(ih)) {
+		usleep(&ts, data->mbx_udelay);
 		countdown--;
-		if (!countdown)
-			break;
-		udelay(mbx->udelay);
 	}
 
-	if(!countdown){
-		pr_err("Polling for VF mailbox ack timedout");
+	if(!countdown)
 		goto err_timeout;
-	}
 
 	return 0;
 
@@ -32,25 +38,22 @@ err_timeout:
 	return -1;
 }
 
-int ufp_ixgbevf_mbx_poll_for_ack(struct ufp_hw *hw)
+static int ufp_ixgbevf_mbx_poll_for_ack(struct ufp_handle *ih)
 {
 	struct ufp_ixgbevf_data *data;
+	struct timespec ts;
 	int countdown; 
 
 	data = ih->ops->data;
 	countdown = data->mbx_timeout;
 
 	while(countdown && ufp_ixgbevf_mbx_check_for_ack(ih)) {
+		usleep(&ts, data->mbx_udelay);
 		countdown--;
-		if (!countdown)
-			break;
-		udelay(mbx->udelay);
 	}
 
-	if(!countdown){
-		pr_err("Polling for VF mailbox ack timedout");
+	if(!countdown)
 		goto err_timeout;
-	}
 
 	return 0;
 
@@ -58,8 +61,31 @@ err_timeout:
 	return -1;
 }
 
-int ufp_ixgbevf_mbx_read_posted(struct ufp_handle *ih, uint32_t *msg,
-	uint16_t size)
+int ufp_ixgbevf_mbx_poll_for_rst(struct ufp_handle *ih)
+{
+	struct ufp_ixgbevf_data *data;
+	struct timespec ts;
+	int countdown;
+
+	data = ih->ops->data;
+	countdown = data->mbx_timeout;
+
+	while(countdown && !ufp_ixgbevf_mbx_check_for_rst(hw)){
+		usleep(&ts, data->mbx_udelay);
+		countdown--;
+	}
+
+	if(!countdown)
+		goto err_timeout;
+
+	return 0;
+
+err_timeout:
+	return -1;
+}
+
+int ufp_ixgbevf_mbx_read_posted(struct ufp_handle *ih,
+	uint32_t *msg, uint16_t size)
 {
 	int err;
 
@@ -79,8 +105,8 @@ err_poll_for_msg:
 	return -1;
 }
 
-int ufp_ixgbevf_mbx_write_posted(struct ufp_handle *ih, uint32_t *msg,
-	uint16_t size)
+int ufp_ixgbevf_mbx_write_posted(struct ufp_handle *ih,
+	uint32_t *msg, uint16_t size)
 {
 	int err;
 
@@ -90,7 +116,7 @@ int ufp_ixgbevf_mbx_write_posted(struct ufp_handle *ih, uint32_t *msg,
 		goto err_write;
 
 	/* if msg sent wait until we receive an ack */
-	err = ufp_mbx_poll_for_ack(ih);
+	err = ufp_ixgbevf_mbx_poll_for_ack(ih);
 	if(err < 0)
 		goto err_poll_for_ack;
 
@@ -101,7 +127,7 @@ err_write:
 	return -1;
 }
 
-uint32_t ufp_ixgbevf_mbx_read_v2p_mailbox(struct ufp_handle *ih)
+static uint32_t ufp_ixgbevf_mbx_read_v2p_mailbox(struct ufp_handle *ih)
 {
 	struct ufp_ixgbevf_data *data;
 	uint32_t v2p_mailbox;
@@ -116,69 +142,69 @@ uint32_t ufp_ixgbevf_mbx_read_v2p_mailbox(struct ufp_handle *ih)
 	return v2p_mailbox;
 }
 
-int ufp_ixgbevf_mbx_check_for_bit(struct ufp_handle *ih, uint32_t mask)
+static int ufp_ixgbevf_mbx_check_for_bit(struct ufp_handle *ih, uint32_t mask)
 {
 	struct ufp_ixgbevf_data *data;
 	uint32_t v2p_mailbox;
 
 	data = ih->ops->data;
 
-	v2p_mailbox = ufp_mbx_read_v2p_mailbox(ih);
+	v2p_mailbox = ufp_ixgbevf_mbx_read_v2p_mailbox(ih);
 	data->mbx_v2p_mailbox &= ~mask;
 
 	return !(v2p_mailbox & mask);
 }
 
-int ufp_ixgbevf_mbx_check_for_msg(struct ufp_handle *ih)
+static int ufp_ixgbevf_mbx_check_for_msg(struct ufp_handle *ih)
 {
-	if (!ufp_mbx_check_for_bit(ih, IXGBE_VFMAILBOX_PFSTS))
+	if (!ufp_ixgbevf_mbx_check_for_bit(ih, IXGBE_VFMAILBOX_PFSTS))
 		return 0;
 
 	return -1;
 }
 
-int ufp_ixgbevf_mbx_check_for_ack(struct ufp_handle *ih)
+static int ufp_ixgbevf_mbx_check_for_ack(struct ufp_handle *ih)
 {
-	if (!ufp_mbx_check_for_bit(ih, IXGBE_VFMAILBOX_PFACK))
+	if (!ufp_ixgbevf_mbx_check_for_bit(ih, IXGBE_VFMAILBOX_PFACK))
 		return 0;
 
 	return -1;
 }
 
-int ufp_ixgbevf_mbx_check_for_rst(struct ufp_handle *ih)
+static int ufp_ixgbevf_mbx_check_for_rst(struct ufp_handle *ih)
 {
-	if (!ufp_mbx_check_for_bit(ih,
+	if (!ufp_ixgbevf_mbx_check_for_bit(ih,
 		(IXGBE_VFMAILBOX_RSTD | IXGBE_VFMAILBOX_RSTI)))
 		return 0;
 
 	return -1;
 }
 
-int ufp_mbx_obtain_lock(struct ufp_handle *ih)
+static int ufp_ixgbevf_mbx_obtain_lock(struct ufp_handle *ih)
 {
 	/* Take ownership of the buffer */
 	ufp_write_reg(ih, IXGBE_VFMAILBOX, IXGBE_VFMAILBOX_VFU);
 
 	/* reserve mailbox for vf use */
-	if (ufp_mbx_read_v2p_mailbox(ih) & IXGBE_VFMAILBOX_VFU)
+	if (ufp_ixgbevf_mbx_read_v2p_mailbox(ih) & IXGBE_VFMAILBOX_VFU)
 		return 0;
 
 	return -1;
 }
 
-int ufp_ixgbevf_mbx_write(struct ufp_handle *ih, uint32_t *msg,
-	uint16_t size)
+int ufp_ixgbevf_mbx_write(struct ufp_handle *ih,
+	uint32_t *msg, uint16_t size)
 {
 	int i, err;
 
 	/* lock the mailbox to prevent pf/vf race condition */
-	err = ufp_mbx_obtain_lock(ih);
+	err = ufp_ixgbevf_mbx_obtain_lock(ih);
 	if(err < 0)
 		goto out_no_write;
 
 	/* flush msg and acks as we are overwriting the message buffer */
-	ufp_mbx_check_for_msg(ih);
-	ufp_mbx_check_for_ack(ih);
+	ufp_ixgbevf_mbx_check_for_msg(ih);
+	ufp_ixgbevf_mbx_check_for_ack(ih);
 
 	/* copy the caller specified message to the mailbox memory buffer */
 	for (i = 0; i < size; i++)
@@ -193,13 +219,13 @@ out_no_write:
 	return -1;
 }
 
-int ufp_ixgbevf_mbx_read(struct ufp_handle *ih, uint32_t *msg,
-	uint16_t size)
+int ufp_ixgbevf_mbx_read(struct ufp_handle *ih,
+	uint32_t *msg, uint16_t size)
 {
 	int i, err;
 
 	/* lock the mailbox to prevent pf/vf race condition */
-	err = ufp_mbx_obtain_lock(ih);
+	err = ufp_ixgbevf_mbx_obtain_lock(ih);
 	if(err < 0)
 		goto out_no_read;
 

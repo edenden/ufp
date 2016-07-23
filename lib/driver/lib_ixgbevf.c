@@ -7,17 +7,28 @@
 #include <stdint.h>
 #include <time.h>
 
-#include "ufp_ixgbevf.h"
-#include "ufp_ixgbevf_mbx.h"
+#include "lib_main.h"
+#include "lib_ixgbevf.h"
+#include "lib_ixgbevf_mac.h"
+#include "lib_ixgbevf_mbx.h"
 
-static int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih);
 static int ufp_ixgbevf_stop_adapter(struct ufp_handle *ih);
 static int ufp_ixgbevf_reset(struct ufp_handle *ih);
-static int ufp_ixgbevf_get_queues(struct ufp_handle *ih);
-static int ufp_ixgbevf_get_bufsize(struct ufp_handle *ih);
-static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih);
+static int ufp_ixgbevf_set_device_params(struct ufp_handle *ih,
+	uint32_t num_queues_req, uint32_t num_rx_desc, uint32_t num_tx_desc);
+static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih, uint32_t rate);
 static int ufp_ixgbevf_configure_tx(struct ufp_handle *ih);
-static int ufp_ixgbevf_configure_rx(struct ufp_handle *ih);
+static int ufp_ixgbevf_configure_rx(struct ufp_handle *ih,
+	uint32_t mtu_frame, uint32_t promisc);
+static void ufp_ixgbevf_rx_desc_set(struct ufp_ring *rx_ring, uint16_t index,
+	uint64_t addr_dma);
+static void ufp_ixgbevf_tx_desc_set(struct ufp_ring *tx_ring, uint16_t index,
+	uint64_t addr_dma, struct ufp_packet *packet);
+static int ufp_ixgbevf_rx_desc_check(struct ufp_ring *rx_ring, uint16_t index);
+static void ufp_ixgbevf_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index,
+	struct ufp_packet *packet);
+static int ufp_ixgbevf_tx_desc_check(struct ufp_ring *tx_ring, uint16_t index);
+static void ufp_ixgbevf_unmask_queues(void *bar, uint64_t qmask);
 
 int ufp_ixgbevf_init(struct ufp_ops *ops)
 {
@@ -96,13 +107,12 @@ static int ufp_ixgbevf_stop_adapter(struct ufp_handle *ih)
 static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 {
 	uint32_t msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
-	uint32_t timeout;
 	int err;
 	struct timespec ts;
 	int32_t mc_filter_type;
 
 	/* Call adapter stop to disable tx/rx and clear interrupts */
-	err = stop_adapter(ih);
+	err = ufp_ixgbevf_stop_adapter(ih);
 	if(err < 0)
 		goto err_stop_adapter;
 
@@ -112,14 +122,9 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 	msleep(&ts, 50);
 
 	/* we cannot reset while the RSTI / RSTD bits are asserted */
-	timeout = data->mbx_timeout;
-	while (!ufp_ixgbevf_mbx_check_for_rst(hw) && timeout) {
-		timeout--;
-		usleep(&ts, 5);
-	}
-
-	if (!timeout)
-		goto err_check_for_rst;
+	err = ufp_ixgbevf_mbx_poll_for_rst(ih);
+	if(err < 0)
+		goto err_poll_for_rst;
 
 	/* Reset VF registers to initial values */
 	ufp_ixgbevf_clr_reg(ih);
@@ -158,7 +163,7 @@ err_nego_api:
 err_reset_failed:
 err_read:
 err_write:
-err_check_for_rst:
+err_poll_for_rst:
 err_stop_adapter:
 	return -1;
 }
@@ -323,19 +328,14 @@ static void ufp_ixgbevf_tx_desc_set(struct ufp_ring *tx_ring, uint16_t index,
 	return;
 }
 
-static inline uint32_t ufp_test_staterr(union ufp_adv_rx_desc *rx_desc,
-        const uint32_t stat_err_bits)
-{
-	return rx_desc->wb.upper.status_error & htole32(stat_err_bits);
-}
-
 static int ufp_ixgbevf_rx_desc_check(struct ufp_ring *rx_ring, uint16_t index)
 {
 	union ufp_ixgbevf_rx_desc *rx_desc;
 
 	rx_desc = IXGBE_RX_DESC(rx_ring, index);
 
-	if (!ufp_test_staterr(rx_desc, IXGBE_RXD_STAT_DD)){
+	if(!(rx_desc->wb.upper.status_error &
+	htole32(IXGBE_RXD_STAT_DD))){
 		goto not_received;
 	}
 
@@ -354,11 +354,12 @@ static void ufp_ixgbevf_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index,
 
 	packet->flag = 0;
 
-	if(unlikely(!ufp_test_staterr(rx_desc, IXGBE_RXD_STAT_EOP)))
+	if(unlikely(!rx_desc->wb.upper.status_error &
+	htole32(IXGBE_RXD_STAT_EOP)))
 		packet->flag |= UFP_PAKCET_NOTEOP;
 
-	if(unlikely(ufp_test_staterr(rx_desc,
-		IXGBE_RXDADV_ERR_FRAME_ERR_MASK)))
+	if(unlikely(rx_desc->wb.upper.status_error &
+	htole32(IXGBE_RXDADV_ERR_FRAME_ERR_MASK)))
 		packet->flag |= UFP_PAKCET_ERROR;
 
 	packet->slot_size = le16toh(rx_desc->wb.upper.length);

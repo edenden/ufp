@@ -105,26 +105,14 @@ enum ufp_mbx_api_rev {
 #define IXGBE_VF_MBX_INIT_TIMEOUT	2000 /* number of retries on mailbox */
 #define IXGBE_VF_MBX_INIT_DELAY		500  /* microseconds between retries */
 
-struct ufp_mbx_operations {
-	int32_t  (*read)(struct ufp_hw *, uint32_t *, uint16_t);
-	int32_t  (*write)(struct ufp_hw *, uint32_t *, uint16_t);
-	int32_t  (*read_posted)(struct ufp_hw *, uint32_t *, uint16_t);
-	int32_t  (*write_posted)(struct ufp_hw *, uint32_t *, uint16_t);
-	int32_t  (*check_for_msg)(struct ufp_hw *);
-	int32_t  (*check_for_ack)(struct ufp_hw *);
-	int32_t  (*check_for_rst)(struct ufp_hw *);
-};
-
-struct ufp_mbx_info {
-	struct ufp_mbx_operations ops;
-
-	uint32_t timeout;
-	uint32_t udelay;
-	uint32_t v2p_mailbox;
-	uint16_t size;
-};
-
-int ufp_mbx_init(struct ufp_hw *hw);
-void ufp_mbx_free(struct ufp_hw *hw);
+int ufp_ixgbevf_mbx_poll_for_rst(struct ufp_handle *ih);
+int ufp_ixgbevf_mbx_read_posted(struct ufp_handle *ih,
+	uint32_t *msg, uint16_t size);
+int ufp_ixgbevf_mbx_write_posted(struct ufp_handle *ih,
+	uint32_t *msg, uint16_t size);
+int ufp_ixgbevf_mbx_write(struct ufp_handle *ih,
+	uint32_t *msg, uint16_t size);
+int ufp_ixgbevf_mbx_read(struct ufp_handle *ih,
+	uint32_t *msg, uint16_t size);
 
 #endif /* _UFP_MBX_H_ */
