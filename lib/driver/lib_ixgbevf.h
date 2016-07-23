@@ -158,7 +158,7 @@ union ufp_ixgbevf_tx_desc {
 #define IXGBE_TX_DESC(R, i)     \
 	(&(((union ixmap_adv_tx_desc *)((R)->addr_virt))[i]))
 
-int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops);
+int ufp_ixgbevf_init(struct ufp_ops *ops);
 void ufp_ixgbevf_destroy(struct ufp_ops *ops);
 
 #endif /* _IXGBEVF_H__ */

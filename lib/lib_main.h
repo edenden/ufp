@@ -4,11 +4,16 @@
 /*#include <config.h>*/
 #include <net/if.h>
 
+#define IXGBE_DEV_ID_82599_VF		0x10ED
+#define IXGBE_DEV_ID_X540_VF		0x1515
+#define IXGBE_DEV_ID_X550_VF		0x1565
+#define IXGBE_DEV_ID_X550EM_X_VF	0x15A8
+
 #define ALIGN(x,a)		__ALIGN_MASK(x,(typeof(x))(a)-1)
 #define __ALIGN_MASK(x,mask)	(((x)+(mask))&~(mask))
 
 #define FILENAME_SIZE 256
-#define IXMAP_IFNAME "ixgbe"
+#define UFP_IFNAME "ixgbe"
 #define SIZE_1GB (1ul << 30)
 
 #define min(x, y) ({				\
@@ -50,7 +55,7 @@ struct ufp_desc {
 	int			core_id;
 };
 
-#define IXMAP_SLOT_INFLIGHT 0x1
+#define UFP_SLOT_INFLIGHT 0x1
 
 struct ufp_buf {
 	void			*addr_virt;
@@ -60,38 +65,12 @@ struct ufp_buf {
 	int32_t			*slots;
 };
 
-struct ufp_ops {
-	/* For configuration */
-	int			(*reset_hw)(struct ufp_handle *);
-	int			(*set_device_params)(struct ufp_handle *,
-					uint32, uint32, uint32);
-	int			(*configure_irq)(struct ufp_handle *,
-					uint32);
-	int			(*configure_tx)(struct ufp_handle *);
-	int			(*configure_rx)(struct ufp_handle *,
-					uint32, uint32);
-	int			(*stop_adapter)(struct ufp_handle *);
-
-	/* For forwarding */
-	void			(*unmask_queues)(void *, uint64_t)
-	void			(*set_rx_desc)(struct ufp_ring *, uint16_t,
-					uint64_t);
-	int			(*check_rx_desc)(struct ufp_ring *, uint16_t);
-	void			(*get_rx_desc)(struct ufp_ring *, uint16_t,
-					struct ufp_packet *);
-	void			(*set_tx_desc)(struct ufp_ring *, uint16_t,
-					uint64_t, struct ufp_packet *);
-	int			(*check_tx_desc)(struct ufp_ring *, uint16_t);
-
-	void			*data;
-	uint16_t		device_id;
-};
-
 struct ufp_handle {
  	int			fd;
 	void			*bar;
 	unsigned long		bar_size;
 
+	struct ufp_ops		*ops;
 	struct ufp_ring		*tx_ring;
 	struct ufp_ring		*rx_ring;
 
@@ -154,6 +133,33 @@ struct ufp_packet {
 	unsigned int		flag;
 };
 
+struct ufp_ops {
+	/* For configuration */
+	int			(*reset_hw)(struct ufp_handle *);
+	int			(*set_device_params)(struct ufp_handle *,
+					uint32_t, uint32_t, uint32_t);
+	int			(*configure_irq)(struct ufp_handle *,
+					uint32_t);
+	int			(*configure_tx)(struct ufp_handle *);
+	int			(*configure_rx)(struct ufp_handle *,
+					uint32_t, uint32_t);
+	int			(*stop_adapter)(struct ufp_handle *);
+
+	/* For forwarding */
+	void			(*unmask_queues)(void *, uint64_t);
+	void			(*set_rx_desc)(struct ufp_ring *, uint16_t,
+					uint64_t);
+	int			(*check_rx_desc)(struct ufp_ring *, uint16_t);
+	void			(*get_rx_desc)(struct ufp_ring *, uint16_t,
+					struct ufp_packet *);
+	void			(*set_tx_desc)(struct ufp_ring *, uint16_t,
+					uint64_t, struct ufp_packet *);
+	int			(*check_tx_desc)(struct ufp_ring *, uint16_t);
+
+	void			*data;
+	uint16_t		device_id;
+};
+
 enum {
 	IXGBE_DMA_CACHE_DEFAULT = 0,
 	IXGBE_DMA_CACHE_DISABLE,
@@ -161,8 +167,8 @@ enum {
 };
 
 enum ufp_irq_type {
-	IXMAP_IRQ_RX = 0,
-	IXMAP_IRQ_TX,
+	UFP_IRQ_RX = 0,
+	UFP_IRQ_TX,
 };
 
 #define UFP_INFO		_IOW('E', 201, int)
@@ -185,7 +191,7 @@ struct ufp_start_req {
 
 #define UFP_MAP			_IOW('U', 210, int)
 struct ufp_map_req {
-	__u64			addr_virtual;
+	__u64			addr_virt;
 	__u64			addr_dma;
 	__u64			size;
 	__u8			cache;

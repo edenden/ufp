@@ -23,7 +23,7 @@ struct ufp_start_req {
 
 #define UFP_MAP			_IOW('U', 210, int)
 struct ufp_map_req {
-	__u64			addr_virtual;
+	__u64			addr_virt;
 	__u64			addr_dma;
 	__u64			size;
 	__u8			cache;

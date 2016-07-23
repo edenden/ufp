@@ -19,7 +19,7 @@ static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih);
 static int ufp_ixgbevf_configure_tx(struct ufp_handle *ih);
 static int ufp_ixgbevf_configure_rx(struct ufp_handle *ih);
 
-int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops)
+int ufp_ixgbevf_init(struct ufp_ops *ops)
 {
 	struct ufp_ixgbevf_data *data;
 
@@ -29,9 +29,9 @@ int ufp_ixgbevf_init(struct ufp_handle *ih, struct ufp_ops *ops)
 
 	ops->data		= data;
 
-	mbx_timeout		= IXGBE_VF_INIT_TIMEOUT;
-	mbx_udelay		= IXGBE_VF_MBX_INIT_DELAY;
-	mbx_size		= IXGBE_VFMAILBOX_SIZE;
+	data->mbx_timeout	= IXGBE_VF_INIT_TIMEOUT;
+	data->mbx_udelay	= IXGBE_VF_MBX_INIT_DELAY;
+	data->mbx_size		= IXGBE_VFMAILBOX_SIZE;
 
 	/* Configuration related functions*/
 	ops->reset_hw		= ufp_ixgbevf_reset;

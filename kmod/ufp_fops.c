@@ -154,7 +154,7 @@ static int ufp_cmd_map(struct ufp_device *device, void __user *argp)
 	if (!req.size)
 		return -EINVAL;
 
-	addr_dma = ufp_dma_map(device, req.addr_virtual,
+	addr_dma = ufp_dma_map(device, req.addr_virt,
 			req.size, req.cache);
 	if(!addr_dma)
 		return -EFAULT;

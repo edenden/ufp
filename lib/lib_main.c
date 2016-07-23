@@ -9,12 +9,14 @@
 #include <endian.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/eventfd.h>
 #include <net/ethernet.h>
 #include <signal.h>
 #include <pthread.h>
 
 #include "lib_main.h"
 #include "lib_mem.h"
+#include "lib_ixgbevf.h"
 
 static int ufp_dma_map(struct ufp_handle *ih, void *addr_virt,
 	unsigned long *addr_dma, unsigned long size);
@@ -92,12 +94,12 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
 		memcpy(plane->ports[i].mac_addr, ih_list[i]->mac_addr, ETH_ALEN);
 
 		plane->ports[i].rx_irq = ufp_irq_open(ih_list[i], core_id,
-						IXMAP_IRQ_RX);
+						UFP_IRQ_RX);
 		if(!plane->ports[i].rx_irq)
 			goto err_alloc_irq_rx;
 
 		plane->ports[i].tx_irq = ufp_irq_open(ih_list[i], core_id,
-						IXMAP_IRQ_TX);
+						UFP_IRQ_TX);
 		if(!plane->ports[i].tx_irq)
 			goto err_alloc_irq_tx;
 
@@ -180,7 +182,7 @@ struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
 		ih->rx_ring[core_id].addr_dma = addr_dma;
 		ih->rx_ring[core_id].addr_virt = addr_virt;
 
-		slot_index = malloc(sizeof(int32_t) * ih->num_rx_desc);
+		slot_index = malloc(sizeof(int) * ih->num_rx_desc);
 		if(!slot_index){
 			goto err_rx_assign;
 		}
@@ -200,7 +202,7 @@ struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
 		ih->tx_ring[core_id].addr_dma = addr_dma;
 		ih->tx_ring[core_id].addr_virt = addr_virt;
 
-		slot_index = malloc(sizeof(int32_t) * ih->num_tx_desc);
+		slot_index = malloc(sizeof(int) * ih->num_tx_desc);
 		if(!slot_index){
 			goto err_tx_assign;
 		}
@@ -226,7 +228,7 @@ err_rx_dma_map:
 	addr_mem	= (void *)ALIGN((unsigned long)addr_virt, L1_CACHE_BYTES);
 	size_mem	= size - (addr_mem - desc->addr_virt);
 	desc->core_id	= core_id;
-	desc->node	= ufp_mem_init(addr_mem, size_mem, core_id);
+	desc->node	= ufp_mem_init(addr_mem, size_mem);
 	if(!desc->node)
 		goto err_mem_init;
 
@@ -307,7 +309,7 @@ struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
 		buf->addr_dma[i] = addr_dma;
 	}
 
-	slots = malloc(sizeof(int32_t) * (count * ih_num));
+	slots = malloc(sizeof(int) * (count * ih_num));
 	if(!slots)
 		goto err_alloc_slots;
 
@@ -368,7 +370,7 @@ static int ufp_dma_map(struct ufp_handle *ih, void *addr_virt,
 	req_map.size = size;
 	req_map.cache = IXGBE_DMA_CACHE_DISABLE;
 
-	if(ioctl(ih->fd, IXMAP_MAP, (unsigned long)&req_map) < 0)
+	if(ioctl(ih->fd, UFP_MAP, (unsigned long)&req_map) < 0)
 		return -1;
 
 	*addr_dma = req_map.addr_dma;
@@ -381,7 +383,7 @@ static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma)
 
 	req_unmap.addr_dma = addr_dma;
 
-	if(ioctl(ih->fd, IXMAP_UNMAP, (unsigned long)&req_unmap) < 0)
+	if(ioctl(ih->fd, UFP_UNMAP, (unsigned long)&req_unmap) < 0)
 		return -1;
 
 	return 0;
@@ -452,7 +454,7 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	memset(ih, 0, sizeof(struct ufp_handle));
 
 	snprintf(filename, sizeof(filename), "/dev/%s%d",
-		IXMAP_IFNAME, port_index);
+		UFP_IFNAME, port_index);
 	ih->fd = open(filename, O_RDWR);
 	if (ih->fd < 0)
 		goto err_open;
@@ -493,7 +495,7 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 		goto err_alloc_tx_ring;
 
 	snprintf(ih->interface_name, sizeof(ih->interface_name), "%s%d",
-		IXMAP_IFNAME, port_index);
+		UFP_IFNAME, port_index);
 
 	return ih;
 
@@ -535,7 +537,7 @@ int ufp_up(struct ufp_handle *ih, unsigned int irq_rate,
 	struct ufp_start_req req;
 	int err;
 
-	memset(&req, 0, sizeof(struct ufp_alloc_req));
+	memset(&req, 0, sizeof(struct ufp_start_req));
 	req.num_rx_queues = ih->num_queues;
 	req.num_tx_queues = ih->num_queues;
 	if(ioctl(ih->fd, UFP_START, (unsigned long)&req) < 0)
@@ -603,7 +605,7 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 
 	ret = ioctl(ih->fd, UFP_IRQBIND, (unsigned long)&req);
 	if(ret < 0){
-		printf("failed to IXMAP_IRQ\n");
+		printf("failed to UFP_IRQ\n");
 		goto err_irq_bind;
 	}
 
@@ -614,10 +616,10 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 	}
 
 	switch(type){
-	case IXMAP_IRQ_RX:
+	case UFP_IRQ_RX:
 		qmask = 1 << core_id;
 		break;
-	case IXMAP_IRQ_TX:
+	case UFP_IRQ_TX:
 		qmask = 1 << (core_id + ih->num_queues);
 		break;
 	default:
