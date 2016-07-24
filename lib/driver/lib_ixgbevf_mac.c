@@ -7,12 +7,13 @@
 #include <stdint.h>
 #include <time.h>
 
+#include "lib_main.h"
+#include "lib_rtx.h"
+
 #include "lib_ixgbevf.h"
 #include "lib_ixgbevf_mac.h"
+#include "lib_ixgbevf_mbx.h"
 
-static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector, uint32_t rate);
-static void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
-	int8_t direction, uint8_t queue, uint8_t msix_vector);
 static void ufp_ixgbevf_disable_rx_queue(struct ufp_handle *ih, uint8_t reg_idx);
 static void ufp_ixgbevf_configure_srrctl(struct ufp_handle *ih, uint8_t reg_idx);
 static void ufp_ixgbevf_rx_desc_queue_enable(struct ufp_handle *ih,
@@ -65,7 +66,7 @@ int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih)
 	uint32_t msg[3];
 	struct ufp_ixgbevf_data *data;
 	
-	data = ih->ops.data;
+	data = ih->ops->data;
 	
 	enum ufp_mbx_api_rev api[] = {
 		ixgbe_mbox_api_12,
@@ -81,11 +82,11 @@ int ufp_ixgbevf_negotiate_api(struct ufp_handle *ih)
 		msg[1] = api[i];
 		msg[2] = 0;
 		
-		err = mbx->ops.write_posted(hw, msg, 3);
+		err = ufp_ixgbevf_mbx_write_posted(ih, msg, 3);
 		if(err) 
 			goto err_write;
 		
-		err = mbx->ops.read_posted(hw, msg, 3);
+		err = ufp_ixgbevf_mbx_read_posted(ih, msg, 3);
 		if(err) 
 			goto err_read;
 		
@@ -111,9 +112,12 @@ int ufp_ixgbevf_get_queues(struct ufp_handle *ih, uint32_t num_queues_req)
 	uint32_t msg[5];
 	uint32_t num_tcs, default_tc;
 	uint32_t max_tx_queues, max_rx_queues;
+	struct ufp_ixgbevf_data *data;
+
+	data = ih->ops->data;
 
 	/* do nothing if API doesn't support ixgbevf_get_queues */
-	switch (hw->api_version) {
+	switch (data->api_version) {
 	case ixgbe_mbox_api_11:
 	case ixgbe_mbox_api_12:
 		break;
@@ -121,18 +125,18 @@ int ufp_ixgbevf_get_queues(struct ufp_handle *ih, uint32_t num_queues_req)
 		/* assume legacy case in which
 		 * PF would only give VF 2 queue pairs
 		 */
-		ih->num_queues = min(num_queues_req, 2);
+		ih->num_queues = min(num_queues_req, (uint32_t)2);
 		return 0;
 	}
 
 	/* Fetch queue configuration from the PF */
 	msg[0] = IXGBE_VF_GET_QUEUES;
 	msg[1] = msg[2] = msg[3] = msg[4] = 0;
-	err = mbx->ops.write_posted(hw, msg, 5);
+	err = ufp_ixgbevf_mbx_write_posted(ih, msg, 5);
 	if(err)
 		goto err_write;
 
-	err = mbx->ops.read_posted(hw, msg, 5);
+	err = ufp_ixgbevf_mbx_read_posted(ih, msg, 5);
 	if(err)
 		goto err_read;
 
@@ -158,15 +162,15 @@ int ufp_ixgbevf_get_queues(struct ufp_handle *ih, uint32_t num_queues_req)
 		max_rx_queues = IXGBE_VF_MAX_RX_QUEUES;
 
 	/* Currently tc related parameters are not used */
-	*num_tcs = msg[IXGBE_VF_TRANS_VLAN];
+	num_tcs = msg[IXGBE_VF_TRANS_VLAN];
 	/* in case of unknown state assume we cannot tag frames */
-	if (*num_tcs > mac->max_rx_queues)
-		*num_tcs = 1;
+	if (num_tcs > max_rx_queues)
+		num_tcs = 1;
 
-	*default_tc = msg[IXGBE_VF_DEF_QUEUE];
+	default_tc = msg[IXGBE_VF_DEF_QUEUE];
 	/* default to queue 0 on out-of-bounds queue number */
-	if (*default_tc >= mac->max_tx_queues)
-		*default_tc = 0;
+	if (default_tc >= max_tx_queues)
+		default_tc = 0;
 
 	ih->num_queues = min(max_tx_queues, max_rx_queues);
 	ih->num_queues = min(num_queues_req, ih->num_queues);
@@ -179,7 +183,7 @@ err_write:
 	return -1;
 }
 
-static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector, uint32_t rate)
+void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector, uint32_t rate)
 {
 	uint32_t itr_reg;
 
@@ -196,16 +200,15 @@ static void ufp_ixgbevf_set_eitr(struct ufp_handle *ih, int vector, uint32_t rat
 	return;
 }
 
-static void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
+void ufp_ixgbevf_set_ivar(struct ufp_handle *ih,
 	int8_t direction, uint8_t queue, uint8_t msix_vector)
 {
 	uint32_t ivar, index;
-	struct ufp_hw *hw = port->hw;
 
 	/* tx or rx causes */
 	msix_vector |= IXGBE_IVAR_ALLOC_VAL;
 	index = ((16 * (queue & 1)) + (8 * direction));
-	ivar = ufp_read_reg(hw, IXGBE_VTIVAR(queue >> 1));
+	ivar = ufp_read_reg(ih, IXGBE_VTIVAR(queue >> 1));
 	ivar &= ~(0xFF << index);
 	ivar |= (msix_vector << index);
 	ufp_write_reg(ih, IXGBE_VTIVAR(queue >> 1), ivar);
@@ -217,7 +220,7 @@ int ufp_ixgbevf_update_xcast_mode(struct ufp_handle *ih, int xcast_mode)
 	uint32_t msgbuf[2];
 	int err;
 
-	data = ih->ops.data;
+	data = ih->ops->data;
 
 	switch(data->api_version) {
 	case ixgbe_mbox_api_12:
@@ -229,11 +232,11 @@ int ufp_ixgbevf_update_xcast_mode(struct ufp_handle *ih, int xcast_mode)
 	msgbuf[0] = IXGBE_VF_UPDATE_XCAST_MODE;
 	msgbuf[1] = xcast_mode;
 
-	err = mbx->ops.write_posted(hw, msgbuf, 2);
+	err = ufp_ixgbevf_mbx_write_posted(ih, msgbuf, 2);
 	if (err)
 		return err;
 
-	err = mbx->ops.read_posted(hw, msgbuf, 2);
+	err = ufp_ixgbevf_mbx_read_posted(ih, msgbuf, 2);
 	if (err)
 		return err;
 
@@ -311,11 +314,11 @@ int ufp_ixgbevf_set_rlpml(struct ufp_handle *ih, uint32_t mtu_frame)
 	msgbuf[0] = IXGBE_VF_SET_LPE;
 	msgbuf[1] = mtu_frame;
 
-	err = mbx->ops.write_posted(hw, msgbuf, 2);
+	err = ufp_ixgbevf_mbx_write_posted(ih, msgbuf, 2);
 	if(err)
 		goto err_write;
 
-	err = mbx->ops.read_posted(hw, retmsg, 2);
+	err = ufp_ixgbevf_mbx_read_posted(ih, retmsg, 2);
 	if(err)
 		goto err_read;
 
@@ -332,7 +335,7 @@ err_write:
 	return -1;
 }
 
-void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
+void ufp_ixgbevf_configure_tx_ring(struct ufp_handle *ih,
 	uint8_t reg_idx, struct ufp_ring *ring)
 {
 	int wait_loop = 10;
@@ -349,7 +352,7 @@ void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
 	ufp_write_reg(ih, IXGBE_VFTDBAL(reg_idx), addr_dma & DMA_BIT_MASK(32));
 	ufp_write_reg(ih, IXGBE_VFTDBAH(reg_idx), addr_dma >> 32);
 	ufp_write_reg(ih, IXGBE_VFTDLEN(reg_idx),
-		ih->num_tx_desc * sizeof(union ixmap_adv_tx_desc));
+		ih->num_tx_desc * sizeof(union ufp_ixgbevf_tx_desc));
 
 	/* disable head writeback */
 	ufp_write_reg(ih, IXGBE_VFTDWBAH(reg_idx), 0);
@@ -364,7 +367,7 @@ void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
 	ufp_write_reg(ih, IXGBE_VFTDH(reg_idx), 0);
 	ufp_write_reg(ih, IXGBE_VFTDT(reg_idx), 0);
 
-	ring->tail = ih->bar + IXGBE_TDT(reg_idx);
+	ring->tail = ih->bar + IXGBE_VFTDT(reg_idx);
 
 	/* set WTHRESH to encourage burst writeback, it should not be set
 	 * higher than 1 when ITR is 0 as it could cause false TX hangs
@@ -398,7 +401,7 @@ void ixgbevf_configure_tx_ring(struct ufp_handle *ih,
 
 static void ufp_ixgbevf_disable_rx_queue(struct ufp_handle *ih, uint8_t reg_idx)
 {
-	int wait_loop = IXGBEVF_MAX_RX_DESC_POLL;
+	int wait_loop = 10;
 	uint32_t rxdctl;
 	struct timespec ts;
 
@@ -411,7 +414,7 @@ static void ufp_ixgbevf_disable_rx_queue(struct ufp_handle *ih, uint8_t reg_idx)
 	/* the hardware may take up to 100us to really disable the rx queue */
 	do {
 		usleep(&ts, 10);
-		rxdctl = IXGBE_READ_REG(hw, IXGBE_VFRXDCTL(reg_idx));
+		rxdctl = ufp_read_reg(ih, IXGBE_VFRXDCTL(reg_idx));
 	} while (--wait_loop && (rxdctl & IXGBE_RXDCTL_ENABLE));
 
 	if (!wait_loop) {
@@ -440,7 +443,7 @@ static void ufp_ixgbevf_configure_srrctl(struct ufp_handle *ih, uint8_t reg_idx)
 static void ufp_ixgbevf_rx_desc_queue_enable(struct ufp_handle *ih,
 	uint8_t reg_idx)
 {
-	int wait_loop = IXGBEVF_MAX_RX_DESC_POLL;
+	int wait_loop = 10;
 	uint32_t rxdctl;
 	struct timespec ts;
 
@@ -466,12 +469,12 @@ void ufp_ixgbevf_configure_rx_ring(struct ufp_handle *ih,
 
 	/* disable queue to avoid issues while updating state */
 	rxdctl = ufp_read_reg(ih, IXGBE_VFRXDCTL(reg_idx));
-	ufp_ixgbevf_disable_rx_queue(adapter, reg_idx);
+	ufp_ixgbevf_disable_rx_queue(ih, reg_idx);
 
 	ufp_write_reg(ih, IXGBE_VFRDBAL(reg_idx), addr_dma & DMA_BIT_MASK(32));
 	ufp_write_reg(ih, IXGBE_VFRDBAH(reg_idx), addr_dma >> 32);
 	ufp_write_reg(ih, IXGBE_VFRDLEN(reg_idx),
-		ih->num_rx_desc * sizeof(union ixmap_adv_rx_desc);
+		ih->num_rx_desc * sizeof(union ufp_ixgbevf_rx_desc));
 
 	/* enable relaxed ordering */
 	ufp_write_reg(ih, IXGBE_VFDCA_RXCTRL(reg_idx),

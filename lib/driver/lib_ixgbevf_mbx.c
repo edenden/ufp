@@ -1,7 +1,14 @@
-#include <linux/types.h>
-#include <linux/errno.h>
-#include <linux/pci.h>
-#include <linux/delay.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <stdint.h>
+#include <time.h>
+
+#include "lib_main.h"
+#include "lib_rtx.h"
 
 #include "lib_ixgbevf.h"
 #include "lib_ixgbevf_mbx.h"
@@ -70,7 +77,7 @@ int ufp_ixgbevf_mbx_poll_for_rst(struct ufp_handle *ih)
 	data = ih->ops->data;
 	countdown = data->mbx_timeout;
 
-	while(countdown && !ufp_ixgbevf_mbx_check_for_rst(hw)){
+	while(countdown && !ufp_ixgbevf_mbx_check_for_rst(ih)){
 		usleep(&ts, data->mbx_udelay);
 		countdown--;
 	}

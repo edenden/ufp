@@ -8,6 +8,8 @@
 #include <time.h>
 
 #include "lib_main.h"
+#include "lib_rtx.h"
+
 #include "lib_ixgbevf.h"
 #include "lib_ixgbevf_mac.h"
 #include "lib_ixgbevf_mbx.h"
@@ -109,7 +111,7 @@ static int ufp_ixgbevf_reset(struct ufp_handle *ih)
 	uint32_t msgbuf[IXGBE_VF_PERMADDR_MSG_LEN];
 	int err;
 	struct timespec ts;
-	int32_t mc_filter_type;
+	int32_t mc_filter_type __attribute__((unused));
 
 	/* Call adapter stop to disable tx/rx and clear interrupts */
 	err = ufp_ixgbevf_stop_adapter(ih);
@@ -177,22 +179,22 @@ static int ufp_ixgbevf_set_device_params(struct ufp_handle *ih,
 	if(err < 0)
 		goto err_get_queues;
 
-	if(num_rx_desc > IXGBE_MAX_RXD)
-		ih->num_rx_desc = IXGBE_MAX_RXD;
-	else if(num_rx_desc < IXGBE_MIN_RXD)
-		ih->num_rx_desc = IXGBE_MIN_RXD;
+	if(num_rx_desc > IXGBEVF_MAX_RXD)
+		ih->num_rx_desc = IXGBEVF_MAX_RXD;
+	else if(num_rx_desc < IXGBEVF_MIN_RXD)
+		ih->num_rx_desc = IXGBEVF_MIN_RXD;
 	else
 		ih->num_rx_desc = num_rx_desc;
 
-	if(num_tx_desc > IXGBE_MAX_TXD)
-		ih->num_tx_desc = IXGBE_MAX_TXD;
-	else if(num_tx_desc < IXGBE_MAX_TXD)
-                ih->num_tx_desc = IXGBE_MIN_TXD;
+	if(num_tx_desc > IXGBEVF_MAX_TXD)
+		ih->num_tx_desc = IXGBEVF_MAX_TXD;
+	else if(num_tx_desc < IXGBEVF_MAX_TXD)
+                ih->num_tx_desc = IXGBEVF_MIN_TXD;
 	else
 		ih->num_tx_desc = num_tx_desc;
 
-	ih->size_rx_desc = sizeof(union ixgbe_adv_rx_desc) * ih->num_rx_desc;
-	ih->size_tx_desc = sizeof(union ixgbe_adv_tx_desc) * ih->num_tx_desc;
+	ih->size_rx_desc = sizeof(union ufp_ixgbevf_rx_desc) * ih->num_rx_desc;
+	ih->size_tx_desc = sizeof(union ufp_ixgbevf_tx_desc) * ih->num_tx_desc;
 
 	ih->buf_size = IXGBEVF_RX_BUFSZ;
 
@@ -205,20 +207,21 @@ err_get_queues:
 static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih, uint32_t rate)
 {
 	unsigned int qmask = 0;
+	int vector, queue_idx;
 
 	for(queue_idx = 0, vector = 0; queue_idx < ih->num_queues;
 	queue_idx++, vector++){
 		/* set RX queue interrupt */
-		ufp_set_ivar(ih, 0, queue_idx, vector);
-		ufp_write_eitr(ih, vector, rate);
+		ufp_ixgbevf_set_ivar(ih, 0, queue_idx, vector);
+		ufp_ixgbevf_set_eitr(ih, vector, rate);
 		qmask |= 1 << vector;
 	}
 
 	for(queue_idx = 0; queue_idx < ih->num_queues;
 	queue_idx++, vector++){
 		/* set TX queue interrupt */
-		ufp_set_ivar(ih, 1, queue_idx, vector);
-		ufp_write_eitr(ih, vector, rate);
+		ufp_ixgbevf_set_ivar(ih, 1, queue_idx, vector);
+		ufp_ixgbevf_set_eitr(ih, vector, rate);
 		qmask |= 1 << vector;
 	}
 
@@ -228,6 +231,8 @@ static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih, uint32_t rate)
 	ufp_write_reg(ih, IXGBE_VTEIAM, qmask);
 	ufp_write_reg(ih, IXGBE_VTEIAC, qmask);
 	ufp_write_reg(ih, IXGBE_VTEIMS, qmask);
+
+	return 0;
 }
 
 static int ufp_ixgbevf_configure_tx(struct ufp_handle *ih)
@@ -236,7 +241,9 @@ static int ufp_ixgbevf_configure_tx(struct ufp_handle *ih)
 
 	/* Setup the HW Tx Head and Tail descriptor pointers */
 	for (i = 0; i < ih->num_queues; i++)
-		ufp_ixgbevf_confiugre_tx_ring(ih, i, &ih->rx_ring[i]);
+		ufp_ixgbevf_configure_tx_ring(ih, i, &ih->rx_ring[i]);
+
+	return 0;
 }
 
 static int ufp_ixgbevf_configure_rx(struct ufp_handle *ih,
@@ -354,13 +361,13 @@ static void ufp_ixgbevf_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index,
 
 	packet->flag = 0;
 
-	if(unlikely(!rx_desc->wb.upper.status_error &
-	htole32(IXGBE_RXD_STAT_EOP)))
-		packet->flag |= UFP_PAKCET_NOTEOP;
+	if(unlikely(!(rx_desc->wb.upper.status_error &
+	htole32(IXGBE_RXD_STAT_EOP))))
+		packet->flag |= UFP_PACKET_NOTEOP;
 
 	if(unlikely(rx_desc->wb.upper.status_error &
 	htole32(IXGBE_RXDADV_ERR_FRAME_ERR_MASK)))
-		packet->flag |= UFP_PAKCET_ERROR;
+		packet->flag |= UFP_PACKET_ERROR;
 
 	packet->slot_size = le16toh(rx_desc->wb.upper.length);
 
