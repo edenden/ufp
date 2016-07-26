@@ -61,7 +61,8 @@ int ufp_miscdev_register(struct ufp_device *device)
 		goto err_alloc_name;
 	}
 
-	snprintf(miscdev_name, MISCDEV_NAME_SIZE, "ufp!%s", pci_name(pdev));
+	snprintf(miscdev_name, MISCDEV_NAME_SIZE, "ufp!p%ds%d",
+		PCI_FUNC(pdev->devfn), PCI_SLOT(pdev->devfn));
 
 	device->miscdev.minor = MISC_DYNAMIC_MINOR;
 	device->miscdev.name = miscdev_name;
