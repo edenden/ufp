@@ -31,11 +31,11 @@ static void usage()
 {
 	printf("\n");
 	printf("Usage:\n");
-	printf("  -t [n] : Number of cores\n");
-	printf("  -n [n] : Number of ports\n");
+	printf("  -c [n] : Number of cores\n");
+	printf("  -p [n] : Number of ports\n");
 	printf("  -m [n] : MTU length (default=1522)\n");
-	printf("  -c [n] : Number of packet buffer per port\n");
-	printf("  -p : Promiscuous mode (default=disabled)\n");
+	printf("  -b [n] : Number of packet buffer per port\n");
+	printf("  -a : Promiscuous mode (default=disabled)\n");
 	printf("  -h : Show this help\n");
 	printf("\n");
 	return;
@@ -62,16 +62,16 @@ int main(int argc, char **argv)
 	ixmapfwd.intr_rate	= IXGBE_20K_ITR;
 	ixmapfwd.buf_count	= 8192; /* number of per port packet buffer */
 
-	while ((opt = getopt(argc, argv, "t:n:m:c:ph")) != -1) {
+	while ((opt = getopt(argc, argv, "c:p:m:b:ah")) != -1) {
 		switch(opt){
-		case 't':
+		case 'c':
 			if(sscanf(optarg, "%u", &ixmapfwd.num_cores) < 1){
 				printf("Invalid number of cores\n");
 				ret = -1;
 				goto err_arg;
 			}
 			break;
-		case 'n':
+		case 'p':
 			if(sscanf(optarg, "%u", &ixmapfwd.num_ports) < 1){
 				printf("Invalid number of ports\n");
 				ret = -1;
@@ -85,14 +85,14 @@ int main(int argc, char **argv)
 				goto err_arg;
 			}
 			break;
-		case 'c':
+		case 'b':
 			if(sscanf(optarg, "%u", &ixmapfwd.buf_count) < 1){
 				printf("Invalid number of packet buffer\n");
 				ret = -1;
 				goto err_arg;
 			}
 			break;
-		case 'p':
+		case 'a':
 			ixmapfwd.promisc = 1;
 			break;
 		case 'h':
