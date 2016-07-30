@@ -11,6 +11,8 @@
 #include <sys/signalfd.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
+#include <sys/syscall.h>
+#include <linux/mempolicy.h>
 #include <stdarg.h>
 #include <syslog.h>
 #include <ufp.h>
@@ -24,6 +26,7 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 	struct ufpd_thread *thread, int thread_index);
 static void ufpd_thread_kill(struct ufpd_thread *thread);
 static int ufpd_set_signal(sigset_t *sigset);
+static int ufpd_set_mempolicy(unsigned int node);
 
 char *optarg;
 
@@ -33,6 +36,7 @@ static void usage()
 	printf("Usage:\n");
 	printf("  -c [n] : Number of cores\n");
 	printf("  -p [n] : Number of ports\n");
+	printf("  -n [n] : NUMA node (default=0)\n");
 	printf("  -m [n] : MTU length (default=1522)\n");
 	printf("  -b [n] : Number of packet buffer per port\n");
 	printf("  -a : Promiscuous mode (default=disabled)\n");
@@ -54,6 +58,7 @@ int main(int argc, char **argv)
 	sigset_t		sigset;
 
 	/* set default values */
+	ufpd.numa_node	= 0;
 	ufpd.num_cores	= 1;
 	ufpd.buf_size	= 0;
 	ufpd.num_ports	= 0;
@@ -62,7 +67,7 @@ int main(int argc, char **argv)
 	ufpd.intr_rate	= IXGBE_20K_ITR;
 	ufpd.buf_count	= 8192; /* number of per port packet buffer */
 
-	while ((opt = getopt(argc, argv, "c:p:m:b:ah")) != -1) {
+	while ((opt = getopt(argc, argv, "c:p:n:m:b:ah")) != -1) {
 		switch(opt){
 		case 'c':
 			if(sscanf(optarg, "%u", &ufpd.num_cores) < 1){
@@ -78,6 +83,13 @@ int main(int argc, char **argv)
 				goto err_arg;
 			}
 			break;
+		case 'n':
+			if(sscanf(optarg, "%u", &ufpd.numa_node) < 1){
+				printf("Invalid NUMA node\n");
+				ret = -1;
+				goto err_arg;
+                        }
+                        break;
 		case 'm':
 			if(sscanf(optarg, "%u", &ufpd.mtu_frame) < 1){
 				printf("Invalid MTU length\n");
@@ -115,6 +127,10 @@ int main(int argc, char **argv)
 	}
 
 	openlog(PROCESS_NAME, LOG_CONS | LOG_PID, SYSLOG_FACILITY);
+
+	ret = ufpd_set_mempolicy(ufpd.numa_node);
+	if(ret < 0)
+		goto err_set_mempolicy;
 
 	ufpd.ih_array = malloc(sizeof(struct ufp_handle *) * ufpd.num_ports);
 	if(!ufpd.ih_array){
@@ -271,6 +287,7 @@ err_alloc_threads:
 err_tunh_array:
 	free(ufpd.ih_array);
 err_ih_array:
+err_set_mempolicy:
 	closelog();
 err_arg:
 	return ret;
@@ -360,3 +377,18 @@ static int ufpd_set_signal(sigset_t *sigset)
 	return 0;
 }
 
+static int ufpd_set_mempolicy(unsigned int node)
+{
+	int err;
+	unsigned long node_mask;
+
+	node_mask = 1UL << node;
+
+	err = syscall(SYS_set_mempolicy, MPOL_BIND, &node_mask,
+		sizeof(unsigned long) * 8);
+	if(err < 0){
+		return -1;
+	}
+
+	return 0;
+}

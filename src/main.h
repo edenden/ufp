@@ -41,6 +41,7 @@ struct ufpd {
 	unsigned int		mtu_frame;
 	unsigned int		buf_count;
 	unsigned int		intr_rate;
+	unsigned int		numa_node;
 };
 
 void ufpd_log(int level, char *fmt, ...);
