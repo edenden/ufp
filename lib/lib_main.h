@@ -16,7 +16,6 @@
 #define __ALIGN_MASK(x,mask)	(((x)+(mask))&~(mask))
 
 #define FILENAME_SIZE 256
-#define UFP_IFNAME "ixgbe"
 #define SIZE_1GB (1ul << 30)
 
 #define min(x, y) ({				\
@@ -55,7 +54,6 @@ struct ufp_ring {
 struct ufp_desc {
 	void			*addr_virt;
 	struct ufp_mnode	*node;
-	int			core_id;
 };
 
 #define UFP_SLOT_INFLIGHT 0x1
@@ -91,7 +89,7 @@ struct ufp_handle {
 	uint32_t		mtu_frame;
 	uint32_t		buf_size;
 	uint8_t			mac_addr[ETH_ALEN];
-	char			interface_name[IFNAMSIZ];
+	char			ifname[IFNAMSIZ];
 };
 
 struct ufp_irq_handle {
@@ -117,7 +115,6 @@ struct ufp_port {
 	uint32_t		rx_budget;
 	uint32_t		tx_budget;
 	uint8_t			mac_addr[ETH_ALEN];
-	const char		*interface_name;
 
 	unsigned long		count_rx_alloc_failed;
 	unsigned long		count_rx_clean_total;

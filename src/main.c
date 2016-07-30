@@ -23,10 +23,15 @@
 
 static void usage();
 static int ufpd_thread_create(struct ufpd *ufpd,
-	struct ufpd_thread *thread, int thread_index);
+	struct ufpd_thread *thread, unsigned int thread_id,
+	unsigned int core_id);
 static void ufpd_thread_kill(struct ufpd_thread *thread);
 static int ufpd_set_signal(sigset_t *sigset);
 static int ufpd_set_mempolicy(unsigned int node);
+static int ufpd_parse_range(const char *str, char *result,
+	int max_len);
+static int ufpd_parse_list(const char *str, void **result,
+	int size_elem, const char *format);
 
 char *optarg;
 
@@ -34,11 +39,11 @@ static void usage()
 {
 	printf("\n");
 	printf("Usage:\n");
-	printf("  -c [n] : Number of cores\n");
-	printf("  -p [n] : Number of ports\n");
+	printf("  -c [cpulist] : CPU cores to use\n");
+	printf("  -p [ifnamelist] : Interfaces to use\n");
 	printf("  -n [n] : NUMA node (default=0)\n");
 	printf("  -m [n] : MTU length (default=1522)\n");
-	printf("  -b [n] : Number of packet buffer per port\n");
+	printf("  -b [n] : Number of packet buffer per port(default=8192)\n");
 	printf("  -a : Promiscuous mode (default=disabled)\n");
 	printf("  -h : Show this help\n");
 	printf("\n");
@@ -50,35 +55,49 @@ int main(int argc, char **argv)
 	struct ufpd		ufpd;
 	struct ufpd_thread	*threads;
 	int			ret, i, signal, opt;
-	int			cores_assigned = 0,
+	int			threads_assigned = 0,
 				ports_assigned = 0,
 				ports_up = 0,
 				tun_assigned = 0,
 				pages_assigned = 0;
 	sigset_t		sigset;
+	char			strbuf[1024];
 
 	/* set default values */
-	ufpd.numa_node	= 0;
-	ufpd.num_cores	= 1;
-	ufpd.buf_size	= 0;
-	ufpd.num_ports	= 0;
-	ufpd.promisc	= 0;
-	ufpd.mtu_frame	= 0; /* MTU=1522 is used by default. */
-	ufpd.intr_rate	= IXGBE_20K_ITR;
-	ufpd.buf_count	= 8192; /* number of per port packet buffer */
+	ufpd.numa_node		= 0;
+	ufpd.num_threads	= 0;
+	ufpd.buf_size		= 0;
+	ufpd.num_ports		= 0;
+	ufpd.promisc		= 0;
+	ufpd.mtu_frame		= 0; /* MTU=1522 is used by default. */
+	ufpd.intr_rate		= IXGBE_20K_ITR;
+	ufpd.buf_count		= 8192; /* number of per port packet buffer */
+	ufpd.cores		= NULL;
+	ufpd.ifnames		= NULL;
 
 	while ((opt = getopt(argc, argv, "c:p:n:m:b:ah")) != -1) {
 		switch(opt){
 		case 'c':
-			if(sscanf(optarg, "%u", &ufpd.num_cores) < 1){
-				printf("Invalid number of cores\n");
+			ret = ufpd_parse_range(optarg, strbuf, sizeof(strbuf));
+			if(ret < 0){
+				printf("Invalid argument\n");
+				ret = -1;
+				goto err_arg;
+			}
+
+			ufpd.num_threads = ufpd_parse_list(list_str, (void **)&ufpd.cores,
+				sizeof(unsigned int), "%u");
+			if(ufpd.num_threads < 0){
+				printf("Invalid CPU cores to use\n");
 				ret = -1;
 				goto err_arg;
 			}
 			break;
 		case 'p':
-			if(sscanf(optarg, "%u", &ufpd.num_ports) < 1){
-				printf("Invalid number of ports\n");
+			ufpd.num_ports = ufpd_parse_list(optarg, (void **)&ufpd.ifnames,
+				IFNAMSIZ, "%s");
+			if(ufpd.num_ports < 0){
+				printf("Invalid Interfaces to use\n");
 				ret = -1;
 				goto err_arg;
 			}
@@ -119,9 +138,14 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if(!ufpd.num_ports){
-		printf("You must specify number of ports.\n");
-		printf("Try -h to show help.\n");
+	if(!ufpd.ifnames){
+		printf("You must specify Interfaces to use.\n");
+		ret = -1;
+		goto err_arg;
+	}
+	
+	if(!ufpd.cores){
+		printf("You must specify CPU cores to use.\n");
 		ret = -1;
 		goto err_arg;
 	}
@@ -144,15 +168,15 @@ int main(int argc, char **argv)
 		goto err_tunh_array;
 	}
 
-	threads = malloc(sizeof(struct ufpd_thread) * ufpd.num_cores);
+	threads = malloc(sizeof(struct ufpd_thread) * ufpd.num_threads);
 	if(!threads){
 		ret = -1;
 		goto err_alloc_threads;
 	}
 
 	for(i = 0; i < ufpd.num_ports; i++, ports_assigned++){
-		ufpd.ih_array[i] = ufp_open(i, ufpd.num_cores,
-			IXGBE_MAX_RXD, IXGBE_MAX_TXD);
+		ufpd.ih_array[i] = ufp_open(&ufpd.ifnames[i * IFNAMSIZ],
+			ufpd.num_threads, IXGBE_MAX_RXD, IXGBE_MAX_TXD);
 		if(!ufpd.ih_array[i]){
 			ufpd_log(LOG_ERR, "failed to ufp_open, idx = %d", i);
 			ret = -1;
@@ -164,7 +188,7 @@ int main(int argc, char **argv)
 			ufpd.buf_size = ufp_bufsize_get(ufpd.ih_array[i]);
 	}
 
-	for(i = 0; i < ufpd.num_cores; i++, pages_assigned++){
+	for(i = 0; i < ufpd.num_threads; i++, pages_assigned++){
 		threads[i].desc = ufp_desc_alloc(ufpd.ih_array,
 			ufpd.num_ports, i);
 		if(!threads[i].desc){
@@ -174,7 +198,7 @@ int main(int argc, char **argv)
 		}
 
 		threads[i].buf = ufp_buf_alloc(ufpd.ih_array,
-			ufpd.num_ports, ufpd.buf_count, ufpd.buf_size, i);
+			ufpd.num_ports, ufpd.buf_count, ufpd.buf_size);
 		if(!threads[i].buf){
 			ufpd_log(LOG_ERR, "failed to ufp_alloc_buf, idx = %d", i);
 			ufpd_log(LOG_ERR, "please decrease buffer or enable iommu");
@@ -216,9 +240,9 @@ err_desc_alloc:
 		goto err_set_signal;
 	}
 
-	for(i = 0; i < ufpd.num_cores; i++, cores_assigned++){
+	for(i = 0; i < ufpd.num_threads; i++, threads_assigned++){
 		threads[i].plane = ufp_plane_alloc(ufpd.ih_array,
-			threads[i].buf, ufpd.num_ports, i);
+			threads[i].buf, ufpd.num_ports, i, ufpd.cores[i]);
 		if(!threads[i].plane){
 			ufpd_log(LOG_ERR, "failed to ufp_plane_alloc, idx = %d", i);
 			goto err_plane_alloc;
@@ -228,7 +252,7 @@ err_desc_alloc:
 		if(!threads[i].tun_plane)
 			goto err_tun_plane_alloc;
 
-		ret = ufpd_thread_create(&ufpd, &threads[i], i);
+		ret = ufpd_thread_create(&ufpd, &threads[i], i, ufpd.cores[i]);
 		if(ret < 0){
 			goto err_thread_create;
 		}
@@ -243,7 +267,7 @@ err_tun_plane_alloc:
 			ufpd.num_ports);
 err_plane_alloc:
 		ret = -1;
-		goto err_assign_cores;
+		goto err_assign_threads;
 	}
 
 	while(1){
@@ -253,8 +277,8 @@ err_plane_alloc:
 	}
 	ret = 0;
 
-err_assign_cores:
-	for(i = 0; i < cores_assigned; i++){
+err_assign_threads:
+	for(i = 0; i < threads_assigned; i++){
 		ufpd_thread_kill(&threads[i]);
 		tun_plane_release(threads[i].tun_plane,
 			ufpd.num_ports);
@@ -289,17 +313,20 @@ err_tunh_array:
 err_ih_array:
 err_set_mempolicy:
 	closelog();
+	free(ufpd.cores);
+	free(ufpd.ifnames);
 err_arg:
 	return ret;
 }
 
 static int ufpd_thread_create(struct ufpd *ufpd,
-	struct ufpd_thread *thread, int thread_index)
+	struct ufpd_thread *thread, unsigned int thread_id,
+	unsigned int core_id)
 {
 	cpu_set_t cpuset;
 	int ret;
 
-	thread->index		= thread_index;
+	thread->id		= thread_id;
 	thread->num_ports	= ufpd->num_ports;
 	thread->ptid		= pthread_self();
 
@@ -310,7 +337,7 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 	}
 
 	CPU_ZERO(&cpuset);
-	CPU_SET(thread->index, &cpuset);
+	CPU_SET(core_id, &cpuset);
 	ret = pthread_setaffinity_np(thread->tid, sizeof(cpu_set_t), &cpuset);
 	if(ret < 0){
 		ufpd_log(LOG_ERR, "failed to set affinity");
@@ -391,4 +418,111 @@ static int ufpd_set_mempolicy(unsigned int node)
 	}
 
 	return 0;
+}
+
+static int ufpd_parse_range(const char *str, char *result,
+	int max_len)
+{
+	unsigned int range[2];
+	int err, i, num, offset, ranged;
+	char buf[128];
+
+	result[0] = '\0';
+	offset = 0;
+	ranged = 0;
+	for(i = 0; i < strlen(str) + 1; i++){
+		switch(str[i]){
+		case ',':
+		case '\0':
+			buf[offset] = '\0';
+
+			if(sscanf(buf, "%u", &range[1]) < 1){
+				goto err_parse;
+			}
+
+			if(!ranged)
+				range[0] = range[1];
+
+			for(num = range[0]; num <= range[1]; num++){
+				err = snprintf(&(result)[strlen(result)], max_len,
+					strlen(result) ? ",%d" : "%d", num);
+				if(err < 0)
+					goto err_print;
+			}
+
+			offset = 0;
+			ranged = 0;
+
+			break;
+		case '-':
+			buf[offset] = '\0';
+
+			if(sscanf(buf, "%u", &range[0]) < 1){
+				goto err_parse;
+			}
+
+			offset = 0;
+			ranged = 1;
+
+			break;
+		default:
+			buf[offset] = str[i];
+			offset++;
+		}
+	}
+
+	return 0;
+
+err_print:
+err_parse:
+	return -1;
+}
+
+static int ufpd_parse_list(const char *str, void **result,
+	int size_elem, const char *format)
+{
+	void *ptr;
+	int i, offset, count;
+	char buf[128];
+
+	count = 1;
+	for(i = 0; i < strlen(str); i++){
+		if(str[i] == ',')
+			count++;
+	}
+
+	*result = malloc(size_elem * count);
+	if(!*result)
+		goto err_alloc;
+
+	offset = 0;
+	count = 0;
+	for(i = 0; i < strlen(str) + 1; i++){
+		switch(str[i]){
+		case ',':
+		case '\0':
+			buf[offset] = '\0';
+
+			if(sscanf(buf, format,
+			(*result) + (size_elem * count)) < 1){
+				printf("parse error\n");
+				goto err_parse;
+			}
+
+			count++;
+
+			offset = 0;
+			break;
+		default:
+			buf[offset] = str[i];
+			offset++;
+		}
+	}
+
+	return count;
+
+err_parse:
+	free(*result);
+err_alloc:
+	return -1;
 }

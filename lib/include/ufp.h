@@ -21,17 +21,18 @@ enum ufp_irq_type {
 
 /* MAIN */
 struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
-	struct ufp_buf *buf, int ih_num, int core_id);
+	struct ufp_buf *buf, int ih_num, unsigned int thread_id,
+	unsigned int core_id);
 void ufp_plane_release(struct ufp_plane *plane, int ih_num);
 struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
-	int core_id);
+	int thread_id);
 void ufp_desc_release(struct ufp_handle **ih_list, int ih_num,
-	int core_id, struct ufp_desc *desc);
+	int thread_id, struct ufp_desc *desc);
 struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
-	int ih_num, uint32_t count, uint32_t buf_size, int core_id);
+	int ih_num, uint32_t count, uint32_t buf_size);
 void ufp_buf_release(struct ufp_buf *buf,
 	struct ufp_handle **ih_list, int ih_num);
-struct ufp_handle *ufp_open(unsigned int port_index,
+struct ufp_handle *ufp_open(const char *ifname,
 	unsigned int num_queues_req, unsigned int num_rx_desc,
 	unsigned int num_tx_desc);
 void ufp_close(struct ufp_handle *ih);

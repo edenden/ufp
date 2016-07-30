@@ -40,7 +40,7 @@ void *thread_process_interrupt(void *data)
 	int			read_size, fd_ep, i, ret;
 	int			ports_assigned = 0;
 
-	ufpd_log(LOG_INFO, "thread %d started", thread->index);
+	ufpd_log(LOG_INFO, "thread %d started", thread->id);
 	read_size = getpagesize();
 	INIT_LIST_HEAD(&ep_desc_head);
 
@@ -240,8 +240,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 
 	for(i = 0; i < thread->num_ports; i++){
 		/* Register RX interrupt fd */
-		ep_desc = epoll_desc_alloc_irq(thread->plane, i,
-			thread->index, IXMAP_IRQ_RX);
+		ep_desc = epoll_desc_alloc_irq(thread->plane, i, IXMAP_IRQ_RX);
 		if(!ep_desc)
 			goto err_assign_port;
 
@@ -254,8 +253,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 		}
 
 		/* Register TX interrupt fd */
-		ep_desc = epoll_desc_alloc_irq(thread->plane, i,
-			thread->index, IXMAP_IRQ_TX);
+		ep_desc = epoll_desc_alloc_irq(thread->plane, i, IXMAP_IRQ_TX);
 		if(!ep_desc)
 			goto err_assign_port;
 
@@ -268,8 +266,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 		}
 
 		/* Register Virtual Interface fd */
-		ep_desc = epoll_desc_alloc_tun(thread->tun_plane, i,
-			thread->index);
+		ep_desc = epoll_desc_alloc_tun(thread->tun_plane, i);
 		if(!ep_desc)
 			goto err_assign_port;
 
@@ -285,7 +282,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 	/* signalfd preparing */
 	sigemptyset(&sigset);
 	sigaddset(&sigset, SIGUSR1);
-	ep_desc = epoll_desc_alloc_signalfd(&sigset, thread->index);
+	ep_desc = epoll_desc_alloc_signalfd(&sigset);
 	if(!ep_desc)
 		goto err_epoll_desc_signalfd;
 
@@ -302,7 +299,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 	addr.nl_family = AF_NETLINK;
 	addr.nl_groups = RTMGRP_NEIGH | RTMGRP_IPV4_ROUTE | RTMGRP_IPV6_ROUTE;
 
-	ep_desc = epoll_desc_alloc_netlink(&addr, thread->index);
+	ep_desc = epoll_desc_alloc_netlink(&addr);
 	if(!ep_desc)
 		goto err_epoll_desc_netlink;
 
@@ -360,7 +357,7 @@ static void thread_print_result(struct ufpd_thread *thread)
 	int i;
 
 	for(i = 0; i < thread->num_ports; i++){
-		ufpd_log(LOG_INFO, "thread %d port %d statictis:", thread->index, i);
+		ufpd_log(LOG_INFO, "thread %d port %d statictis:", thread->id, i);
 		ufpd_log(LOG_INFO, "  Rx allocation failed = %lu",
 			ufp_count_rx_alloc_failed(thread->plane, i));
 		ufpd_log(LOG_INFO, "  Rx packetes received = %lu",

@@ -223,7 +223,8 @@ err_tun_ioctl:
 	return -1;
 }
 
-struct tun_plane *tun_plane_alloc(struct ufpd *ufpd)
+struct tun_plane *tun_plane_alloc(struct ufpd *ufpd,
+	unsigned int thread_id)
 {
 	struct tun_handle **tunh_array;
 	struct tun_plane *plane;
@@ -240,7 +241,7 @@ struct tun_plane *tun_plane_alloc(struct ufpd *ufpd)
 		goto err_alloc_ports;
 
 	for(i = 0; i < ufpd->num_ports; i++){
-		plane->ports[i].fd = tunh_array[i]->queues[core_id];
+		plane->ports[i].fd = tunh_array[i]->queues[thread_id];
 		plane->ports[i].ifindex = tunh_array[i]->ifindex;
 		plane->ports[i].mtu_frame = tunh_array[i]->mtu_frame;
 	}

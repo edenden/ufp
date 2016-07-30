@@ -17,7 +17,7 @@ struct ufpd_thread {
 	struct fib		*fib_inet;
 	struct fib		*fib_inet6;
 	struct tun_plane	*tun_plane;
-	int			index;
+	unsigned int		id;
 	pthread_t		tid;
 	pthread_t		ptid;
 	unsigned int		num_ports;

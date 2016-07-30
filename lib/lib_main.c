@@ -23,7 +23,7 @@ static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma);
 static struct ufp_ops *ufp_ops_alloc(uint16_t device_id);
 static void ufp_ops_release(struct ufp_ops *ops);
 static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
-	unsigned int core_id, enum ufp_irq_type type);
+	enum ufp_irq_type type, unsigned int thread_id, unsigned int core_id);
 static void ufp_irq_close(struct ufp_irq_handle *irqh);
 static int ufp_irq_setaffinity(unsigned int vector, unsigned int core_id);
 
@@ -57,7 +57,8 @@ inline void ufp_write_flush(struct ufp_handle *ih)
 }
 
 struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
-	struct ufp_buf *buf, int ih_num, int core_id)
+	struct ufp_buf *buf, int ih_num, unsigned int thread_id,
+	unsigned int core_id)
 {
 	struct ufp_plane *plane;
 	int i, ports_assigned = 0;
@@ -73,10 +74,9 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
 	}
 
 	for(i = 0; i < ih_num; i++, ports_assigned++){
-		plane->ports[i].interface_name = ih_list[i]->interface_name;
 		plane->ports[i].bar = ih_list[i]->bar;
-		plane->ports[i].rx_ring = &(ih_list[i]->rx_ring[core_id]);
-		plane->ports[i].tx_ring = &(ih_list[i]->tx_ring[core_id]);
+		plane->ports[i].rx_ring = &(ih_list[i]->rx_ring[thread_id]);
+		plane->ports[i].tx_ring = &(ih_list[i]->tx_ring[thread_id]);
 		plane->ports[i].ops = ih_list[i]->ops;
 		plane->ports[i].rx_slot_next = 0;
 		plane->ports[i].rx_slot_offset = i * buf->count;
@@ -94,13 +94,13 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
 
 		memcpy(plane->ports[i].mac_addr, ih_list[i]->mac_addr, ETH_ALEN);
 
-		plane->ports[i].rx_irq = ufp_irq_open(ih_list[i], core_id,
-						UFP_IRQ_RX);
+		plane->ports[i].rx_irq = ufp_irq_open(ih_list[i],
+						UFP_IRQ_RX, thread_id, core_id);
 		if(!plane->ports[i].rx_irq)
 			goto err_alloc_irq_rx;
 
-		plane->ports[i].tx_irq = ufp_irq_open(ih_list[i], core_id,
-						UFP_IRQ_TX);
+		plane->ports[i].tx_irq = ufp_irq_open(ih_list[i],
+						UFP_IRQ_TX, thread_id, core_id);
 		if(!plane->ports[i].tx_irq)
 			goto err_alloc_irq_tx;
 
@@ -142,7 +142,7 @@ void ufp_plane_release(struct ufp_plane *plane, int ih_num)
 }
 
 struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
-	int core_id)
+	int thread_id)
 {
 	struct ufp_desc *desc;
 	unsigned long size, size_tx_desc, size_rx_desc, size_mem;
@@ -180,17 +180,17 @@ struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
 			goto err_rx_dma_map;
 		}
 
-		ih->rx_ring[core_id].addr_dma = addr_dma;
-		ih->rx_ring[core_id].addr_virt = addr_virt;
+		ih->rx_ring[thread_id].addr_dma = addr_dma;
+		ih->rx_ring[thread_id].addr_virt = addr_virt;
 
 		slot_index = malloc(sizeof(int) * ih->num_rx_desc);
 		if(!slot_index){
 			goto err_rx_assign;
 		}
 
-		ih->rx_ring[core_id].next_to_use = 0;
-		ih->rx_ring[core_id].next_to_clean = 0;
-		ih->rx_ring[core_id].slot_index = slot_index;
+		ih->rx_ring[thread_id].next_to_use = 0;
+		ih->rx_ring[thread_id].next_to_clean = 0;
+		ih->rx_ring[thread_id].slot_index = slot_index;
 
 		addr_virt += size_rx_desc;
 
@@ -200,35 +200,34 @@ struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
 			goto err_tx_dma_map;
 		}
 
-		ih->tx_ring[core_id].addr_dma = addr_dma;
-		ih->tx_ring[core_id].addr_virt = addr_virt;
+		ih->tx_ring[thread_id].addr_dma = addr_dma;
+		ih->tx_ring[thread_id].addr_virt = addr_virt;
 
 		slot_index = malloc(sizeof(int) * ih->num_tx_desc);
 		if(!slot_index){
 			goto err_tx_assign;
 		}
 
-		ih->tx_ring[core_id].next_to_use = 0;
-		ih->tx_ring[core_id].next_to_clean = 0;
-		ih->tx_ring[core_id].slot_index = slot_index;
+		ih->tx_ring[thread_id].next_to_use = 0;
+		ih->tx_ring[thread_id].next_to_clean = 0;
+		ih->tx_ring[thread_id].slot_index = slot_index;
 
 		addr_virt += size_rx_desc;
 
 		continue;
 
 err_tx_assign:
-		ufp_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
+		ufp_dma_unmap(ih, ih->tx_ring[thread_id].addr_dma);
 err_tx_dma_map:
-		free(ih->rx_ring[core_id].slot_index);
+		free(ih->rx_ring[thread_id].slot_index);
 err_rx_assign:
-		ufp_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
+		ufp_dma_unmap(ih, ih->rx_ring[thread_id].addr_dma);
 err_rx_dma_map:
 		goto err_desc_assign;
 	}
 
 	addr_mem	= (void *)ALIGN((unsigned long)addr_virt, L1_CACHE_BYTES);
 	size_mem	= size - (addr_mem - desc->addr_virt);
-	desc->core_id	= core_id;
 	desc->node	= ufp_mem_init(addr_mem, size_mem);
 	if(!desc->node)
 		goto err_mem_init;
@@ -241,10 +240,10 @@ err_desc_assign:
 		struct ufp_handle *ih;
 
 		ih = ih_list[i];
-		free(ih->tx_ring[core_id].slot_index);
-		ufp_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
-		free(ih->rx_ring[core_id].slot_index);
-		ufp_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
+		free(ih->tx_ring[thread_id].slot_index);
+		ufp_dma_unmap(ih, ih->tx_ring[thread_id].addr_dma);
+		free(ih->rx_ring[thread_id].slot_index);
+		ufp_dma_unmap(ih, ih->rx_ring[thread_id].addr_dma);
 	}
 	munmap(desc->addr_virt, size);
 err_mmap:
@@ -254,7 +253,7 @@ err_alloc_desc:
 }
 
 void ufp_desc_release(struct ufp_handle **ih_list, int ih_num,
-	int core_id, struct ufp_desc *desc)
+	int thread_id, struct ufp_desc *desc)
 {
 	int i;
 
@@ -264,10 +263,10 @@ void ufp_desc_release(struct ufp_handle **ih_list, int ih_num,
 		struct ufp_handle *ih;
 
 		ih = ih_list[i];
-		free(ih->tx_ring[core_id].slot_index);
-		ufp_dma_unmap(ih, ih->tx_ring[core_id].addr_dma);
-		free(ih->rx_ring[core_id].slot_index);
-		ufp_dma_unmap(ih, ih->rx_ring[core_id].addr_dma);
+		free(ih->tx_ring[thread_id].slot_index);
+		ufp_dma_unmap(ih, ih->tx_ring[thread_id].addr_dma);
+		free(ih->rx_ring[thread_id].slot_index);
+		ufp_dma_unmap(ih, ih->rx_ring[thread_id].addr_dma);
 	}
 
 	munmap(desc->addr_virt, SIZE_1GB);
@@ -276,7 +275,7 @@ void ufp_desc_release(struct ufp_handle **ih_list, int ih_num,
 }
 
 struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
-	int ih_num, uint32_t count, uint32_t buf_size, int core_id)
+	int ih_num, uint32_t count, uint32_t buf_size)
 {
 	struct ufp_buf *buf;
 	void	*addr_virt;
@@ -440,7 +439,7 @@ static void ufp_ops_release(struct ufp_ops *ops)
 	return;
 }
 
-struct ufp_handle *ufp_open(unsigned int port_index,
+struct ufp_handle *ufp_open(const char *ifname,
 	unsigned int num_queues_req, unsigned int num_rx_desc,
 	unsigned int num_tx_desc)
 {
@@ -454,8 +453,7 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 		goto err_alloc_ih;
 	memset(ih, 0, sizeof(struct ufp_handle));
 
-	snprintf(filename, sizeof(filename), "/dev/%s%d",
-		UFP_IFNAME, port_index);
+	snprintf(filename, sizeof(filename), "/dev/ufp/%s", ifname);
 	ih->fd = open(filename, O_RDWR);
 	if (ih->fd < 0)
 		goto err_open;
@@ -495,8 +493,7 @@ struct ufp_handle *ufp_open(unsigned int port_index,
 	if(!ih->tx_ring)
 		goto err_alloc_tx_ring;
 
-	snprintf(ih->interface_name, sizeof(ih->interface_name), "%s%d",
-		UFP_IFNAME, port_index);
+	strncpy(ih->ifname, ifname, sizeof(ih->ifname));
 
 	return ih;
 
@@ -585,15 +582,15 @@ err_stop_adapter:
 }
 
 static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
-	unsigned int core_id, enum ufp_irq_type type)
+	enum ufp_irq_type type, unsigned int thread_id, unsigned int core_id)
 {
 	struct ufp_irq_handle *irqh;
 	uint64_t qmask;
 	int efd, ret;
 	struct ufp_irqbind_req req;
 
-	if(core_id >= ih->num_queues){
-		goto err_invalid_core_id;
+	if(thread_id >= ih->num_queues){
+		goto err_invalid_thread_id;
 	}
 
 	efd = eventfd(0, 0);
@@ -601,7 +598,7 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 		goto err_open_efd;
 
 	req.type	= type;
-	req.queue_idx	= core_id;
+	req.queue_idx	= thread_id;
 	req.event_fd	= efd;
 
 	ret = ioctl(ih->fd, UFP_IRQBIND, (unsigned long)&req);
@@ -618,10 +615,10 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 
 	switch(type){
 	case UFP_IRQ_RX:
-		qmask = 1 << core_id;
+		qmask = 1 << thread_id;
 		break;
 	case UFP_IRQ_TX:
-		qmask = 1 << (core_id + ih->num_queues);
+		qmask = 1 << (thread_id + ih->num_queues);
 		break;
 	default:
 		goto err_undefined_type;
@@ -643,7 +640,7 @@ err_irq_setaffinity:
 err_irq_bind:
 	close(efd);
 err_open_efd:
-err_invalid_core_id:
+err_invalid_thread_id:
 	return NULL;
 }
 
