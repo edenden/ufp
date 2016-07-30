@@ -28,7 +28,7 @@ struct tun_handle *tun_open(struct ufpd *ufpd,
 	const char *if_name;
 
 	if_name = ufp_ifname_get(ufpd->ih_array[port_index]);
-	src_mac = ufp_macaddr_default(ufpd->ih_array[port_index]),
+	src_mac = ufp_macaddr_default(ufpd->ih_array[port_index]);
 	mtu_frame = ufp_mtu_get(ufpd->ih_array[port_index]);
 
 	tunh = malloc(sizeof(struct tun_handle));
