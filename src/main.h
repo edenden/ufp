@@ -1,5 +1,5 @@
-#ifndef _IXMAPFWD_MAIN_H
-#define _IXMAPFWD_MAIN_H
+#ifndef _UFPD_MAIN_H
+#define _UFPD_MAIN_H
 
 #include <pthread.h>
 #include <ufp.h>
@@ -28,17 +28,20 @@
 
 #define PROCESS_NAME "ufp"
 #define SYSLOG_FACILITY LOG_DAEMON
-#define IXMAP_RX_BUDGET 1024
-#define IXMAP_TX_BUDGET 4096
+#define UFP_RX_BUDGET 1024
+#define UFP_TX_BUDGET 4096
+#define MAX_CORES 16
+#define MAX_IFS 8
+#define MAX_IFNAMESIZ (MAX_IFS * IFNAMESIZ)
 
 struct ufpd {
 	struct ufp_handle	**ih_array;
 	struct tun_handle	**tunh_array;
 	unsigned int		buf_size;
 	unsigned int		num_threads;
-	unsigned int		*cores;
+	unsigned int		cores[MAX_CORES];
 	unsigned int		num_ports;
-	char			*ifnames;
+	char			ifnames[MAX_IFNAMESIZ];
 	unsigned int		promisc;
 	unsigned int		mtu_frame;
 	unsigned int		buf_count;
@@ -49,4 +52,4 @@ struct ufpd {
 void ufpd_log(int level, char *fmt, ...);
 extern char *optarg;
 
-#endif /* _IXMAPFWD_MAIN_H */
+#endif /* _UFPD_MAIN_H */

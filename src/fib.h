@@ -1,5 +1,5 @@
-#ifndef _IXMAPFWD_FIB_H
-#define _IXMAPFWD_FIB_H
+#ifndef _UFPD_FIB_H
+#define _UFPD_FIB_H
 
 #include <pthread.h>
 #include "linux/list.h"
@@ -35,4 +35,4 @@ int fib_route_delete(struct fib *fib, int family,
 	int id);
 struct fib_entry *fib_lookup(struct fib *fib, void *destination);
 
-#endif /* _IXMAPFWD_FIB_H */
+#endif /* _UFPD_FIB_H */

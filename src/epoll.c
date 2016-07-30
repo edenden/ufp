@@ -47,10 +47,10 @@ struct epoll_desc *epoll_desc_alloc_irq(struct ufp_plane *plane,
 		goto err_alloc_ep_desc;
 
 	switch(type){
-	case IXMAP_IRQ_RX:
+	case UFP_IRQ_RX:
 		ep_type = EPOLL_IRQ_RX;
 		break;
-	case IXMAP_IRQ_TX:
+	case UFP_IRQ_TX:
 		ep_type = EPOLL_IRQ_TX;
 		break;
 	default:

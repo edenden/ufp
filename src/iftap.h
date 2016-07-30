@@ -1,5 +1,5 @@
-#ifndef _IXMAPFWD_TUN_H
-#define _IXMAPFWD_TUN_H
+#ifndef _UFPD_TUN_H
+#define _UFPD_TUN_H
 
 #include "main.h"
 
@@ -26,4 +26,4 @@ struct tun_plane *tun_plane_alloc(struct ufpd *ufpd,
 	unsigned int thread_id);
 void tun_plane_release(struct tun_plane *plane, int num_ports);
 
-#endif /* _IXMAPFWD_TUN_H */
+#endif /* _UFPD_TUN_H */

@@ -1,5 +1,5 @@
-#ifndef _IXMAPFWD_LPM_H
-#define _IXMAPFWD_LPM_H
+#ifndef _UFPD_LPM_H
+#define _UFPD_LPM_H
 
 #include "linux/list.h"
 
@@ -50,4 +50,4 @@ void lpm_delete_all(struct lpm_table *table);
 int lpm_traverse(struct lpm_table *table, void *prefix,
 	unsigned int prefix_len);
 
-#endif /* _IXMAPFWD_LPM_H */
+#endif /* _UFPD_LPM_H */

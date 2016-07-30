@@ -1,5 +1,5 @@
-#ifndef _IXMAPFWD_HASH_H
-#define _IXMAPFWD_HASH_H
+#ifndef _UFPD_HASH_H
+#define _UFPD_HASH_H
 
 #include "linux/list.h"
 #include "main.h"
@@ -39,4 +39,4 @@ void hash_delete_all(struct hash_table *table);
 struct hash_entry *hash_lookup(struct hash_table *table,
 	void *key);
 
-#endif /* _IXMAPFWD_HASH_H */
+#endif /* _UFPD_HASH_H */

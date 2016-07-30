@@ -1,5 +1,5 @@
-#ifndef _IXMAPFWD_NEIGH_H
-#define _IXMAPFWD_NEIGH_H
+#ifndef _UFPD_NEIGH_H
+#define _UFPD_NEIGH_H
 
 #include <linux/if_ether.h>
 #include <pthread.h>
@@ -27,4 +27,4 @@ int neigh_delete(struct neigh_table *neigh, int family,
 struct neigh_entry *neigh_lookup(struct neigh_table *neigh,
 	void *dst_addr);
 
-#endif /* _IXMAPFWD_NEIGH_H */
+#endif /* _UFPD_NEIGH_H */

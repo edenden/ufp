@@ -134,7 +134,7 @@ static int thread_wait(struct ufpd_thread *thread,
 {
         struct epoll_desc *ep_desc;
         struct epoll_event events[EPOLL_MAXEVENTS];
-	struct ufp_packet packet[IXMAP_RX_BUDGET];
+	struct ufp_packet packet[UFP_RX_BUDGET];
         int i, ret, num_fd;
         unsigned int port_index;
 
@@ -240,7 +240,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 
 	for(i = 0; i < thread->num_ports; i++){
 		/* Register RX interrupt fd */
-		ep_desc = epoll_desc_alloc_irq(thread->plane, i, IXMAP_IRQ_RX);
+		ep_desc = epoll_desc_alloc_irq(thread->plane, i, UFP_IRQ_RX);
 		if(!ep_desc)
 			goto err_assign_port;
 
@@ -253,7 +253,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 		}
 
 		/* Register TX interrupt fd */
-		ep_desc = epoll_desc_alloc_irq(thread->plane, i, IXMAP_IRQ_TX);
+		ep_desc = epoll_desc_alloc_irq(thread->plane, i, UFP_IRQ_TX);
 		if(!ep_desc)
 			goto err_assign_port;
 

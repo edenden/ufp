@@ -31,7 +31,7 @@ static int ufpd_set_mempolicy(unsigned int node);
 static int ufpd_parse_range(const char *str, char *result,
 	int max_len);
 static int ufpd_parse_list(const char *str, void **result,
-	int size_elem, const char *format);
+	int size_elem, const char *format, int max_count);
 
 char *optarg;
 
@@ -72,8 +72,6 @@ int main(int argc, char **argv)
 	ufpd.mtu_frame		= 0; /* MTU=1522 is used by default. */
 	ufpd.intr_rate		= IXGBE_20K_ITR;
 	ufpd.buf_count		= 8192; /* number of per port packet buffer */
-	ufpd.cores		= NULL;
-	ufpd.ifnames		= NULL;
 
 	while ((opt = getopt(argc, argv, "c:p:n:m:b:ah")) != -1) {
 		switch(opt){
@@ -85,8 +83,8 @@ int main(int argc, char **argv)
 				goto err_arg;
 			}
 
-			ufpd.num_threads = ufpd_parse_list(list_str, (void **)&ufpd.cores,
-				sizeof(unsigned int), "%u");
+			ufpd.num_threads = ufpd_parse_list(list_str, ufpd.cores,
+				sizeof(unsigned int), "%u", MAX_CORES);
 			if(ufpd.num_threads < 0){
 				printf("Invalid CPU cores to use\n");
 				ret = -1;
@@ -94,8 +92,8 @@ int main(int argc, char **argv)
 			}
 			break;
 		case 'p':
-			ufpd.num_ports = ufpd_parse_list(optarg, (void **)&ufpd.ifnames,
-				IFNAMSIZ, "%s");
+			ufpd.num_ports = ufpd_parse_list(optarg, ufpd.ifnames,
+				IFNAMSIZ, "%s", MAX_IFS);
 			if(ufpd.num_ports < 0){
 				printf("Invalid Interfaces to use\n");
 				ret = -1;
@@ -218,7 +216,7 @@ err_desc_alloc:
 	for(i = 0; i < ufpd.num_ports; i++, ports_up++){
 		ret = ufp_up(ufpd.ih_array[i], ufpd.intr_rate,
 			ufpd.mtu_frame, ufpd.promisc,
-			IXMAP_RX_BUDGET, IXMAP_TX_BUDGET);
+			UFP_RX_BUDGET, UFP_TX_BUDGET);
 		if(ret < 0){
 			ufpd_log(LOG_ERR, "failed to ufp_up, idx = %d", i);
 			ret = -1;
@@ -313,8 +311,6 @@ err_tunh_array:
 err_ih_array:
 err_set_mempolicy:
 	closelog();
-	free(ufpd.cores);
-	free(ufpd.ifnames);
 err_arg:
 	return ret;
 }
@@ -478,8 +474,8 @@ err_parse:
 	return -1;
 }
 
-static int ufpd_parse_list(const char *str, void **result,
-	int size_elem, const char *format)
+static int ufpd_parse_list(const char *str, void *result,
+	int size_elem, const char *format, int max_count)
 {
 	void *ptr;
 	int i, offset, count;
@@ -491,9 +487,8 @@ static int ufpd_parse_list(const char *str, void **result,
 			count++;
 	}
 
-	*result = malloc(size_elem * count);
-	if(!*result)
-		goto err_alloc;
+	if(count > max_count)
+		goto err_max_count;
 
 	offset = 0;
 	count = 0;
@@ -504,7 +499,7 @@ static int ufpd_parse_list(const char *str, void **result,
 			buf[offset] = '\0';
 
 			if(sscanf(buf, format,
-			(*result) + (size_elem * count)) < 1){
+			result + (size_elem * count)) < 1){
 				printf("parse error\n");
 				goto err_parse;
 			}
@@ -522,7 +517,6 @@ static int ufpd_parse_list(const char *str, void **result,
 	return count;
 
 err_parse:
-	free(*result);
-err_alloc:
+err_max_count:
 	return -1;
 }

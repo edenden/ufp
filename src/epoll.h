@@ -1,5 +1,5 @@
-#ifndef _IXMAPFWD_EPOLL_H
-#define _IXMAPFWD_EPOLL_H
+#ifndef _UFPD_EPOLL_H
+#define _UFPD_EPOLL_H
 
 #include <linux/netlink.h>
 #include <signal.h>
@@ -38,4 +38,4 @@ void epoll_desc_release_tun(struct epoll_desc *ep_desc);
 struct epoll_desc *epoll_desc_alloc_netlink(struct sockaddr_nl *addr);
 void epoll_desc_release_netlink(struct epoll_desc *ep_desc);
 
-#endif /* _IXMAPFWD_EPOLL_H */
+#endif /* _UFPD_EPOLL_H */

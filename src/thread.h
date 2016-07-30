@@ -1,5 +1,5 @@
-#ifndef _IXMAPFWD_THREAD_H
-#define _IXMAPFWD_THREAD_H
+#ifndef _UFPD_THREAD_H
+#define _UFPD_THREAD_H
 
 #include <pthread.h>
 #include <ufp.h>
@@ -25,4 +25,4 @@ struct ufpd_thread {
 
 void *thread_process_interrupt(void *data);
 
-#endif /* _IXMAPFWD_THREAD_H */
+#endif /* _UFPD_THREAD_H */
