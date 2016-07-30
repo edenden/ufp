@@ -136,13 +136,13 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if(!ufpd.ifnames){
+	if(!ufpd.num_ports){
 		printf("You must specify Interfaces to use.\n");
 		ret = -1;
 		goto err_arg;
 	}
 	
-	if(!ufpd.cores){
+	if(!ufpd.num_threads){
 		printf("You must specify CPU cores to use.\n");
 		ret = -1;
 		goto err_arg;
@@ -481,15 +481,6 @@ static int ufpd_parse_list(const char *str, void *result,
 	int i, offset, count;
 	char buf[128];
 
-	count = 1;
-	for(i = 0; i < strlen(str); i++){
-		if(str[i] == ',')
-			count++;
-	}
-
-	if(count > max_count)
-		goto err_max_count;
-
 	offset = 0;
 	count = 0;
 	for(i = 0; i < strlen(str) + 1; i++){
@@ -497,6 +488,9 @@ static int ufpd_parse_list(const char *str, void *result,
 		case ',':
 		case '\0':
 			buf[offset] = '\0';
+
+			if(count >= max_count)
+				goto err_max_count;
 
 			if(sscanf(buf, format,
 			result + (size_elem * count)) < 1){
