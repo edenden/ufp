@@ -3,7 +3,7 @@
 
 #include "main.h"
 
-#define TAP_IFNAME "ixmap"
+#define TAP_IFNAME "ufp"
 
 struct tun_handle {
 	int		*queues;
@@ -21,11 +21,10 @@ struct tun_plane {
 	struct tun_port	*ports;
 };
 
-struct tun_handle *tun_open(struct ixmapfwd *ixmapfwd,
+struct tun_handle *tun_open(struct ufpd *ufpd,
 	unsigned int port_index);
-void tun_close(struct ixmapfwd *ixmapfwd, unsigned int port_index);
-struct tun_plane *tun_plane_alloc(struct ixmapfwd *ixmapfwd,
-	int core_id);
+void tun_close(struct ufpd *ufpd, unsigned int port_index);
+struct tun_plane *tun_plane_alloc(struct ufpd *ufpd);
 void tun_plane_release(struct tun_plane *plane, int num_ports);
 
 #endif /* _IXMAPFWD_TUN_H */

@@ -5,7 +5,7 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <stddef.h>
-#include <ixmap.h>
+#include <ufp.h>
 
 #include "linux/list.h"
 #include "main.h"
@@ -107,11 +107,11 @@ static void fib_delete_print(int family, void *prefix,
 }
 #endif
 
-struct fib *fib_alloc(struct ixmap_desc *desc)
+struct fib *fib_alloc(struct ufp_desc *desc)
 {
         struct fib *fib;
 
-	fib = ixmap_mem_alloc(desc, sizeof(struct fib));
+	fib = ufp_mem_alloc(desc, sizeof(struct fib));
 	if(!fib)
 		goto err_fib_alloc;
 
@@ -131,18 +131,18 @@ err_fib_alloc:
 void fib_release(struct fib *fib)
 {
 	lpm_delete_all(&fib->table);
-	ixmap_mem_free(fib);
+	ufp_mem_free(fib);
 	return;
 }
 
 int fib_route_update(struct fib *fib, int family, enum fib_type type,
 	void *prefix, unsigned int prefix_len, void *nexthop,
-	int port_index, int id, struct ixmap_desc *desc)
+	int port_index, int id, struct ufp_desc *desc)
 {
 	struct fib_entry *entry;
 	int ret;
 
-	entry = ixmap_mem_alloc(desc, sizeof(struct fib_entry));
+	entry = ufp_mem_alloc(desc, sizeof(struct fib_entry));
 	if(!entry)
 		goto err_alloc_entry;
 
@@ -180,7 +180,7 @@ int fib_route_update(struct fib *fib, int family, enum fib_type type,
 
 err_lpm_add:
 err_invalid_family:
-	ixmap_mem_free(entry);
+	ufp_mem_free(entry);
 err_alloc_entry:
 	return -1;
 }
@@ -262,6 +262,6 @@ static void fib_entry_put(void *ptr)
 	entry->refcount--;
 
 	if(!entry->refcount){
-		ixmap_mem_free(entry);
+		ufp_mem_free(entry);
 	}
 }

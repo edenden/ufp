@@ -1,6 +1,6 @@
-bin_PROGRAMS = ixmap
-ixmap_LDFLAGS = -L../lib -Wl,-rpath -Wl,$(libdir)
-ixmap_CFLAGS = -I../lib/include
-ixmap_DEPENDENCIES = ../lib/libixmap.la
-ixmap_SOURCES = main.c thread.c forward.c epoll.c netlink.c iftap.c fib.c neigh.c lpm.c hash.c
-ixmap_LDADD = -lpthread -lnuma -lixmap
+bin_PROGRAMS = ufp
+ufp_LDFLAGS = -L../lib -Wl,-rpath -Wl,$(libdir)
+ufp_CFLAGS = -I../lib/include
+ufp_DEPENDENCIES = ../lib/libufp.la
+ufp_SOURCES = main.c thread.c forward.c epoll.c netlink.c iftap.c fib.c neigh.c lpm.c hash.c
+ufp_LDADD = -lpthread -lufp

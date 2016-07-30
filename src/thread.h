@@ -2,16 +2,16 @@
 #define _IXMAPFWD_THREAD_H
 
 #include <pthread.h>
-#include <ixmap.h>
+#include <ufp.h>
 
 #include "iftap.h"
 #include "neigh.h"
 #include "fib.h"
 
-struct ixmapfwd_thread {
-	struct ixmap_plane	*plane;
-	struct ixmap_buf	*buf;
-	struct ixmap_desc	*desc;
+struct ufpd_thread {
+	struct ufp_plane	*plane;
+	struct ufp_buf	*buf;
+	struct ufp_desc	*desc;
 	struct neigh_table	**neigh_inet;
 	struct neigh_table	**neigh_inet6;
 	struct fib		*fib_inet;

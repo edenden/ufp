@@ -43,7 +43,7 @@ struct lpm_entry *lpm_lookup(struct lpm_table *table,
 	void *dst);
 int lpm_add(struct lpm_table *table, void *prefix,
 	unsigned int prefix_len, unsigned int id,
-	void *ptr, struct ixmap_desc *desc);
+	void *ptr, struct ufp_desc *desc);
 int lpm_delete(struct lpm_table *table, void *prefix,
 	unsigned int prefix_len, unsigned int id);
 void lpm_delete_all(struct lpm_table *table);

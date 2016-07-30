@@ -7,7 +7,6 @@
 #include <netinet/in.h>
 #include <linux/if_tun.h>
 #include <linux/if_arp.h>
-#include <numa.h>
 
 #include "main.h"
 #include "iftap.h"
@@ -18,7 +17,7 @@ static int tun_mtu(int fd, char *if_name, unsigned int mtu_frame);
 static int tun_up(int fd, char *if_name);
 static int tun_ifindex(int fd, char *if_name);
 
-struct tun_handle *tun_open(struct ixmapfwd *ixmapfwd,
+struct tun_handle *tun_open(struct ufpd *ufpd,
 	unsigned int port_index)
 {
 	struct tun_handle *tunh;
@@ -30,14 +29,14 @@ struct tun_handle *tun_open(struct ixmapfwd *ixmapfwd,
 
 	snprintf(if_name, sizeof(if_name), "%s%d",
 		TAP_IFNAME, port_index);
-	src_mac = ixmap_macaddr_default(ixmapfwd->ih_array[port_index]),
-	mtu_frame = ixmap_mtu_get(ixmapfwd->ih_array[port_index]);
+	src_mac = ufp_macaddr_default(ufpd->ih_array[port_index]),
+	mtu_frame = ufp_mtu_get(ufpd->ih_array[port_index]);
 
 	tunh = malloc(sizeof(struct tun_handle));
 	if(!tunh)
 		goto err_tunh_alloc;
 
-	tunh->queues = malloc(sizeof(int) * ixmapfwd->num_cores);
+	tunh->queues = malloc(sizeof(int) * ufpd->num_cores);
 	if(!tunh->queues)
 		goto err_queues_alloc;
 
@@ -46,7 +45,7 @@ struct tun_handle *tun_open(struct ixmapfwd *ixmapfwd,
 	if(sock < 0)
 		goto err_sock_open;
 
-	for(i = 0; i < ixmapfwd->num_cores; i++, queue_assigned++){
+	for(i = 0; i < ufpd->num_cores; i++, queue_assigned++){
 		tunh->queues[i] = open("/dev/net/tun", O_RDWR);
 		if(tunh->queues[i] < 0)
 			goto err_tun_open;
@@ -100,14 +99,14 @@ err_tunh_alloc:
 	return NULL;
 }
 
-void tun_close(struct ixmapfwd *ixmapfwd, unsigned int port_index)
+void tun_close(struct ufpd *ufpd, unsigned int port_index)
 {
 	struct tun_handle *tunh;
 	int i;
 
-	tunh = ixmapfwd->tunh_array[port_index];
+	tunh = ufpd->tunh_array[port_index];
 
-	for(i = 0; i < ixmapfwd->num_cores; i++){
+	for(i = 0; i < ufpd->num_cores; i++){
 		close(tunh->queues[i]);
 	}
 	free(tunh->queues);
@@ -224,26 +223,23 @@ err_tun_ioctl:
 	return -1;
 }
 
-struct tun_plane *tun_plane_alloc(struct ixmapfwd *ixmapfwd,
-	int core_id)
+struct tun_plane *tun_plane_alloc(struct ufpd *ufpd)
 {
 	struct tun_handle **tunh_array;
 	struct tun_plane *plane;
 	int i;
 
-	tunh_array = ixmapfwd->tunh_array;
+	tunh_array = ufpd->tunh_array;
 
-	plane = numa_alloc_onnode(sizeof(struct tun_plane),
-		numa_node_of_cpu(core_id));
+	plane = malloc(sizeof(struct tun_plane));
 	if(!plane)
 		goto err_alloc_plane;
 
-	plane->ports = numa_alloc_onnode(sizeof(struct tun_port) * ixmapfwd->num_ports,
-		numa_node_of_cpu(core_id));
+	plane->ports = malloc(sizeof(struct tun_port) * ufpd->num_ports);
 	if(!plane->ports)
 		goto err_alloc_ports;
 
-	for(i = 0; i < ixmapfwd->num_ports; i++){
+	for(i = 0; i < ufpd->num_ports; i++){
 		plane->ports[i].fd = tunh_array[i]->queues[core_id];
 		plane->ports[i].ifindex = tunh_array[i]->ifindex;
 		plane->ports[i].mtu_frame = tunh_array[i]->mtu_frame;
@@ -252,13 +248,15 @@ struct tun_plane *tun_plane_alloc(struct ixmapfwd *ixmapfwd,
 	return plane;
 
 err_alloc_ports:
-	numa_free(plane, sizeof(struct tun_plane));
+	free(plane);
 err_alloc_plane:
 	return NULL;
 }
 
 void tun_plane_release(struct tun_plane *plane, int num_ports)
 {
-	numa_free(plane->ports, sizeof(struct tun_port) * num_ports);
-	numa_free(plane, sizeof(struct tun_plane));
+	free(plane->ports);
+	free(plane);
+
+	return;
 }

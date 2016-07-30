@@ -6,7 +6,6 @@
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
 #include <sys/socket.h>
-#include <numa.h>
 
 #include "main.h"
 #include "epoll.h"
@@ -37,15 +36,13 @@ int epoll_del(int fd_ep, int fd)
 	return 0;
 }
 
-struct epoll_desc *epoll_desc_alloc_irq(struct ixmap_plane *plane,
-	unsigned int port_index, unsigned int core_id,
-	enum ixmap_irq_type type)
+struct epoll_desc *epoll_desc_alloc_irq(struct ufp_plane *plane,
+	unsigned int port_index, enum ufp_irq_type type)
 {
 	struct epoll_desc *ep_desc;
 	int ep_type;
 
-	ep_desc = numa_alloc_onnode(sizeof(struct epoll_desc),
-		numa_node_of_cpu(core_id));
+	ep_desc = malloc(sizeof(struct epoll_desc));
 	if(!ep_desc)
 		goto err_alloc_ep_desc;
 
@@ -61,33 +58,31 @@ struct epoll_desc *epoll_desc_alloc_irq(struct ixmap_plane *plane,
 		break;
 	}
 
-	ep_desc->fd		= ixmap_irq_fd(plane, port_index, type);
+	ep_desc->fd		= ufp_irq_fd(plane, port_index, type);
 	ep_desc->type		= ep_type;
 	ep_desc->port_index	= port_index;
-	ep_desc->data		= ixmap_irq_handle(plane, port_index, type);
+	ep_desc->data		= ufp_irq_handle(plane, port_index, type);
 
 	return ep_desc;
 
 err_invalid_type:
-	numa_free(ep_desc, sizeof(struct epoll_desc));
+	free(ep_desc);
 err_alloc_ep_desc:
 	return NULL;
 }
 
 void epoll_desc_release_irq(struct epoll_desc *ep_desc)
 {
-	numa_free(ep_desc, sizeof(struct epoll_desc));
+	free(ep_desc);
 	return;
 }
 
-struct epoll_desc *epoll_desc_alloc_signalfd(sigset_t *sigset,
-	unsigned int core_id)
+struct epoll_desc *epoll_desc_alloc_signalfd(sigset_t *sigset)
 {
 	struct epoll_desc *ep_desc;
 	int fd;
 
-	ep_desc = numa_alloc_onnode(sizeof(struct epoll_desc),
-		numa_node_of_cpu(core_id));
+	ep_desc = malloc(sizeof(struct epoll_desc));
 	if(!ep_desc)
 		goto err_alloc_ep_desc;
 
@@ -103,7 +98,7 @@ struct epoll_desc *epoll_desc_alloc_signalfd(sigset_t *sigset,
 	return ep_desc;
 
 err_open_signalfd:
-	numa_free(ep_desc, sizeof(struct epoll_desc));
+	free(ep_desc);
 err_alloc_ep_desc:
 	return NULL;
 }
@@ -111,17 +106,16 @@ err_alloc_ep_desc:
 void epoll_desc_release_signalfd(struct epoll_desc *ep_desc)
 {
 	close(ep_desc->fd);
-	numa_free(ep_desc, sizeof(struct epoll_desc));
+	free(ep_desc);
 	return;
 }
 
 struct epoll_desc *epoll_desc_alloc_tun(struct tun_plane *tun_plane,
-	unsigned int port_index, unsigned int core_id)
+	unsigned int port_index)
 {
 	struct epoll_desc *ep_desc;
 
-	ep_desc = numa_alloc_onnode(sizeof(struct epoll_desc),
-		numa_node_of_cpu(core_id));
+	ep_desc = malloc(sizeof(struct epoll_desc));
 	if(!ep_desc)
 		goto err_alloc_ep_desc;
 
@@ -137,18 +131,16 @@ err_alloc_ep_desc:
 
 void epoll_desc_release_tun(struct epoll_desc *ep_desc)
 {
-	numa_free(ep_desc, sizeof(struct epoll_desc));
+	free(ep_desc);
 	return;
 }
 
-struct epoll_desc *epoll_desc_alloc_netlink(struct sockaddr_nl *addr,
-	unsigned int core_id)
+struct epoll_desc *epoll_desc_alloc_netlink(struct sockaddr_nl *addr)
 {
 	struct epoll_desc *ep_desc;
 	int fd, ret;
 	
-	ep_desc = numa_alloc_onnode(sizeof(struct epoll_desc),
-		numa_node_of_cpu(core_id));
+	ep_desc = malloc(sizeof(struct epoll_desc));
 	if(!ep_desc)
 		goto err_alloc_ep_desc;
 
@@ -169,7 +161,7 @@ struct epoll_desc *epoll_desc_alloc_netlink(struct sockaddr_nl *addr,
 err_bind_netlink:
 	close(fd);
 err_open_netlink:
-	numa_free(ep_desc, sizeof(struct epoll_desc));
+	free(ep_desc);
 err_alloc_ep_desc:
 	return NULL;
 }
@@ -178,6 +170,6 @@ err_alloc_ep_desc:
 void epoll_desc_release_netlink(struct epoll_desc *ep_desc)
 {
 	close(ep_desc->fd);
-	numa_free(ep_desc, sizeof(struct epoll_desc));
+	free(ep_desc);
 	return;
 }

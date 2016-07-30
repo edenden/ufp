@@ -16,8 +16,7 @@
 #include <linux/rtnetlink.h>
 #include <stddef.h>
 #include <syslog.h>
-#include <numa.h>
-#include <ixmap.h>
+#include <ufp.h>
 
 #include "main.h"
 #include "thread.h"
@@ -25,23 +24,23 @@
 #include "epoll.h"
 #include "netlink.h"
 
-static int thread_wait(struct ixmapfwd_thread *thread,
+static int thread_wait(struct ufpd_thread *thread,
 	int fd_ep, uint8_t *read_buf, int read_size);
 static int thread_fd_prepare(struct list_head *ep_desc_head,
-	struct ixmapfwd_thread *thread);
+	struct ufpd_thread *thread);
 static void thread_fd_destroy(struct list_head *ep_desc_head,
 	int fd_ep);
-static void thread_print_result(struct ixmapfwd_thread *thread);
+static void thread_print_result(struct ufpd_thread *thread);
 
 void *thread_process_interrupt(void *data)
 {
-	struct ixmapfwd_thread	*thread = data;
+	struct ufpd_thread	*thread = data;
 	struct list_head	ep_desc_head;
 	uint8_t			*read_buf;
 	int			read_size, fd_ep, i, ret;
 	int			ports_assigned = 0;
 
-	ixmapfwd_log(LOG_INFO, "thread %d started", thread->index);
+	ufpd_log(LOG_INFO, "thread %d started", thread->index);
 	read_size = getpagesize();
 	INIT_LIST_HEAD(&ep_desc_head);
 
@@ -55,12 +54,12 @@ void *thread_process_interrupt(void *data)
 		goto err_fib_inet6_alloc;
 
 	/* Prepare Neighbor table */
-	thread->neigh_inet = ixmap_mem_alloc(thread->desc,
+	thread->neigh_inet = ufp_mem_alloc(thread->desc,
 		sizeof(struct neigh *) * thread->num_ports);
 	if(!thread->neigh_inet)
 		goto err_neigh_table_inet;
 	
-	thread->neigh_inet6 = ixmap_mem_alloc(thread->desc,
+	thread->neigh_inet6 = ufp_mem_alloc(thread->desc,
 		sizeof(struct neigh *) * thread->num_ports);
 	if(!thread->neigh_inet6)
 		goto err_neigh_table_inet6;
@@ -87,21 +86,20 @@ err_neigh_inet_alloc:
 	}
 
 	/* Prepare read buffer */
-	read_buf = numa_alloc_onnode(read_size,
-		numa_node_of_cpu(thread->index));
+	read_buf = malloc(read_size);
 	if(!read_buf)
 		goto err_alloc_read_buf;
 
 	/* Prepare each fd in epoll */
 	fd_ep = thread_fd_prepare(&ep_desc_head, thread);
 	if(fd_ep < 0){
-		ixmapfwd_log(LOG_ERR, "failed to epoll prepare");
+		ufpd_log(LOG_ERR, "failed to epoll prepare");
 		goto err_ixgbe_epoll_prepare;
 	}
 
 	/* Prepare initial RX buffer */
 	for(i = 0; i < thread->num_ports; i++){
-		ixmap_rx_assign(thread->plane, i, thread->buf);
+		ufp_rx_assign(thread->plane, i, thread->buf);
 	}
 
 	ret = thread_wait(thread, fd_ep, read_buf, read_size);
@@ -111,16 +109,16 @@ err_neigh_inet_alloc:
 err_wait:
 	thread_fd_destroy(&ep_desc_head, fd_ep);
 err_ixgbe_epoll_prepare:
-	numa_free(read_buf, read_size);
+	free(read_buf);
 err_alloc_read_buf:
 err_assign_ports:
 	for(i = 0; i < ports_assigned; i++){
 		neigh_release(thread->neigh_inet6[i]);
 		neigh_release(thread->neigh_inet[i]);
 	}
-	ixmap_mem_free(thread->neigh_inet6);
+	ufp_mem_free(thread->neigh_inet6);
 err_neigh_table_inet6:
-	ixmap_mem_free(thread->neigh_inet);
+	ufp_mem_free(thread->neigh_inet);
 err_neigh_table_inet:
 	fib_release(thread->fib_inet6);
 err_fib_inet6_alloc:
@@ -131,12 +129,12 @@ err_fib_inet_alloc:
 	return NULL;
 }
 
-static int thread_wait(struct ixmapfwd_thread *thread,
+static int thread_wait(struct ufpd_thread *thread,
 	int fd_ep, uint8_t *read_buf, int read_size)
 {
         struct epoll_desc *ep_desc;
         struct epoll_event events[EPOLL_MAXEVENTS];
-	struct ixmap_packet packet[IXMAP_RX_BUDGET];
+	struct ufp_packet packet[IXMAP_RX_BUDGET];
         int i, ret, num_fd;
         unsigned int port_index;
 
@@ -154,37 +152,37 @@ static int thread_wait(struct ixmapfwd_thread *thread,
 				port_index = ep_desc->port_index;
 
 				/* Rx descripter cleaning */
-				ret = ixmap_rx_clean(thread->plane, port_index,
+				ret = ufp_rx_clean(thread->plane, port_index,
 					thread->buf, packet);
 
 				forward_process(thread, port_index, packet, ret);
 
 				for(i = 0; i < thread->num_ports; i++){
-					ixmap_tx_xmit(thread->plane, i);
+					ufp_tx_xmit(thread->plane, i);
 				}
 
 				ret = read(ep_desc->fd, read_buf, read_size);
 				if(ret < 0)
 					goto err_read;
 
-				ixmap_irq_unmask_queues(thread->plane, port_index,
-					(struct ixmap_irq_handle *)ep_desc->data);
+				ufp_irq_unmask_queues(thread->plane, port_index,
+					(struct ufp_irq_handle *)ep_desc->data);
 				break;
 			case EPOLL_IRQ_TX:
 				port_index = ep_desc->port_index;
 
 				/* Tx descripter cleaning */
-				ixmap_tx_clean(thread->plane, port_index, thread->buf);
+				ufp_tx_clean(thread->plane, port_index, thread->buf);
 				for(i = 0; i < thread->num_ports; i++){
-					ixmap_rx_assign(thread->plane, i, thread->buf);
+					ufp_rx_assign(thread->plane, i, thread->buf);
 				}
 
 				ret = read(ep_desc->fd, read_buf, read_size);
 				if(ret < 0)
 					goto err_read;
 
-				ixmap_irq_unmask_queues(thread->plane, port_index,
-					(struct ixmap_irq_handle *)ep_desc->data);
+				ufp_irq_unmask_queues(thread->plane, port_index,
+					(struct ufp_irq_handle *)ep_desc->data);
 				break;
 			case EPOLL_TUN:
 				port_index = ep_desc->port_index;
@@ -195,7 +193,7 @@ static int thread_wait(struct ixmapfwd_thread *thread,
 
 				forward_process_tun(thread, port_index, read_buf, ret);
 				for(i = 0; i < thread->num_ports; i++){
-					ixmap_tx_xmit(thread->plane, i);
+					ufp_tx_xmit(thread->plane, i);
 				}
 				break;
 			case EPOLL_NETLINK:
@@ -226,7 +224,7 @@ err_read:
 }
 
 static int thread_fd_prepare(struct list_head *ep_desc_head,
-	struct ixmapfwd_thread *thread)
+	struct ufpd_thread *thread)
 {
 	struct epoll_desc 	*ep_desc;
 	sigset_t		sigset;
@@ -357,20 +355,20 @@ static void thread_fd_destroy(struct list_head *ep_desc_head,
 	return;
 }
 
-static void thread_print_result(struct ixmapfwd_thread *thread)
+static void thread_print_result(struct ufpd_thread *thread)
 {
 	int i;
 
 	for(i = 0; i < thread->num_ports; i++){
-		ixmapfwd_log(LOG_INFO, "thread %d port %d statictis:", thread->index, i);
-		ixmapfwd_log(LOG_INFO, "  Rx allocation failed = %lu",
-			ixmap_count_rx_alloc_failed(thread->plane, i));
-		ixmapfwd_log(LOG_INFO, "  Rx packetes received = %lu",
-			ixmap_count_rx_clean_total(thread->plane, i));
-		ixmapfwd_log(LOG_INFO, "  Tx xmit failed = %lu",
-			ixmap_count_tx_xmit_failed(thread->plane, i));
-		ixmapfwd_log(LOG_INFO, "  Tx packetes transmitted = %lu",
-			ixmap_count_tx_clean_total(thread->plane, i));
+		ufpd_log(LOG_INFO, "thread %d port %d statictis:", thread->index, i);
+		ufpd_log(LOG_INFO, "  Rx allocation failed = %lu",
+			ufp_count_rx_alloc_failed(thread->plane, i));
+		ufpd_log(LOG_INFO, "  Rx packetes received = %lu",
+			ufp_count_rx_clean_total(thread->plane, i));
+		ufpd_log(LOG_INFO, "  Tx xmit failed = %lu",
+			ufp_count_tx_xmit_failed(thread->plane, i));
+		ufpd_log(LOG_INFO, "  Tx packetes transmitted = %lu",
+			ufp_count_tx_clean_total(thread->plane, i));
 	}
 	return;
 }

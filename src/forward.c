@@ -7,21 +7,21 @@
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 #include <stddef.h>
-#include <ixmap.h>
+#include <ufp.h>
 
 #include "main.h"
 #include "forward.h"
 #include "thread.h"
 
-static int forward_arp_process(struct ixmapfwd_thread *thread,
-	unsigned int port_index, struct ixmap_packet *packet);
-static int forward_ip_process(struct ixmapfwd_thread *thread,
-	unsigned int port_index, struct ixmap_packet *packet);
-static int forward_ip6_process(struct ixmapfwd_thread *thread,
-	unsigned int port_index, struct ixmap_packet *packet);
+static int forward_arp_process(struct ufpd_thread *thread,
+	unsigned int port_index, struct ufp_packet *packet);
+static int forward_ip_process(struct ufpd_thread *thread,
+	unsigned int port_index, struct ufp_packet *packet);
+static int forward_ip6_process(struct ufpd_thread *thread,
+	unsigned int port_index, struct ufp_packet *packet);
 
 #ifdef DEBUG
-void forward_dump(struct ixmap_packet *packet)
+void forward_dump(struct ufp_packet *packet)
 {
 	struct ethhdr *eth;
 
@@ -39,8 +39,8 @@ void forward_dump(struct ixmap_packet *packet)
 }
 #endif
 
-void forward_process(struct ixmapfwd_thread *thread, unsigned int port_index,
-	struct ixmap_packet *packet, int num_packet)
+void forward_process(struct ufpd_thread *thread, unsigned int port_index,
+	struct ufp_packet *packet, int num_packet)
 {
 	struct ethhdr *eth;
 	int i, ret;
@@ -84,31 +84,31 @@ void forward_process(struct ixmapfwd_thread *thread, unsigned int port_index,
 		if(ret < 0)
 			goto packet_drop;
 
-		ixmap_tx_assign(thread->plane, ret, thread->buf,
+		ufp_tx_assign(thread->plane, ret, thread->buf,
 			&packet[i]);
 
 packet_drop:
-		ixmap_slot_release(thread->buf, packet[i].slot_index);
+		ufp_slot_release(thread->buf, packet[i].slot_index);
 	}
 
 	return;
 }
 
-void forward_process_tun(struct ixmapfwd_thread *thread, unsigned int port_index,
+void forward_process_tun(struct ufpd_thread *thread, unsigned int port_index,
 	uint8_t *read_buf, unsigned int read_size)
 {
-	struct ixmap_packet packet;
+	struct ufp_packet packet;
 
-	if(read_size > ixmap_slot_size(thread->buf))
+	if(read_size > ufp_slot_size(thread->buf))
 		goto err_slot_size;
 
-	packet.slot_index = ixmap_slot_assign(thread->buf,
+	packet.slot_index = ufp_slot_assign(thread->buf,
 		thread->plane, port_index);
 	if(packet.slot_index < 0){
 		goto err_slot_assign;
 	}
 
-	packet.slot_buf = ixmap_slot_addr_virt(thread->buf, packet.slot_index);
+	packet.slot_buf = ufp_slot_addr_virt(thread->buf, packet.slot_index);
 	memcpy(packet.slot_buf, read_buf, read_size);
 	packet.slot_size = read_size;
 
@@ -116,7 +116,7 @@ void forward_process_tun(struct ixmapfwd_thread *thread, unsigned int port_index
 	forward_dump(&packet);
 #endif
 
-	ixmap_tx_assign(thread->plane, port_index, thread->buf, &packet);
+	ufp_tx_assign(thread->plane, port_index, thread->buf, &packet);
 	return;
 
 err_slot_assign:
@@ -124,8 +124,8 @@ err_slot_size:
 	return;
 }
 
-static int forward_arp_process(struct ixmapfwd_thread *thread,
-	unsigned int port_index, struct ixmap_packet *packet)
+static int forward_arp_process(struct ufpd_thread *thread,
+	unsigned int port_index, struct ufp_packet *packet)
 {
 	int fd, ret;
 
@@ -140,8 +140,8 @@ err_write_tun:
 	return -1;
 }
 
-static int forward_ip_process(struct ixmapfwd_thread *thread,
-	unsigned int port_index, struct ixmap_packet *packet)
+static int forward_ip_process(struct ufpd_thread *thread,
+	unsigned int port_index, struct ufp_packet *packet)
 {
 	struct ethhdr		*eth;
 	struct iphdr		*ip;
@@ -193,7 +193,7 @@ static int forward_ip_process(struct ixmapfwd_thread *thread,
 	ip->check = check + ((check >= 0xFFFF) ? 1 : 0);
 
 	dst_mac = neigh_entry->dst_mac;
-	src_mac = ixmap_macaddr(thread->plane, fib_entry->port_index);
+	src_mac = ufp_macaddr(thread->plane, fib_entry->port_index);
 	memcpy(eth->h_dest, dst_mac, ETH_ALEN);
 	memcpy(eth->h_source, src_mac, ETH_ALEN);
 
@@ -207,8 +207,8 @@ packet_drop:
 	return -1;
 }
 
-static int forward_ip6_process(struct ixmapfwd_thread *thread,
-	unsigned int port_index, struct ixmap_packet *packet)
+static int forward_ip6_process(struct ufpd_thread *thread,
+	unsigned int port_index, struct ufp_packet *packet)
 {
 	struct ethhdr		*eth;
 	struct ip6_hdr		*ip6;
@@ -258,7 +258,7 @@ static int forward_ip6_process(struct ixmapfwd_thread *thread,
 	ip6->ip6_hlim--;
 
 	dst_mac = neigh_entry->dst_mac;
-	src_mac = ixmap_macaddr(thread->plane, fib_entry->port_index);
+	src_mac = ufp_macaddr(thread->plane, fib_entry->port_index);
 	memcpy(eth->h_dest, dst_mac, ETH_ALEN);
 	memcpy(eth->h_source, src_mac, ETH_ALEN);
 

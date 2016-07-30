@@ -2,7 +2,7 @@
 #define _IXMAPFWD_MAIN_H
 
 #include <pthread.h>
-#include <ixmap.h>
+#include <ufp.h>
 #include <config.h>
 
 #define min(x, y) ({				\
@@ -26,13 +26,13 @@
 #define prefetch(x)	__builtin_prefetch(x, 0)
 #define prefetchw(x)	__builtin_prefetch(x, 1)
 
-#define PROCESS_NAME "ixmap"
+#define PROCESS_NAME "ufp"
 #define SYSLOG_FACILITY LOG_DAEMON
 #define IXMAP_RX_BUDGET 1024
 #define IXMAP_TX_BUDGET 4096
 
-struct ixmapfwd {
-	struct ixmap_handle	**ih_array;
+struct ufpd {
+	struct ufp_handle	**ih_array;
 	struct tun_handle	**tunh_array;
 	unsigned int		buf_size;
 	unsigned int		num_cores;
@@ -43,7 +43,7 @@ struct ixmapfwd {
 	unsigned int		intr_rate;
 };
 
-void ixmapfwd_log(int level, char *fmt, ...);
+void ufpd_log(int level, char *fmt, ...);
 extern char *optarg;
 
 #endif /* _IXMAPFWD_MAIN_H */

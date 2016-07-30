@@ -15,7 +15,7 @@ static struct hlist_head *_lpm_lookup(void *dst,
 	struct lpm_node *parent, unsigned int offset);
 static int _lpm_add(struct lpm_table *table, void *prefix,
 	unsigned int prefix_len, unsigned int id,
-	void *ptr, struct ixmap_desc *desc,
+	void *ptr, struct ufp_desc *desc,
 	struct lpm_node *parent, unsigned int offset);
 static int _lpm_delete(struct lpm_table *table, void *prefix,
 	unsigned int prefix_len, unsigned int id,
@@ -115,7 +115,7 @@ static struct hlist_head *_lpm_lookup(void *dst,
 
 int lpm_add(struct lpm_table *table, void *prefix,
 	unsigned int prefix_len, unsigned int id,
-	void *ptr, struct ixmap_desc *desc)
+	void *ptr, struct ufp_desc *desc)
 {
 	unsigned int index;
 	struct lpm_node *node;
@@ -139,7 +139,7 @@ int lpm_add(struct lpm_table *table, void *prefix,
 		for(i = 0; i < range; i++, entry_allocated++){
 			node = &table->node[index | i];
 
-			entry = ixmap_mem_alloc(desc, sizeof(struct lpm_entry));
+			entry = ufp_mem_alloc(desc, sizeof(struct lpm_entry));
 			if(!entry)
 				goto err_lpm_add_self;
 
@@ -152,7 +152,7 @@ int lpm_add(struct lpm_table *table, void *prefix,
 
 			continue;
 err_entry_insert:
-			ixmap_mem_free(entry);
+			ufp_mem_free(entry);
 			goto err_lpm_add_self;
 		}
 	}
@@ -170,7 +170,7 @@ err_lpm_add:
 
 static int _lpm_add(struct lpm_table *table, void *prefix,
 	unsigned int prefix_len, unsigned int id,
-	void *ptr, struct ixmap_desc *desc,
+	void *ptr, struct ufp_desc *desc,
 	struct lpm_node *parent, unsigned int offset)
 {
 	struct lpm_node *node;
@@ -180,7 +180,7 @@ static int _lpm_add(struct lpm_table *table, void *prefix,
 	int i, ret, entry_allocated = 0;
 
 	if(!parent->next_table){
-		parent->next_table = ixmap_mem_alloc(desc,
+		parent->next_table = ufp_mem_alloc(desc,
 			sizeof(struct lpm_node) * TABLE_SIZE_8);
 		if(!parent->next_table)
 			goto err_table_alloc;
@@ -207,7 +207,7 @@ static int _lpm_add(struct lpm_table *table, void *prefix,
 		for(i = 0; i < range; i++){
 			node = &parent->next_table[index | i];
 
-			entry = ixmap_mem_alloc(desc, sizeof(struct lpm_entry));
+			entry = ufp_mem_alloc(desc, sizeof(struct lpm_entry));
 			if(!entry)
 				goto err_lpm_add_self;
 
@@ -220,7 +220,7 @@ static int _lpm_add(struct lpm_table *table, void *prefix,
 
 			continue;
 err_entry_insert:
-			ixmap_mem_free(entry);
+			ufp_mem_free(entry);
 			goto err_lpm_add_self;
 		}
 	}
@@ -239,7 +239,7 @@ err_lpm_add:
 			goto err_table_alloc;
 		}
 	}
-	ixmap_mem_free(parent->next_table);
+	ufp_mem_free(parent->next_table);
 	parent->next_table = NULL;
 err_table_alloc:
         return -1;
@@ -318,7 +318,7 @@ static int _lpm_delete(struct lpm_table *table, void *prefix,
 		}
 	}
 
-	ixmap_mem_free(parent->next_table);
+	ufp_mem_free(parent->next_table);
 	parent->next_table = NULL;
 
 out:
@@ -360,7 +360,7 @@ static void _lpm_delete_all(struct lpm_table *table,
 		}
 	}
 
-	ixmap_mem_free(parent->next_table);
+	ufp_mem_free(parent->next_table);
 	parent->next_table = NULL;
 
 out:
@@ -471,7 +471,7 @@ static int lpm_entry_delete(struct lpm_table *table, struct hlist_head *head,
 		if(!table->entry_identify(entry_lpm->ptr, id, prefix_len)){
 			hlist_del(&entry_lpm->list);
 			table->entry_put(entry_lpm->ptr);
-			ixmap_mem_free(entry_lpm);
+			ufp_mem_free(entry_lpm);
 
 			return 0;
 		}
@@ -488,7 +488,7 @@ static void lpm_entry_delete_all(struct lpm_table *table, struct hlist_head *hea
 	hlist_for_each_entry_safe(entry_lpm, list_n, head, list){
 		hlist_del(&entry_lpm->list);
 		table->entry_put(entry_lpm->ptr);
-		ixmap_mem_free(entry_lpm);
+		ufp_mem_free(entry_lpm);
 	}
 
 	return;

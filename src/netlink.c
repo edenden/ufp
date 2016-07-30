@@ -16,10 +16,10 @@
 #include "neigh.h"
 #include "iftap.h"
 
-static void netlink_route(struct ixmapfwd_thread *thread, struct nlmsghdr *nlh);
-static void netlink_neigh(struct ixmapfwd_thread *thread, struct nlmsghdr *nlh);
+static void netlink_route(struct ufpd_thread *thread, struct nlmsghdr *nlh);
+static void netlink_neigh(struct ufpd_thread *thread, struct nlmsghdr *nlh);
 
-void netlink_process(struct ixmapfwd_thread *thread,
+void netlink_process(struct ufpd_thread *thread,
 	uint8_t *read_buf, int read_size)
 {
 	struct nlmsghdr *nlh;
@@ -37,7 +37,7 @@ void netlink_process(struct ixmapfwd_thread *thread,
 			netlink_neigh(thread, nlh);
 			break;
 		default:
-			ixmapfwd_log(LOG_ERR, "unknown type netlink message");
+			ufpd_log(LOG_ERR, "unknown type netlink message");
 			break;
 		}
 
@@ -47,7 +47,7 @@ void netlink_process(struct ixmapfwd_thread *thread,
 	return;
 }
 
-static void netlink_route(struct ixmapfwd_thread *thread, struct nlmsghdr *nlh)
+static void netlink_route(struct ufpd_thread *thread, struct nlmsghdr *nlh)
 {
 	struct rtmsg *route_entry;
 	struct rtattr *route_attr;
@@ -130,7 +130,7 @@ out:
 	return;
 }
 
-static void netlink_neigh(struct ixmapfwd_thread *thread, struct nlmsghdr *nlh)
+static void netlink_neigh(struct ufpd_thread *thread, struct nlmsghdr *nlh)
 {
 	struct ndmsg *neigh_entry;
 	struct rtattr *route_attr;

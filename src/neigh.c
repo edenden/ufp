@@ -5,7 +5,7 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <stddef.h>
-#include <ixmap.h>
+#include <ufp.h>
 
 #include "main.h"
 #include "neigh.h"
@@ -86,11 +86,11 @@ static void neigh_delete_print(int family,
 }
 #endif
 
-struct neigh_table *neigh_alloc(struct ixmap_desc *desc, int family)
+struct neigh_table *neigh_alloc(struct ufp_desc *desc, int family)
 {
 	struct neigh_table *neigh;
 
-	neigh = ixmap_mem_alloc(desc, sizeof(struct neigh_table));
+	neigh = ufp_mem_alloc(desc, sizeof(struct neigh_table));
 	if(!neigh)
 		goto err_neigh_alloc;
 
@@ -118,7 +118,7 @@ struct neigh_table *neigh_alloc(struct ixmap_desc *desc, int family)
 	return neigh;
 
 err_invalid_family:
-	ixmap_mem_free(neigh);
+	ufp_mem_free(neigh);
 err_neigh_alloc:
 	return NULL;
 }
@@ -126,7 +126,7 @@ err_neigh_alloc:
 void neigh_release(struct neigh_table *neigh)
 {
 	hash_delete_all(&neigh->table);
-	ixmap_mem_free(neigh);
+	ufp_mem_free(neigh);
 	return;
 }
 
@@ -135,7 +135,7 @@ static void neigh_entry_delete(struct hash_entry *entry)
 	struct neigh_entry *neigh_entry;
 
 	neigh_entry = hash_entry(entry, struct neigh_entry, hash);
-	ixmap_mem_free(neigh_entry);
+	ufp_mem_free(neigh_entry);
 	return;
 }
 
@@ -170,12 +170,12 @@ static int neigh_key_compare_v6(void *key_tgt, void *key_ent)
 }
 
 int neigh_add(struct neigh_table *neigh, int family,
-	void *dst_addr, void *mac_addr, struct ixmap_desc *desc) 
+	void *dst_addr, void *mac_addr, struct ufp_desc *desc) 
 {
 	struct neigh_entry *neigh_entry;
 	int ret;
 
-	neigh_entry = ixmap_mem_alloc(desc, sizeof(struct neigh_entry));
+	neigh_entry = ufp_mem_alloc(desc, sizeof(struct neigh_entry));
 	if(!neigh_entry)
 		goto err_alloc_entry;
 
@@ -204,7 +204,7 @@ int neigh_add(struct neigh_table *neigh, int family,
 
 err_hash_add:
 err_invalid_family:
-	ixmap_mem_free(neigh_entry);
+	ufp_mem_free(neigh_entry);
 err_alloc_entry:
 	return -1;
 }
