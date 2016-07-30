@@ -20,6 +20,8 @@
 static int ufp_dma_map(struct ufp_handle *ih, void *addr_virt,
 	unsigned long *addr_dma, unsigned long size);
 static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma);
+static struct ufp_ops *ufp_ops_alloc(uint16_t device_id);
+static void ufp_ops_release(struct ufp_ops *ops);
 static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 	unsigned int core_id, enum ufp_irq_type type);
 static void ufp_irq_close(struct ufp_irq_handle *irqh);
@@ -388,7 +390,7 @@ static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma)
 	return 0;
 }
 
-struct ufp_ops *ufp_ops_alloc(uint16_t device_id)
+static struct ufp_ops *ufp_ops_alloc(uint16_t device_id)
 {
 	struct ufp_ops *ops;
 	int err;
@@ -421,7 +423,7 @@ err_alloc_ops:
 	return NULL;
 }
 
-void ufp_ops_release(struct ufp_ops *ops)
+static void ufp_ops_release(struct ufp_ops *ops)
 {
 	switch(ops->device_id){
 	case IXGBE_DEV_ID_82599_VF:
