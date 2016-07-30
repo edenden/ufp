@@ -24,6 +24,11 @@ unsigned int ufp_mtu_get(struct ufp_handle *ih)
 	return ih->mtu_frame;
 }
 
+char *ufp_ifname_get(struct ufp_handle *ih)
+{
+	return ih->ifname;
+}
+
 uint8_t *ufp_macaddr(struct ufp_plane *plane,
 	unsigned int port_index)
 {

@@ -3,8 +3,6 @@
 
 #include "main.h"
 
-#define TAP_IFNAME "ufp"
-
 struct tun_handle {
 	int		*queues;
         unsigned int	ifindex;

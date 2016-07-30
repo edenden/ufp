@@ -68,6 +68,7 @@ inline unsigned int ufp_slot_size(struct ufp_buf *buf);
 unsigned int ufp_bufsize_get(struct ufp_handle *ih);
 uint8_t *ufp_macaddr_default(struct ufp_handle *ih);
 unsigned int ufp_mtu_get(struct ufp_handle *ih);
+char *ufp_ifname_get(struct ufp_handle *ih);
 uint8_t *ufp_macaddr(struct ufp_plane *plane,
 	unsigned int port_index);
 int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_index,

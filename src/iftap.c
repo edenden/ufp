@@ -25,10 +25,9 @@ struct tun_handle *tun_open(struct ufpd *ufpd,
 	unsigned int queue_assigned = 0;
 	uint8_t *src_mac;
 	unsigned int mtu_frame;
-	char if_name[IFNAMSIZ];
+	const char *if_name;
 
-	snprintf(if_name, sizeof(if_name), "%s%d",
-		TAP_IFNAME, port_index);
+	if_name = ufp_ifname_get(ufpd->ih_array[port_index]);
 	src_mac = ufp_macaddr_default(ufpd->ih_array[port_index]),
 	mtu_frame = ufp_mtu_get(ufpd->ih_array[port_index]);
 
