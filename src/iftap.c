@@ -11,11 +11,11 @@
 #include "main.h"
 #include "iftap.h"
 
-static int tun_assign(int fd, char *if_name);
-static int tun_mac(int fd, char *if_name, uint8_t *src_mac);
-static int tun_mtu(int fd, char *if_name, unsigned int mtu_frame);
-static int tun_up(int fd, char *if_name);
-static int tun_ifindex(int fd, char *if_name);
+static int tun_assign(int fd, const char *if_name);
+static int tun_mac(int fd, const char *if_name, void *src_mac);
+static int tun_mtu(int fd, const char *if_name, unsigned int mtu_frame);
+static int tun_up(int fd, const char *if_name);
+static int tun_ifindex(int fd, const char *if_name);
 
 struct tun_handle *tun_open(struct ufpd *ufpd,
 	unsigned int port_index)
@@ -23,7 +23,7 @@ struct tun_handle *tun_open(struct ufpd *ufpd,
 	struct tun_handle *tunh;
 	int sock, ret, i;
 	unsigned int queue_assigned = 0;
-	uint8_t *src_mac;
+	void *src_mac;
 	unsigned int mtu_frame;
 	const char *if_name;
 
@@ -35,7 +35,7 @@ struct tun_handle *tun_open(struct ufpd *ufpd,
 	if(!tunh)
 		goto err_tunh_alloc;
 
-	tunh->queues = malloc(sizeof(int) * ufpd->num_cores);
+	tunh->queues = malloc(sizeof(int) * ufpd->num_threads);
 	if(!tunh->queues)
 		goto err_queues_alloc;
 
@@ -44,7 +44,7 @@ struct tun_handle *tun_open(struct ufpd *ufpd,
 	if(sock < 0)
 		goto err_sock_open;
 
-	for(i = 0; i < ufpd->num_cores; i++, queue_assigned++){
+	for(i = 0; i < ufpd->num_threads; i++, queue_assigned++){
 		tunh->queues[i] = open("/dev/net/tun", O_RDWR);
 		if(tunh->queues[i] < 0)
 			goto err_tun_open;
@@ -105,7 +105,7 @@ void tun_close(struct ufpd *ufpd, unsigned int port_index)
 
 	tunh = ufpd->tunh_array[port_index];
 
-	for(i = 0; i < ufpd->num_cores; i++){
+	for(i = 0; i < ufpd->num_threads; i++){
 		close(tunh->queues[i]);
 	}
 	free(tunh->queues);
@@ -113,7 +113,7 @@ void tun_close(struct ufpd *ufpd, unsigned int port_index)
 	return;
 }
 
-static int tun_assign(int fd, char *if_name)
+static int tun_assign(int fd, const char *if_name)
 {
 	struct ifreq ifr;
 	int ret;
@@ -135,7 +135,7 @@ err_tun_ioctl:
 	return -1;
 }
 
-static int tun_mac(int fd, char *if_name, uint8_t *src_mac)
+static int tun_mac(int fd, const char *if_name, void *src_mac)
 {
 	struct ifreq ifr;
 	int ret;
@@ -158,7 +158,7 @@ err_tun_ioctl:
 	return -1;
 }
 
-static int tun_mtu(int fd, char *if_name, unsigned int mtu_frame)
+static int tun_mtu(int fd, const char *if_name, unsigned int mtu_frame)
 {
 	struct ifreq ifr;
 	int ret;
@@ -180,7 +180,7 @@ err_tun_ioctl:
 	return -1;
 }
 
-static int tun_up(int fd, char *if_name)
+static int tun_up(int fd, const char *if_name)
 {
 	struct ifreq ifr;
 	int ret;
@@ -202,7 +202,7 @@ err_tun_ioctl:
 	return -1;
 }
 
-static int tun_ifindex(int fd, char *if_name)
+static int tun_ifindex(int fd, const char *if_name)
 {
 	struct ifreq ifr;
 	int ret;

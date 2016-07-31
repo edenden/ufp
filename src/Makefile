@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -O2 -g -I../lib/include/
-LDFLAGS = 
-TARGET = ufp
+LDFLAGS = -lpthread -lufp
+TARGET = ufpd
 
 SRCS = main.c thread.c epoll.c fib.c forward.c \
 hash.c iftap.c lpm.c neigh.c netlink.c

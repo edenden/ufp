@@ -14,9 +14,12 @@ struct ufp_packet {
         unsigned int            flag;
 };
 
+#define UFP_PACKET_ERROR	0x00000001
+#define UFP_PACKET_NOTEOP	0x00000002
+
 enum ufp_irq_type {
-        IXMAP_IRQ_RX = 0,
-        IXMAP_IRQ_TX,
+	UFP_IRQ_RX = 0,
+	UFP_IRQ_TX,
 };
 
 /* MAIN */
@@ -62,14 +65,16 @@ inline int ufp_slot_assign(struct ufp_buf *buf,
 	struct ufp_plane *plane, unsigned int port_index);
 inline void ufp_slot_release(struct ufp_buf *buf,
 	int slot_index);
+inline void *ufp_slot_addr_virt(struct ufp_buf *buf,
+	uint16_t slot_index);
 inline unsigned int ufp_slot_size(struct ufp_buf *buf);
 
 /* API */
 unsigned int ufp_bufsize_get(struct ufp_handle *ih);
-uint8_t *ufp_macaddr_default(struct ufp_handle *ih);
+void *ufp_macaddr_default(struct ufp_handle *ih);
 unsigned int ufp_mtu_get(struct ufp_handle *ih);
 char *ufp_ifname_get(struct ufp_handle *ih);
-uint8_t *ufp_macaddr(struct ufp_plane *plane,
+void *ufp_macaddr(struct ufp_plane *plane,
 	unsigned int port_index);
 int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_index,
 	enum ufp_irq_type type);

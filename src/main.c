@@ -30,7 +30,7 @@ static int ufpd_set_signal(sigset_t *sigset);
 static int ufpd_set_mempolicy(unsigned int node);
 static int ufpd_parse_range(const char *str, char *result,
 	int max_len);
-static int ufpd_parse_list(const char *str, void **result,
+static int ufpd_parse_list(const char *str, void *result,
 	int size_elem, const char *format, int max_count);
 
 char *optarg;
@@ -70,7 +70,7 @@ int main(int argc, char **argv)
 	ufpd.num_ports		= 0;
 	ufpd.promisc		= 0;
 	ufpd.mtu_frame		= 0; /* MTU=1522 is used by default. */
-	ufpd.intr_rate		= IXGBE_20K_ITR;
+	ufpd.intr_rate		= 200; /* IXGBE_20K_ITR */
 	ufpd.buf_count		= 8192; /* number of per port packet buffer */
 
 	while ((opt = getopt(argc, argv, "c:p:n:m:b:ah")) != -1) {
@@ -83,8 +83,8 @@ int main(int argc, char **argv)
 				goto err_arg;
 			}
 
-			ufpd.num_threads = ufpd_parse_list(list_str, ufpd.cores,
-				sizeof(unsigned int), "%u", MAX_CORES);
+			ufpd.num_threads = ufpd_parse_list(strbuf, ufpd.cores,
+				sizeof(unsigned int), "%u", UFP_MAX_CORES);
 			if(ufpd.num_threads < 0){
 				printf("Invalid CPU cores to use\n");
 				ret = -1;
@@ -93,7 +93,7 @@ int main(int argc, char **argv)
 			break;
 		case 'p':
 			ufpd.num_ports = ufpd_parse_list(optarg, ufpd.ifnames,
-				IFNAMSIZ, "%s", MAX_IFS);
+				IFNAMSIZ, "%s", UFP_MAX_IFS);
 			if(ufpd.num_ports < 0){
 				printf("Invalid Interfaces to use\n");
 				ret = -1;
@@ -174,7 +174,7 @@ int main(int argc, char **argv)
 
 	for(i = 0; i < ufpd.num_ports; i++, ports_assigned++){
 		ufpd.ih_array[i] = ufp_open(&ufpd.ifnames[i * IFNAMSIZ],
-			ufpd.num_threads, IXGBE_MAX_RXD, IXGBE_MAX_TXD);
+			ufpd.num_threads, 4096, 4096);
 		if(!ufpd.ih_array[i]){
 			ufpd_log(LOG_ERR, "failed to ufp_open, idx = %d", i);
 			ret = -1;
@@ -477,7 +477,6 @@ err_parse:
 static int ufpd_parse_list(const char *str, void *result,
 	int size_elem, const char *format, int max_count)
 {
-	void *ptr;
 	int i, offset, count;
 	char buf[128];
 

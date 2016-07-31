@@ -147,7 +147,7 @@ static int forward_ip_process(struct ufpd_thread *thread,
 	struct iphdr		*ip;
 	struct fib_entry	*fib_entry;
 	struct neigh_entry	*neigh_entry;
-	uint8_t			*dst_mac, *src_mac;
+	void			*dst_mac, *src_mac;
 	uint32_t		check;
 	int			fd, ret;
 
@@ -214,7 +214,7 @@ static int forward_ip6_process(struct ufpd_thread *thread,
 	struct ip6_hdr		*ip6;
 	struct fib_entry	*fib_entry;
 	struct neigh_entry	*neigh_entry;
-	uint8_t			*dst_mac, *src_mac;
+	void			*dst_mac, *src_mac;
 	int			fd, ret;
 
 	eth = (struct ethhdr *)packet->slot_buf;

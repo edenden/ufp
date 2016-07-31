@@ -1,8 +1,9 @@
 #ifndef _UFPD_MAIN_H
 #define _UFPD_MAIN_H
 
-#include <pthread.h>
 #include <ufp.h>
+#include <sys/socket.h>
+#include <linux/if.h>
 /*#include <config.h>*/
 
 #define min(x, y) ({				\
@@ -30,18 +31,18 @@
 #define SYSLOG_FACILITY LOG_DAEMON
 #define UFP_RX_BUDGET 1024
 #define UFP_TX_BUDGET 4096
-#define MAX_CORES 16
-#define MAX_IFS 8
-#define MAX_IFNAMESIZ (MAX_IFS * IFNAMESIZ)
+#define UFP_MAX_CORES 16
+#define UFP_MAX_IFS 8
+#define UFP_MAX_IFNAMSIZ (UFP_MAX_IFS * IFNAMSIZ)
 
 struct ufpd {
 	struct ufp_handle	**ih_array;
 	struct tun_handle	**tunh_array;
 	unsigned int		buf_size;
 	unsigned int		num_threads;
-	unsigned int		cores[MAX_CORES];
+	unsigned int		cores[UFP_MAX_CORES];
 	unsigned int		num_ports;
-	char			ifnames[MAX_IFNAMESIZ];
+	char			ifnames[UFP_MAX_IFNAMSIZ];
 	unsigned int		promisc;
 	unsigned int		mtu_frame;
 	unsigned int		buf_count;

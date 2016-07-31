@@ -14,7 +14,7 @@ unsigned int ufp_bufsize_get(struct ufp_handle *ih)
 	return ih->buf_size;
 }
 
-uint8_t *ufp_macaddr_default(struct ufp_handle *ih)
+void *ufp_macaddr_default(struct ufp_handle *ih)
 {
 	return ih->mac_addr;
 }
@@ -29,7 +29,7 @@ char *ufp_ifname_get(struct ufp_handle *ih)
 	return ih->ifname;
 }
 
-uint8_t *ufp_macaddr(struct ufp_plane *plane,
+void *ufp_macaddr(struct ufp_plane *plane,
 	unsigned int port_index)
 {
 	return plane->ports[port_index].mac_addr;
