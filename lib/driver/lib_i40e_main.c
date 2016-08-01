@@ -193,18 +193,6 @@ int i40e_init_shared_code(struct ufp_handle *ih)
 
 	hw->phy.get_link_info = true;
 
-	/* Determine port number and PF number*/
-	port = (ufp_read_reg(hw, I40E_PFGEN_PORTNUM) & I40E_PFGEN_PORTNUM_PORT_NUM_MASK)
-					   >> I40E_PFGEN_PORTNUM_PORT_NUM_SHIFT;
-	hw->port = (u8)port;
-	ari = (ufp_read_reg(hw, I40E_GLPCI_CAPSUP) & I40E_GLPCI_CAPSUP_ARI_EN_MASK) >>
-						 I40E_GLPCI_CAPSUP_ARI_EN_SHIFT;
-	func_rid = ufp_read_reg(hw, I40E_PF_FUNC_RID);
-	if (ari)
-		hw->pf_id = (u8)(func_rid & 0xff);
-	else
-		hw->pf_id = (u8)(func_rid & 0x7);
-
 	if (hw->mac.type == I40E_MAC_X722)
 		hw->flags |= I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE;
 
