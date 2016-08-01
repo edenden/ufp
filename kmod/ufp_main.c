@@ -241,12 +241,9 @@ static int ufp_configure_msix(struct ufp_device *device)
 		device->msix_entries[vector].entry = vector;
 	}
 
-	err = vector_num;
 	while (err){
-		/* err == number of vectors we should try again with */ 
 		err = pci_enable_msix(device->pdev,
-			&device->msix_entries[vector_num - err], err);
-
+			device->msix_entries, vector_num);
 		if(err < 0){
 		       	/* failed to allocate enough msix vector */
 			goto err_pci_enable_msix;
