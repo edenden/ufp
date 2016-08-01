@@ -27,7 +27,7 @@ int ufp_i40e_init(struct ufp_ops *ops)
 	data->mbx_size		= IXGBE_VFMAILBOX_SIZE;
 
 	/* Configuration related functions*/
-	ops->reset_hw		= ufp_i40e_reset;
+	ops->reset_hw		= i40e_reset_hw;
 	ops->set_device_params	= ufp_i40e_set_device_params;
 	ops->configure_irq	= ufp_i40e_configure_irq;
 	ops->configure_tx	= ufp_i40e_configure_tx;
