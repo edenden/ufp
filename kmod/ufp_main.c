@@ -39,6 +39,7 @@ const char *ufp_copyright[]	= {
 };
 
 static struct pci_device_id ufp_pci_tbl[] = {
+	{ PCI_VDEVICE(INTEL, I40E_DEV_ID_SFP_XL710) },
 	{ PCI_VDEVICE(INTEL, IXGBE_DEV_ID_82599_VF) },
 	{ PCI_VDEVICE(INTEL, IXGBE_DEV_ID_X540_VF) },
 	{ PCI_VDEVICE(INTEL, IXGBE_DEV_ID_X550_VF) },
@@ -401,7 +402,7 @@ static int ufp_probe(struct pci_dev *pdev,
 	const struct pci_device_id *ent)
 {
 	struct ufp_device *device;
-	int pci_using_dac, err;
+	int err;
 
 	pr_info("probing device %s\n", pci_name(pdev));
 
@@ -409,24 +410,12 @@ static int ufp_probe(struct pci_dev *pdev,
 	if (err)
 		goto err_enable_device;
 
-	/*
-	 * first argument of dma_set_mask(), &pdev->dev should be changed
-	 * on Linux kernel version.
-	 * Original ixgbe driver hides this issue with pci_dev_to_dev() macro.
-	 */
-	if (!dma_set_mask(&pdev->dev, DMA_BIT_MASK(64)) &&
-	    !dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(64))) {
-		pci_using_dac = 1;
-	} else {
-		err = dma_set_mask(&pdev->dev, DMA_BIT_MASK(32));
-		if (err) {
-			err = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(32));
-			if (err) {
-				pr_err("No usable DMA configuration, aborting\n");
-				goto err_dma;
-			}
-		}
-		pci_using_dac = 0;
+	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+	if (err)
+		err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+	if (err) {
+		pr_err("DMA configuration failed: 0x%x\n", err);
+		goto err_dma;
 	}
 
 	err = pci_request_regions(pdev, ufp_driver_name);
@@ -449,12 +438,6 @@ static int ufp_probe(struct pci_dev *pdev,
 	 * device struct to exist.
 	 */
 	pci_save_state(pdev);
-
-	if(pci_using_dac){
-		device->dma_mask = DMA_BIT_MASK(64);
-	}else{
-		device->dma_mask = DMA_BIT_MASK(32);
-	}
 
 	/* setup for userland pci register access */
 	INIT_LIST_HEAD(&device->areas);

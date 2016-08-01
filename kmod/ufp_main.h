@@ -23,7 +23,6 @@ struct ufp_device {
 	struct semaphore	sem;
 	atomic_t		refcount;
 
-	dma_addr_t		dma_mask;
 	struct pci_dev		*pdev;
 	unsigned long		iobase;
 	unsigned long		iolen;
@@ -43,6 +42,7 @@ struct ufp_irq {
 	struct msix_entry	*msix_entry;
 };
 
+#define I40E_DEV_ID_SFP_XL710		0x1572
 #define IXGBE_DEV_ID_82599_VF		0x10ED
 #define IXGBE_DEV_ID_X540_VF		0x1515
 #define IXGBE_DEV_ID_X550_VF		0x1565
