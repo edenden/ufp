@@ -17,7 +17,7 @@
 static int ufp_ixgbevf_stop_adapter(struct ufp_handle *ih);
 static int ufp_ixgbevf_reset(struct ufp_handle *ih);
 static int ufp_ixgbevf_set_device_params(struct ufp_handle *ih,
-	uint32_t num_queues_req, uint32_t num_rx_desc, uint32_t num_tx_desc);
+	uint32_t num_qps_req, uint32_t num_rx_desc, uint32_t num_tx_desc);
 static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih, uint32_t rate);
 static int ufp_ixgbevf_configure_tx(struct ufp_handle *ih);
 static int ufp_ixgbevf_configure_rx(struct ufp_handle *ih,
@@ -171,11 +171,11 @@ err_stop_adapter:
 }
 
 static int ufp_ixgbevf_set_device_params(struct ufp_handle *ih,
-	uint32_t num_queues_req, uint32_t num_rx_desc, uint32_t num_tx_desc)
+	uint32_t num_qps_req, uint32_t num_rx_desc, uint32_t num_tx_desc)
 {
 	int err;
 
-	err = ufp_ixgbevf_get_queues(ih, num_queues_req);
+	err = ufp_ixgbevf_get_queues(ih, num_qps_req);
 	if(err < 0)
 		goto err_get_queues;
 
@@ -209,7 +209,7 @@ static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih, uint32_t rate)
 	unsigned int qmask = 0;
 	int vector, queue_idx;
 
-	for(queue_idx = 0, vector = 0; queue_idx < ih->num_queues;
+	for(queue_idx = 0, vector = 0; queue_idx < ih->num_qps;
 	queue_idx++, vector++){
 		/* set RX queue interrupt */
 		ufp_ixgbevf_set_ivar(ih, 0, queue_idx, vector);
@@ -217,7 +217,7 @@ static int ufp_ixgbevf_configure_irq(struct ufp_handle *ih, uint32_t rate)
 		qmask |= 1 << vector;
 	}
 
-	for(queue_idx = 0; queue_idx < ih->num_queues;
+	for(queue_idx = 0; queue_idx < ih->num_qps;
 	queue_idx++, vector++){
 		/* set TX queue interrupt */
 		ufp_ixgbevf_set_ivar(ih, 1, queue_idx, vector);
@@ -240,7 +240,7 @@ static int ufp_ixgbevf_configure_tx(struct ufp_handle *ih)
 	int i;
 
 	/* Setup the HW Tx Head and Tail descriptor pointers */
-	for (i = 0; i < ih->num_queues; i++)
+	for (i = 0; i < ih->num_qps; i++)
 		ufp_ixgbevf_configure_tx_ring(ih, i, &ih->rx_ring[i]);
 
 	return 0;
@@ -279,7 +279,7 @@ static int ufp_ixgbevf_configure_rx(struct ufp_handle *ih,
 	/* Setup the HW Rx Head and Tail Descriptor Pointers and
 	 * the Base and Length of the Rx Descriptor Ring
 	 */
-	for (i = 0; i < ih->num_queues; i++)
+	for (i = 0; i < ih->num_qps; i++)
 		ufp_ixgbevf_configure_rx_ring(ih, i, &ih->rx_ring[i]);
 
 	return 0;

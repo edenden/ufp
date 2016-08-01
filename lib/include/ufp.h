@@ -36,7 +36,7 @@ struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
 void ufp_buf_release(struct ufp_buf *buf,
 	struct ufp_handle **ih_list, int ih_num);
 struct ufp_handle *ufp_open(const char *ifname,
-	unsigned int num_queues_req, unsigned int num_rx_desc,
+	unsigned int num_qps_req, unsigned int num_rx_desc,
 	unsigned int num_tx_desc);
 void ufp_close(struct ufp_handle *ih);
 int ufp_up(struct ufp_handle *ih, unsigned int irq_rate,

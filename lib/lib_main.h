@@ -83,7 +83,7 @@ struct ufp_handle {
 	uint32_t		rx_budget;
 	uint32_t		tx_budget;
 
-	uint32_t		num_queues;
+	uint32_t		num_qps;
 	uint32_t		irq_rate;
 	uint32_t		promisc;
 	uint32_t		mtu_frame;
@@ -111,7 +111,7 @@ struct ufp_port {
 	uint32_t		mtu_frame;
 	uint32_t		num_tx_desc;
 	uint32_t		num_rx_desc;
-	uint32_t		num_queues;
+	uint32_t		num_qps;
 	uint32_t		rx_budget;
 	uint32_t		tx_budget;
 	uint8_t			mac_addr[ETH_ALEN];

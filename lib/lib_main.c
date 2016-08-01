@@ -83,7 +83,7 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
 		plane->ports[i].tx_suspended = 0;
 		plane->ports[i].num_rx_desc = ih_list[i]->num_rx_desc;
 		plane->ports[i].num_tx_desc = ih_list[i]->num_tx_desc;
-		plane->ports[i].num_queues = ih_list[i]->num_queues;
+		plane->ports[i].num_qps = ih_list[i]->num_qps;
 		plane->ports[i].rx_budget = ih_list[i]->rx_budget;
 		plane->ports[i].tx_budget = ih_list[i]->tx_budget;
 		plane->ports[i].mtu_frame = ih_list[i]->mtu_frame;
@@ -440,7 +440,7 @@ static void ufp_ops_release(struct ufp_ops *ops)
 }
 
 struct ufp_handle *ufp_open(const char *ifname,
-	unsigned int num_queues_req, unsigned int num_rx_desc,
+	unsigned int num_qps_req, unsigned int num_rx_desc,
 	unsigned int num_tx_desc)
 {
 	struct ufp_handle *ih;
@@ -480,16 +480,16 @@ struct ufp_handle *ufp_open(const char *ifname,
 	if(err < 0)
 		goto err_ops_reset_hw;
 
-	err = ih->ops->set_device_params(ih, num_queues_req,
+	err = ih->ops->set_device_params(ih, num_qps_req,
 		num_rx_desc, num_tx_desc);
 	if(err < 0)
 		goto err_ops_get_device_params;
 
-	ih->rx_ring = malloc(sizeof(struct ufp_ring) * ih->num_queues);
+	ih->rx_ring = malloc(sizeof(struct ufp_ring) * ih->num_qps);
 	if(!ih->rx_ring)
 		goto err_alloc_rx_ring;
 
-	ih->tx_ring = malloc(sizeof(struct ufp_ring) * ih->num_queues);
+	ih->tx_ring = malloc(sizeof(struct ufp_ring) * ih->num_qps);
 	if(!ih->tx_ring)
 		goto err_alloc_tx_ring;
 
@@ -536,8 +536,8 @@ int ufp_up(struct ufp_handle *ih, unsigned int irq_rate,
 	int err;
 
 	memset(&req, 0, sizeof(struct ufp_start_req));
-	req.num_rx_queues = ih->num_queues;
-	req.num_tx_queues = ih->num_queues;
+	req.num_rx_queues = ih->num_qps;
+	req.num_tx_queues = ih->num_qps;
 	if(ioctl(ih->fd, UFP_START, (unsigned long)&req) < 0)
 		goto err_ioctl_start;
 
@@ -589,7 +589,7 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 	int efd, ret;
 	struct ufp_irqbind_req req;
 
-	if(thread_id >= ih->num_queues){
+	if(thread_id >= ih->num_qps){
 		goto err_invalid_thread_id;
 	}
 
@@ -618,7 +618,7 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 		qmask = 1 << thread_id;
 		break;
 	case UFP_IRQ_TX:
-		qmask = 1 << (thread_id + ih->num_queues);
+		qmask = 1 << (thread_id + ih->num_qps);
 		break;
 	default:
 		goto err_undefined_type;

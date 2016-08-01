@@ -106,7 +106,7 @@ err_write:
 	return -1;
 }
 
-int ufp_ixgbevf_get_queues(struct ufp_handle *ih, uint32_t num_queues_req)
+int ufp_ixgbevf_get_queues(struct ufp_handle *ih, uint32_t num_qps_req)
 {
 	int32_t err;
 	uint32_t msg[5];
@@ -125,7 +125,7 @@ int ufp_ixgbevf_get_queues(struct ufp_handle *ih, uint32_t num_queues_req)
 		/* assume legacy case in which
 		 * PF would only give VF 2 queue pairs
 		 */
-		ih->num_queues = min(num_queues_req, (uint32_t)2);
+		ih->num_qps = min(num_qps_req, (uint32_t)2);
 		return 0;
 	}
 
@@ -172,8 +172,8 @@ int ufp_ixgbevf_get_queues(struct ufp_handle *ih, uint32_t num_queues_req)
 	if (default_tc >= max_tx_queues)
 		default_tc = 0;
 
-	ih->num_queues = min(max_tx_queues, max_rx_queues);
-	ih->num_queues = min(num_queues_req, ih->num_queues);
+	ih->num_qps = min(max_tx_queues, max_rx_queues);
+	ih->num_qps = min(num_qps_req, ih->num_qps);
 
 	return 0;
 
@@ -260,7 +260,7 @@ void ufp_ixgbevf_set_psrtype(struct ufp_handle *ih)
 		IXGBE_PSRTYPE_IPV4HDR | IXGBE_PSRTYPE_IPV6HDR |
 		IXGBE_PSRTYPE_L2HDR;
 
-	if(ih->num_queues > 1)
+	if(ih->num_qps > 1)
 		psrtype |= 1 << 29;
 
 	ufp_write_reg(ih, IXGBE_VFPSRTYPE, psrtype);
@@ -269,7 +269,7 @@ void ufp_ixgbevf_set_psrtype(struct ufp_handle *ih)
 void ufp_ixgbevf_set_vfmrqc(struct ufp_handle *ih)
 {
 	uint32_t vfmrqc = 0, vfreta = 0;
-	uint16_t rss_i = ih->num_queues;
+	uint16_t rss_i = ih->num_qps;
 	int i, j;
 
 	/* Fill out hash function seeds */

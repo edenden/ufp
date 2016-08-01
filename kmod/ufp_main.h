@@ -29,7 +29,6 @@ struct ufp_device {
 	u8 __iomem		*hw_addr; /* unused */
 
 	struct msix_entry	*msix_entries;
-	u32			num_q_vectors;
 	struct ufp_irq		**rx_irq;
 	struct ufp_irq		**tx_irq;
 

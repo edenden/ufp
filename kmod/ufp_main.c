@@ -215,7 +215,6 @@ static void ufp_free_msix(struct ufp_device *device)
 
 	kfree(device->tx_irq);
 	kfree(device->rx_irq);
-	device->num_q_vectors = 0;
 	pci_disable_msix(device->pdev);
 	kfree(device->msix_entries);
 	device->msix_entries = NULL;
@@ -248,7 +247,6 @@ static int ufp_configure_msix(struct ufp_device *device)
 		/* failed to allocate enough msix vector */
 		goto err_pci_enable_msix;
 	}
-	device->num_q_vectors = vector_num;
 
 	device->rx_irq = kcalloc(device->num_rx_queues,
 		sizeof(struct ufp_irq *), GFP_KERNEL);
@@ -328,9 +326,8 @@ err_alloc_irq_rx:
 err_alloc_irq_array_tx:
 	kfree(device->rx_irq);
 err_alloc_irq_array_rx:
-	device->num_q_vectors = 0;
-err_pci_enable_msix:
 	pci_disable_msix(device->pdev);
+err_pci_enable_msix:
 	kfree(device->msix_entries);
 	device->msix_entries = NULL;
 err_allocate_msix_entries:
@@ -339,9 +336,14 @@ err_allocate_msix_entries:
 
 static void ufp_interrupt_disable(struct ufp_device *device)
 {
-	int vector;
+	int vector = 0, queue_idx;
 
-	for (vector = 0; vector < device->num_q_vectors; vector++)
+	for(queue_idx = 0; queue_idx < device->num_rx_queues;
+	queue_idx++, vector++)
+		synchronize_irq(device->msix_entries[vector].vector);
+
+	for(queue_idx = 0; queue_idx < device->num_tx_queues;
+	queue_idx++, vector++)
 		synchronize_irq(device->msix_entries[vector].vector);
 
 	return;
