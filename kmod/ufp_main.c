@@ -241,14 +241,14 @@ static int ufp_configure_msix(struct ufp_device *device)
 		device->msix_entries[vector].entry = vector;
 	}
 
-	while (err){
+	do{
 		err = pci_enable_msix(device->pdev,
 			device->msix_entries, vector_num);
 		if(err < 0){
 		       	/* failed to allocate enough msix vector */
 			goto err_pci_enable_msix;
 	       	}
-	}
+	}while(err);
 	device->num_q_vectors = vector_num;
 
 	device->rx_irq = kcalloc(device->num_rx_queues,
