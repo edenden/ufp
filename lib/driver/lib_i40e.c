@@ -22,17 +22,11 @@ int ufp_i40e_init(struct ufp_ops *ops)
 
 	ops->data		= data;
 
-	data->mbx_timeout	= IXGBE_VF_INIT_TIMEOUT;
-	data->mbx_udelay	= IXGBE_VF_MBX_INIT_DELAY;
-	data->mbx_size		= IXGBE_VFMAILBOX_SIZE;
-
 	/* Configuration related functions*/
-	ops->reset_hw		= i40e_reset_hw;
-	ops->set_device_params	= ufp_i40e_set_device_params;
-	ops->configure_irq	= ufp_i40e_configure_irq;
-	ops->configure_tx	= ufp_i40e_configure_tx;
-	ops->configure_rx	= ufp_i40e_configure_rx;
-	ops->stop_adapter	= ufp_i40e_stop_adapter;
+	ops->open		= ufp_i40e_open;
+	ops->up			= ufp_i40e_up;
+	ops->down		= ufp_i40e_down;
+	ops->close		= ufp_i40e_close;
 
 	/* RxTx related functions */
 	ops->unmask_queues	= ufp_i40e_unmask_queues;
@@ -54,3 +48,55 @@ void ufp_i40e_destroy(struct ufp_ops *ops)
 	return;
 }
 
+int ufp_i40e_open(struct ufp_handle *ih)
+{
+	i40e_clear_hw(ih);
+
+	err = i40e_reset_hw(ih);
+	if(err < 0)
+		goto err_reset_hw;
+
+        err = i40e_init_shared_code(ih);
+        if(err < 0)
+                goto err_init_shared_code;
+
+        err = err = i40e_init_adminq(hw);
+        if(err < 0)
+                goto err_init_adminq;
+
+        i40e_verify_eeprom(pf);
+
+        i40e_clear_pxe_mode(ih);
+
+        err = i40e_get_capabilities(pf);
+        if (err)
+                goto err_adminq_setup;
+
+        err = i40e_sw_init(pf);
+        if (err) {
+                dev_info(&pdev->dev, "sw_init failed: %d\n", err);
+                goto err_sw_init;
+        }
+
+        return 0;
+
+err_init_adminq:
+err_init_shared_code:
+err_reset_hw;
+        return -1;
+}
+
+int ufp_i40e_up(struct ufp_handle *ih)
+{
+
+}
+
+int ufp_i40e_down(struct ufp_handle *ih)
+{
+
+}
+
+int ufp_i40e_close(struct ufp_handle *ih)
+{
+	return 0;
+}

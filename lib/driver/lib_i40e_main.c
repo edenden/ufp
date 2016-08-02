@@ -22,8 +22,6 @@ int i40e_reset_hw(struct ufp_handle *ih)
 	uint32_t reg = 0;
 	uint32_t grst_del;
 
-	i40e_clear_hw(ih);
-
 	/* Poll for Global Reset steady state in case of recent GRST.
 	 * The grst delay value is in 100ms units, and we'll wait a
 	 * couple counts longer to be sure we don't just miss the end.
@@ -78,33 +76,7 @@ int i40e_reset_hw(struct ufp_handle *ih)
 		}
 	}
 
-	err = i40e_init_shared_code(ih);
-	if(err < 0)
-		goto err_init_shared_code;
-
-	err = err = i40e_init_adminq(hw);
-	if(err < 0)
-		goto err_init_adminq;
-
-	i40e_verify_eeprom(pf);
-
-	i40e_clear_pxe_mode(ih);
-
-	err = i40e_get_capabilities(pf);
-	if (err)
-		goto err_adminq_setup;
-
-	err = i40e_sw_init(pf);
-	if (err) {
-		dev_info(&pdev->dev, "sw_init failed: %d\n", err);
-		goto err_sw_init;
-	}
-
 	return 0;
-
-err_init_adminq:
-err_init_shared_code:
-	return -1;
 }
 
 static void i40e_clear_hw(struct ufp_handle *ih)
