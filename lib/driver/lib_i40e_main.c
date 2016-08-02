@@ -78,19 +78,36 @@ int i40e_reset_hw(struct ufp_handle *ih)
 		}
 	}
 
-	i40e_clear_pxe_mode(ih);
-
 	err = i40e_init_shared_code(ih);
 	if(err < 0)
 		goto err_init_shared_code;
 
+	err = err = i40e_init_adminq(hw);
+	if(err < 0)
+		goto err_init_adminq;
+
+	i40e_verify_eeprom(pf);
+
+	i40e_clear_pxe_mode(ih);
+
+	err = i40e_get_capabilities(pf);
+	if (err)
+		goto err_adminq_setup;
+
+	err = i40e_sw_init(pf);
+	if (err) {
+		dev_info(&pdev->dev, "sw_init failed: %d\n", err);
+		goto err_sw_init;
+	}
+
 	return 0;
 
+err_init_adminq:
 err_init_shared_code:
 	return -1;
 }
 
-void i40e_clear_hw(struct ufp_handle *ih)
+static void i40e_clear_hw(struct ufp_handle *ih)
 {
 	struct timespec ts;
 	uint32_t num_queues, base_queue;
@@ -162,7 +179,7 @@ void i40e_clear_hw(struct ufp_handle *ih)
 
 		ufp_write_reg(ih, I40E_GLLAN_TXPRE_QDIS(reg_block), val);
 	}
-	udelay(400);
+	usleep(&ts, 400);
 
 	/* stop all the queues */
 	for (i = 0; i < num_queues; i++) {
@@ -174,26 +191,28 @@ void i40e_clear_hw(struct ufp_handle *ih)
 
 	/* short wait for all queue disables to settle */
 	usleep(&ts, 50);
+
+	return;
 }
 
-int i40e_init_shared_code(struct ufp_handle *ih)
+static int i40e_init_shared_code(struct ufp_handle *ih)
 {
+	struct ufp_i40e_data *data = ih->ops->data;
 	int err;
-	uint32_t port, ari, func_rid;
 
-	i40e_set_mac_type(hw);
+	i40e_set_mac_type(ih);
 
-	switch (hw->mac.type) {
+	switch (data->mac_type) {
 	case I40E_MAC_XL710:
 	case I40E_MAC_X722:
 		break;
 	default:
-		return I40E_ERR_DEVICE_NOT_SUPPORTED;
+		goto err_not_supported;
 	}
 
 	hw->phy.get_link_info = true;
 
-	if (hw->mac.type == I40E_MAC_X722)
+	if (data->mac_type == I40E_MAC_X722)
 		hw->flags |= I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE;
 
 	err = i40e_init_nvm(hw);
@@ -203,49 +222,44 @@ int i40e_init_shared_code(struct ufp_handle *ih)
 	return 0;
 
 err_init_nvm:
+err_not_supported:
 	return -1;
 }
 
-static i40e_status i40e_set_mac_type(struct i40e_hw *hw)
+static void i40e_set_mac_type(struct ufp_handle *ih)
 {
-	i40e_status status = I40E_SUCCESS;
+	struct ufp_i40e_data *data = ih->ops->data;
 
-	if (hw->vendor_id == I40E_INTEL_VENDOR_ID) {
-		switch (hw->device_id) {
-		case I40E_DEV_ID_SFP_XL710:
-		case I40E_DEV_ID_QEMU:
-		case I40E_DEV_ID_KX_B:
-		case I40E_DEV_ID_KX_C:
-		case I40E_DEV_ID_QSFP_A:
-		case I40E_DEV_ID_QSFP_B:
-		case I40E_DEV_ID_QSFP_C:
-		case I40E_DEV_ID_10G_BASE_T:
-		case I40E_DEV_ID_10G_BASE_T4:
-		case I40E_DEV_ID_20G_KR2:
-		case I40E_DEV_ID_20G_KR2_A:
-		case I40E_DEV_ID_25G_B:
-		case I40E_DEV_ID_25G_SFP28:
-			hw->mac.type = I40E_MAC_XL710;
-			break;
-		case I40E_DEV_ID_KX_X722:
-		case I40E_DEV_ID_QSFP_X722:
-		case I40E_DEV_ID_SFP_X722:
-		case I40E_DEV_ID_1G_BASE_T_X722:
-		case I40E_DEV_ID_10G_BASE_T_X722:
-		case I40E_DEV_ID_SFP_I_X722:
-		case I40E_DEV_ID_QSFP_I_X722:
-			hw->mac.type = I40E_MAC_X722;
-			break;
-		default:
-			hw->mac.type = I40E_MAC_GENERIC;
-			break;
-		}
-	} else {
-		status = I40E_ERR_DEVICE_NOT_SUPPORTED;
+	switch(ih->ops->device_id){
+	case I40E_DEV_ID_SFP_XL710:
+	case I40E_DEV_ID_QEMU:
+	case I40E_DEV_ID_KX_B:
+	case I40E_DEV_ID_KX_C:
+	case I40E_DEV_ID_QSFP_A:
+	case I40E_DEV_ID_QSFP_B:
+	case I40E_DEV_ID_QSFP_C:
+	case I40E_DEV_ID_10G_BASE_T:
+	case I40E_DEV_ID_10G_BASE_T4:
+	case I40E_DEV_ID_20G_KR2:
+	case I40E_DEV_ID_20G_KR2_A:
+	case I40E_DEV_ID_25G_B:
+	case I40E_DEV_ID_25G_SFP28:
+		data->mac_type = I40E_MAC_XL710;
+		break;
+	case I40E_DEV_ID_KX_X722:
+	case I40E_DEV_ID_QSFP_X722:
+	case I40E_DEV_ID_SFP_X722:
+	case I40E_DEV_ID_1G_BASE_T_X722:
+	case I40E_DEV_ID_10G_BASE_T_X722:
+	case I40E_DEV_ID_SFP_I_X722:
+	case I40E_DEV_ID_QSFP_I_X722:
+		data->mac_type = I40E_MAC_X722;
+		break;
+	default:
+		data->mac_type = I40E_MAC_GENERIC;
+		break;
 	}
 
-	hw_dbg(hw, "i40e_set_mac_type found mac: %d, returns: %d\n",
-		  hw->mac.type, status);
-	return status;
+	return;
 }
 
