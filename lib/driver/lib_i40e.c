@@ -128,17 +128,6 @@ int ufp_i40e_open(struct ufp_handle *ih)
 			 i40e_stat_str(&pf->hw, err),
 			 i40e_aq_str(&pf->hw, pf->hw.aq.asq_last_status));
 
-	/* Reconfigure hardware for allowing smaller MSS in the case
-	 * of TSO, so that we avoid the MDD being fired and causing
-	 * a reset in the case of small MSS+TSO.
-	 */
-	val = rd32(hw, I40E_REG_MSS);
-	if ((val & I40E_REG_MSS_MIN_MASK) > I40E_64BYTE_MSS) {
-		val &= ~I40E_REG_MSS_MIN_MASK;
-		val |= I40E_64BYTE_MSS;
-		wr32(hw, I40E_REG_MSS, val);
-	}
-
 	if (pf->flags & I40E_FLAG_RESTART_AUTONEG) {
 		msleep(75);
 		err = i40e_aq_set_link_restart_an(&pf->hw, true, NULL);
@@ -148,22 +137,6 @@ int ufp_i40e_open(struct ufp_handle *ih)
 				 i40e_aq_str(&pf->hw,
 					      pf->hw.aq.asq_last_status));
 	}
-
-	/* In case of MSIX we are going to setup the misc vector right here
-	 * to handle admin queue events etc. In case of legacy and MSI
-	 * the misc functionality and queue processing is combined in
-	 * the same vector and that gets setup at open.
-	 */
-	if (pf->flags & I40E_FLAG_MSIX_ENABLED) {
-		err = i40e_setup_misc_vector(pf);
-		if (err) {
-			dev_info(&pdev->dev,
-				 "setup of misc vector failed: %d\n", err);
-			goto err_vsis;
-		}
-	}
-
-	i40e_dbg_pf_init(pf);
 
 	/* tell the firmware that we're starting */
 	i40e_send_version(pf);
@@ -187,9 +160,6 @@ int ufp_i40e_open(struct ufp_handle *ih)
 	if ((pf->hw.device_id == I40E_DEV_ID_10G_BASE_T) ||
 	    (pf->hw.device_id == I40E_DEV_ID_10G_BASE_T4))
 		pf->flags |= I40E_FLAG_HAVE_10GBASET_PHY;
-
-	/* print a string summarizing features */
-	i40e_print_features(pf);
 
 	return 0;
 
