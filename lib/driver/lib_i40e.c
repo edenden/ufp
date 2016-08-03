@@ -78,6 +78,17 @@ int ufp_i40e_open(struct ufp_handle *ih)
 		goto err_sw_init;
 	}
 
+	/* tell the firmware that we're starting */
+	i40e_send_version(pf);
+
+err_init_adminq:
+err_init_shared_code:
+err_reset_hw;
+	return -1;
+}
+
+int ufp_i40e_up(struct ufp_handle *ih)
+{
 	err = i40e_init_lan_hmc(hw, hw->func_caps.num_tx_qp,
 				hw->func_caps.num_rx_qp,
 				pf->fcoe_hmc_cntx_num, pf->fcoe_hmc_filt_num);
@@ -138,9 +149,6 @@ int ufp_i40e_open(struct ufp_handle *ih)
 					      pf->hw.aq.asq_last_status));
 	}
 
-	/* tell the firmware that we're starting */
-	i40e_send_version(pf);
-
 	/* get the requested speeds from the fw */
 	err = i40e_aq_get_phy_capabilities(hw, false, false, &abilities, NULL);
 	if (err)
@@ -162,16 +170,6 @@ int ufp_i40e_open(struct ufp_handle *ih)
 		pf->flags |= I40E_FLAG_HAVE_10GBASET_PHY;
 
 	return 0;
-
-err_init_adminq:
-err_init_shared_code:
-err_reset_hw;
-	return -1;
-}
-
-int ufp_i40e_up(struct ufp_handle *ih)
-{
-
 }
 
 int ufp_i40e_down(struct ufp_handle *ih)
