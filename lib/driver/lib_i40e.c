@@ -56,34 +56,147 @@ int ufp_i40e_open(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_reset_hw;
 
-        err = i40e_init_shared_code(ih);
-        if(err < 0)
-                goto err_init_shared_code;
+	err = i40e_init_shared_code(ih);
+	if(err < 0)
+		goto err_init_shared_code;
 
-        err = err = i40e_init_adminq(hw);
-        if(err < 0)
-                goto err_init_adminq;
+	err = err = i40e_init_adminq(hw);
+	if(err < 0)
+		goto err_init_adminq;
 
-        i40e_verify_eeprom(pf);
+	i40e_verify_eeprom(pf);
 
-        i40e_clear_pxe_mode(ih);
+	i40e_clear_pxe_mode(ih);
 
-        err = i40e_get_capabilities(pf);
-        if (err)
-                goto err_adminq_setup;
+	err = i40e_get_capabilities(pf);
+	if (err)
+		goto err_adminq_setup;
 
-        err = i40e_sw_init(pf);
-        if (err) {
-                dev_info(&pdev->dev, "sw_init failed: %d\n", err);
-                goto err_sw_init;
-        }
+	err = i40e_sw_init(pf);
+	if (err) {
+		dev_info(&pdev->dev, "sw_init failed: %d\n", err);
+		goto err_sw_init;
+	}
 
-        return 0;
+	err = i40e_init_lan_hmc(hw, hw->func_caps.num_tx_qp,
+				hw->func_caps.num_rx_qp,
+				pf->fcoe_hmc_cntx_num, pf->fcoe_hmc_filt_num);
+	if (err) {
+		dev_info(&pdev->dev, "init_lan_hmc failed: %d\n", err);
+		goto err_init_lan_hmc;
+	}
+
+	err = i40e_configure_lan_hmc(hw, I40E_HMC_MODEL_DIRECT_ONLY);
+	if (err) {
+		dev_info(&pdev->dev, "configure_lan_hmc failed: %d\n", err);
+		err = -ENOENT;
+		goto err_configure_lan_hmc;
+	}
+
+	/* Disable LLDP for NICs that have firmware versions lower than v4.3.
+	 * Ignore error return codes because if it was already disabled via
+	 * hardware settings this will fail
+	 */
+	i40e_aq_stop_lldp(hw, true, NULL);
+
+	i40e_get_mac_addr(hw, hw->mac.addr);
+	if (!is_valid_ether_addr(hw->mac.addr)) {
+		dev_info(&pdev->dev, "invalid MAC address %pM\n", hw->mac.addr);
+		err = -EIO;
+		goto err_mac_addr;
+	}
+
+	err = i40e_init_interrupt_scheme(pf);
+	if (err)
+		goto err_switch_setup;
+
+	err = i40e_setup_pf_switch(pf, false);
+	if (err) {
+		dev_info(&pdev->dev, "setup_pf_switch failed: %d\n", err);
+		goto err_vsis;
+	}
+
+	/* The driver only wants link up/down and module qualification
+	 * reports from firmware.  Note the negative logic.
+	 */
+	err = i40e_aq_set_phy_int_mask(&pf->hw,
+				       ~(I40E_AQ_EVENT_LINK_UPDOWN |
+					 I40E_AQ_EVENT_MEDIA_NA |
+					 I40E_AQ_EVENT_MODULE_QUAL_FAIL), NULL);
+	if (err)
+		dev_info(&pf->pdev->dev, "set phy mask fail, err %s aq_err %s\n",
+			 i40e_stat_str(&pf->hw, err),
+			 i40e_aq_str(&pf->hw, pf->hw.aq.asq_last_status));
+
+	/* Reconfigure hardware for allowing smaller MSS in the case
+	 * of TSO, so that we avoid the MDD being fired and causing
+	 * a reset in the case of small MSS+TSO.
+	 */
+	val = rd32(hw, I40E_REG_MSS);
+	if ((val & I40E_REG_MSS_MIN_MASK) > I40E_64BYTE_MSS) {
+		val &= ~I40E_REG_MSS_MIN_MASK;
+		val |= I40E_64BYTE_MSS;
+		wr32(hw, I40E_REG_MSS, val);
+	}
+
+	if (pf->flags & I40E_FLAG_RESTART_AUTONEG) {
+		msleep(75);
+		err = i40e_aq_set_link_restart_an(&pf->hw, true, NULL);
+		if (err)
+			dev_info(&pf->pdev->dev, "link restart failed, err %s aq_err %s\n",
+				 i40e_stat_str(&pf->hw, err),
+				 i40e_aq_str(&pf->hw,
+					      pf->hw.aq.asq_last_status));
+	}
+
+	/* In case of MSIX we are going to setup the misc vector right here
+	 * to handle admin queue events etc. In case of legacy and MSI
+	 * the misc functionality and queue processing is combined in
+	 * the same vector and that gets setup at open.
+	 */
+	if (pf->flags & I40E_FLAG_MSIX_ENABLED) {
+		err = i40e_setup_misc_vector(pf);
+		if (err) {
+			dev_info(&pdev->dev,
+				 "setup of misc vector failed: %d\n", err);
+			goto err_vsis;
+		}
+	}
+
+	i40e_dbg_pf_init(pf);
+
+	/* tell the firmware that we're starting */
+	i40e_send_version(pf);
+
+	/* get the requested speeds from the fw */
+	err = i40e_aq_get_phy_capabilities(hw, false, false, &abilities, NULL);
+	if (err)
+		dev_dbg(&pf->pdev->dev, "get requested speeds ret =  %s last_status =  %s\n",
+			i40e_stat_str(&pf->hw, err),
+			i40e_aq_str(&pf->hw, pf->hw.aq.asq_last_status));
+	pf->hw.phy.link_info.requested_speeds = abilities.link_speed;
+
+	/* get the supported phy types from the fw */
+	err = i40e_aq_get_phy_capabilities(hw, false, true, &abilities, NULL);
+	if (err)
+		dev_dbg(&pf->pdev->dev, "get supported phy types ret =  %s last_status =  %s\n",
+			i40e_stat_str(&pf->hw, err),
+			i40e_aq_str(&pf->hw, pf->hw.aq.asq_last_status));
+	pf->hw.phy.phy_types = LE32_TO_CPU(abilities.phy_type);
+
+	if ((pf->hw.device_id == I40E_DEV_ID_10G_BASE_T) ||
+	    (pf->hw.device_id == I40E_DEV_ID_10G_BASE_T4))
+		pf->flags |= I40E_FLAG_HAVE_10GBASET_PHY;
+
+	/* print a string summarizing features */
+	i40e_print_features(pf);
+
+	return 0;
 
 err_init_adminq:
 err_init_shared_code:
 err_reset_hw;
-        return -1;
+	return -1;
 }
 
 int ufp_i40e_up(struct ufp_handle *ih)
