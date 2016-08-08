@@ -50,40 +50,57 @@ void ufp_i40e_destroy(struct ufp_ops *ops)
 
 int ufp_i40e_open(struct ufp_handle *ih)
 {
+	struct ufp_i40e_data *data = ih->ops->data;
+
+	i40e_set_mac_type(ih);
+        
+	switch (data->mac_type) {
+	case I40E_MAC_XL710:
+	case I40E_MAC_X722:
+		break;
+	default:
+		goto err_not_supported;
+	}
+
+	if (data->mac_type == I40E_MAC_X722)
+		hw->flags |= I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE;
+
 	i40e_clear_hw(ih);
 
 	err = i40e_reset_hw(ih);
 	if(err < 0)
 		goto err_reset_hw;
 
-	err = i40e_init_shared_code(ih);
+	/* NVM related initalization and depending process */
+	err = i40e_init_nvm(hw);
 	if(err < 0)
-		goto err_init_shared_code;
+		goto err_init_nvm;
 
-	err = err = i40e_init_adminq(hw);
+	err = i40e_diag_eeprom_test(hw);
+	if(err < 0)
+		goto err_eeprom_test;
+
+	/* adminQ related initialization and depending process */
+	err = i40e_init_adminq(hw);
 	if(err < 0)
 		goto err_init_adminq;
 
-	i40e_verify_eeprom(pf);
-
-	i40e_clear_pxe_mode(ih);
+	err = i40e_aq_clear_pxe_mode(hw, NULL);
+	if(err < 0)
+		goto err_clear_pxe;
 
 	err = i40e_get_capabilities(pf);
 	if (err)
 		goto err_adminq_setup;
 
-	err = i40e_sw_init(pf);
-	if (err) {
-		dev_info(&pdev->dev, "sw_init failed: %d\n", err);
-		goto err_sw_init;
-	}
+	i40e_aq_send_driver_version(&pf->hw, &dv, NULL);
 
-	/* tell the firmware that we're starting */
-	i40e_send_version(pf);
-
+err_clear_pxe:
 err_init_adminq:
-err_init_shared_code:
+err_eeprom_test:
+err_init_nvm:
 err_reset_hw;
+err_not_supported:
 	return -1;
 }
 

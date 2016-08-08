@@ -79,7 +79,7 @@ int i40e_reset_hw(struct ufp_handle *ih)
 	return 0;
 }
 
-static void i40e_clear_hw(struct ufp_handle *ih)
+void i40e_clear_hw(struct ufp_handle *ih)
 {
 	struct timespec ts;
 	uint32_t num_queues, base_queue;
@@ -167,38 +167,7 @@ static void i40e_clear_hw(struct ufp_handle *ih)
 	return;
 }
 
-static int i40e_init_shared_code(struct ufp_handle *ih)
-{
-	struct ufp_i40e_data *data = ih->ops->data;
-	int err;
-
-	i40e_set_mac_type(ih);
-
-	switch (data->mac_type) {
-	case I40E_MAC_XL710:
-	case I40E_MAC_X722:
-		break;
-	default:
-		goto err_not_supported;
-	}
-
-	hw->phy.get_link_info = true;
-
-	if (data->mac_type == I40E_MAC_X722)
-		hw->flags |= I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE;
-
-	err = i40e_init_nvm(hw);
-	if(err < 0)
-		goto err_init_nvm;
-
-	return 0;
-
-err_init_nvm:
-err_not_supported:
-	return -1;
-}
-
-static void i40e_set_mac_type(struct ufp_handle *ih)
+void i40e_set_mac_type(struct ufp_handle *ih)
 {
 	struct ufp_i40e_data *data = ih->ops->data;
 
@@ -235,3 +204,68 @@ static void i40e_set_mac_type(struct ufp_handle *ih)
 	return;
 }
 
+int i40e_diag_eeprom_test(struct i40e_hw *hw)
+{
+	int err;
+	uint16_t reg_val;
+
+	/* read NVM control word and if NVM valid, validate EEPROM checksum*/
+	err = i40e_read_nvm_word(hw, I40E_SR_NVM_CONTROL_WORD, &reg_val);
+	if ((err == I40E_SUCCESS) &&
+	((reg_val & I40E_SR_CONTROL_WORD_1_MASK) == BIT(I40E_SR_CONTROL_WORD_1_SHIFT)))
+		return i40e_validate_nvm_checksum(hw, NULL);
+	else
+		return I40E_ERR_DIAG_TEST_FAILED;
+}
+
+int i40e_aq_clear_pxe_mode(struct i40e_hw *hw,
+			struct i40e_asq_cmd_details *cmd_details)
+{
+	struct i40e_aq_desc desc;
+	struct i40e_aqc_clear_pxe *cmd =
+		(struct i40e_aqc_clear_pxe *)&desc.params.raw;
+	int err;
+
+	i40e_fill_default_direct_cmd_desc(&desc,
+		i40e_aqc_opc_clear_pxe_mode);
+
+	cmd->rx_cnt = 0x2;
+
+	err = i40e_asq_send_command(hw, &desc, NULL, 0, cmd_details);
+
+	wr32(hw, I40E_GLLAN_RCTL_0, 0x1);
+
+	return err;
+}
+
+i40e_status i40e_aq_send_driver_version(struct i40e_hw *hw,
+				struct i40e_driver_version *dv,
+				struct i40e_asq_cmd_details *cmd_details)
+{
+	struct i40e_aq_desc desc;
+	struct i40e_aqc_driver_version *cmd =
+		(struct i40e_aqc_driver_version *)&desc.params.raw;
+	i40e_status status;
+	u16 len;
+
+	if (dv == NULL)
+		return I40E_ERR_PARAM;
+
+	i40e_fill_default_direct_cmd_desc(&desc, i40e_aqc_opc_driver_version);
+
+	desc.flags |= CPU_TO_LE16(I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD);
+	cmd->driver_major_ver = dv->major_version;
+	cmd->driver_minor_ver = dv->minor_version;
+	cmd->driver_build_ver = dv->build_version;
+	cmd->driver_subbuild_ver = dv->subbuild_version;
+
+	len = 0;
+	while (len < sizeof(dv->driver_string) &&
+	       (dv->driver_string[len] < 0x80) &&
+	       dv->driver_string[len])
+		len++;
+	status = i40e_asq_send_command(hw, &desc, dv->driver_string,
+				       len, cmd_details);
+
+	return status;
+}
