@@ -10,6 +10,31 @@
 #include "lib_main.h"
 #include "lib_rtx.h"
 
+/*
+JUST MEMO
+static const struct fm10k_mac_ops mac_ops_pf = {
+        .get_bus_info           = fm10k_get_bus_info_generic,
+        .reset_hw               = fm10k_reset_hw_pf,
+        .init_hw                = fm10k_init_hw_pf,
+        .start_hw               = fm10k_start_hw_generic,
+        .stop_hw                = fm10k_stop_hw_generic,
+        .update_vlan            = fm10k_update_vlan_pf,
+        .read_mac_addr          = fm10k_read_mac_addr_pf,
+        .update_uc_addr         = fm10k_update_uc_addr_pf,
+        .update_mc_addr         = fm10k_update_mc_addr_pf,
+        .update_xcast_mode      = fm10k_update_xcast_mode_pf,
+        .update_int_moderator   = fm10k_update_int_moderator_pf,
+        .update_lport_state     = fm10k_update_lport_state_pf,
+        .update_hw_stats        = fm10k_update_hw_stats_pf,
+        .rebind_hw_stats        = fm10k_rebind_hw_stats_pf,
+        .configure_dglort_map   = fm10k_configure_dglort_map_pf,
+        .set_dma_mask           = fm10k_set_dma_mask_pf,
+        .get_fault              = fm10k_get_fault_pf,
+        .get_host_state         = fm10k_get_host_state_pf,
+        .request_lport_map      = fm10k_request_lport_map_pf,
+};
+*/
+
 int ufp_fm10k_init(struct ufp_ops *ops)
 {
 	struct ufp_fm10k_data *data;
@@ -48,9 +73,17 @@ void ufp_fm10k_destroy(struct ufp_ops *ops)
 
 int ufp_fm10k_open(struct ufp_handle *ih)
 {
+	int err;
 	struct ufp_fm10k_data *data = ih->ops->data;
 
+	err = ufp_fm10k_reset_hw(ih);
+	if(err < 0)
+		goto err_reset_hw;
+
 	return 0;
+
+err_reset_hw:
+	return -1;
 }
 
 int ufp_fm10k_up(struct ufp_handle *ih)
