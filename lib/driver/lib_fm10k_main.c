@@ -439,7 +439,7 @@ void fm10k_update_hw_stats(struct fm10k_hw *hw,
 	fm10k_update_hw_stats_q(hw, stats->q, 0, hw->mac.max_queues);
 }       
 
-int fm10k_read_mac_addr_pf(struct fm10k_hw *hw)
+int fm10k_read_mac_addr(struct ufp_handle *ih)
 {
 	u8 perm_addr[ETH_ALEN];
 	u32 serial_num;
@@ -450,9 +450,9 @@ int fm10k_read_mac_addr_pf(struct fm10k_hw *hw)
 	if ((~serial_num) << 24)
 		return  FM10K_ERR_INVALID_MAC_ADDR;
 
-	perm_addr[0] = (u8)(serial_num >> 24);
-	perm_addr[1] = (u8)(serial_num >> 16);
-	perm_addr[2] = (u8)(serial_num >> 8);
+	ih->mac_addr[0] = (u8)(serial_num >> 24);
+	ih->mac_addr[1] = (u8)(serial_num >> 16);
+	ih->mac_addr[2] = (u8)(serial_num >> 8);
 
 	serial_num = fm10k_read_reg(hw, FM10K_SM_AREA(0));
 
@@ -460,12 +460,9 @@ int fm10k_read_mac_addr_pf(struct fm10k_hw *hw)
 	if ((~serial_num) >> 24)
 		return  FM10K_ERR_INVALID_MAC_ADDR;
 
-	perm_addr[3] = (u8)(serial_num >> 16);
-	perm_addr[4] = (u8)(serial_num >> 8);
-	perm_addr[5] = (u8)(serial_num);
-
-	ether_addr_copy(hw->mac.perm_addr, perm_addr);
-	ether_addr_copy(hw->mac.addr, perm_addr);
+	ih->mac_addr[3] = (u8)(serial_num >> 16);
+	ih->mac_addr[4] = (u8)(serial_num >> 8);
+	ih->mac_addr[5] = (u8)(serial_num);
 
 	return 0;
 }

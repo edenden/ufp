@@ -100,26 +100,13 @@ int ufp_fm10k_open(struct ufp_handle *ih)
 	hw->mac.ops.update_hw_stats(hw, &interface->stats);
 
         /* Initialize MAC address from hardware */
-        err = hw->mac.ops.read_mac_addr(hw);
-        if (err) {
-                dev_warn(&pdev->dev,
-                         "Failed to obtain MAC address defaulting to random\n");
-#ifdef NET_ADDR_RANDOM
-                /* tag address assignment as random */
-                netdev->addr_assign_type |= NET_ADDR_RANDOM;
-#endif  
-        }
-
-        ether_addr_copy(netdev->dev_addr, hw->mac.addr);
-        ether_addr_copy(netdev->perm_addr, hw->mac.addr);
-
-        if (!is_valid_ether_addr(netdev->perm_addr)) {
-                dev_err(&pdev->dev, "Invalid MAC Address\n");
-                return -EIO;
-        }
+        err = ufp_fm10k_read_mac_addr(ih);
+        if(err < 0)
+		goto err_read_mac_addr;
 
 	return 0;
 
+err_read_mac_addr:
 err_set_device_params:
 err_init_hw:
 err_reset_hw:
