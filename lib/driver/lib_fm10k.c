@@ -115,17 +115,85 @@ err_reset_hw:
 
 int ufp_fm10k_up(struct ufp_handle *ih)
 {
+	/* configure msix on device side */
+	ufp_fm10k_configure_irq(ih);
+
+        /* configure Tx descriptor rings */
+        ufp_fm10k_configure_tx(interface);
+
+        /* configure Rx descriptor rings */
+        ufp_fm10k_configure_rx(interface);
+
+        /* configure interrupts moderator */
+        ufp_fm10k_update_int_moderator(hw);
+
+        /* re-establish Rx filters */
+        fm10k_restore_rx_state(interface);
 
 	return 0;
 }
 
-int ufp_i40e_down(struct ufp_handle *ih)
+void fm10k_up(struct fm10k_intfc *interface)
+{
+        struct fm10k_hw *hw = &interface->hw;
+
+        /* Enable Tx/Rx DMA */
+        hw->mac.ops.start_hw(hw);
+
+        /* configure Tx descriptor rings */
+        fm10k_configure_tx(interface);
+
+        /* configure Rx descriptor rings */
+        fm10k_configure_rx(interface);
+
+        /* configure interrupts */
+        hw->mac.ops.update_int_moderator(hw);
+
+        /* enable statistics capture again */
+        clear_bit(__FM10K_UPDATING_STATS, &interface->state);
+
+        /* clear down bit to indicate we are ready to go */
+        clear_bit(__FM10K_DOWN, &interface->state);
+
+        /* enable polling cleanups */
+        fm10k_napi_enable_all(interface);
+
+        /* re-establish Rx filters */
+        fm10k_restore_rx_state(interface);
+
+        /* enable transmits */
+        netif_tx_start_all_queues(interface->netdev);
+
+        /* kick off the service timer now */
+        hw->mac.get_host_state = true;
+        mod_timer(&interface->service_timer, jiffies);
+}
+
+
+int ufp_fm10k_down(struct ufp_handle *ih)
 {
 
 	return 0;
 }
 
-int ufp_i40e_close(struct ufp_handle *ih)
+int fm10k_close(struct net_device *netdev)
+{
+        struct fm10k_intfc *interface = netdev_priv(netdev);
+
+        fm10k_down(interface);
+
+        fm10k_qv_free_irq(interface);
+
+        fm10k_free_udp_port_info(interface);
+
+        fm10k_free_all_tx_resources(interface);
+        fm10k_free_all_rx_resources(interface);
+
+        return 0;
+}
+
+int ufp_fm10k_close(struct ufp_handle *ih)
 {
 	return 0;
 }
+
