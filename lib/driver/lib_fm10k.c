@@ -133,43 +133,6 @@ int ufp_fm10k_up(struct ufp_handle *ih)
 	return 0;
 }
 
-void fm10k_up(struct fm10k_intfc *interface)
-{
-        struct fm10k_hw *hw = &interface->hw;
-
-        /* Enable Tx/Rx DMA */
-        hw->mac.ops.start_hw(hw);
-
-        /* configure Tx descriptor rings */
-        fm10k_configure_tx(interface);
-
-        /* configure Rx descriptor rings */
-        fm10k_configure_rx(interface);
-
-        /* configure interrupts */
-        hw->mac.ops.update_int_moderator(hw);
-
-        /* enable statistics capture again */
-        clear_bit(__FM10K_UPDATING_STATS, &interface->state);
-
-        /* clear down bit to indicate we are ready to go */
-        clear_bit(__FM10K_DOWN, &interface->state);
-
-        /* enable polling cleanups */
-        fm10k_napi_enable_all(interface);
-
-        /* re-establish Rx filters */
-        fm10k_restore_rx_state(interface);
-
-        /* enable transmits */
-        netif_tx_start_all_queues(interface->netdev);
-
-        /* kick off the service timer now */
-        hw->mac.get_host_state = true;
-        mod_timer(&interface->service_timer, jiffies);
-}
-
-
 int ufp_fm10k_down(struct ufp_handle *ih)
 {
 
