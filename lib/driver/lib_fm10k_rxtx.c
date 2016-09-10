@@ -21,12 +21,12 @@ void ufp_fm10k_configure_irq(struct ufp_handle *ih, uint32_t rate)
 
 	for(queue_idx = 0, vector = 0; queue_idx < ih->num_qps;
 	queue_idx++, vector++){
-                rxint = vector | FM10K_INT_MAP_TIMER1;
-	        fm10k_write_reg(hw, FM10K_RXINT(queue_idx), rxint);
+		rxint = vector | FM10K_INT_MAP_TIMER1;
+		fm10k_write_reg(hw, FM10K_RXINT(queue_idx), rxint);
 	}
 
-        for(queue_idx = 0; queue_idx < ih->num_qps;
-        queue_idx++, vector++){
+	for(queue_idx = 0; queue_idx < ih->num_qps;
+	queue_idx++, vector++){
 		txint = vector | FM10K_INT_MAP_TIMER0;
 		fm10k_write_reg(hw, FM10K_TXINT(queue_idx), txint);
 	}
@@ -105,23 +105,81 @@ static void ufp_fm10k_enable_tx_ring(struct ufp_handle *ih,
 	return;
 }
 
-static void fm10k_configure_swpri_map(struct fm10k_intfc *interface)
+static s32 fm10k_configure_dglort_map_pf(struct fm10k_hw *hw,
+					 struct fm10k_dglort_cfg *dglort)
 {
-	struct net_device *netdev = interface->netdev;
-	struct fm10k_hw *hw = &interface->hw;
-	int i;
+	u16 glort, queue_count, vsi_count, pc_count;
+	u16 vsi, queue, pc, q_idx;
+	u32 txqctl, dglortdec, dglortmap;
 
-	/* clear flag indicating update is needed */
-	interface->flags &= ~FM10K_FLAG_SWPRI_CONFIG;
+	/* verify the dglort pointer */
+	if (!dglort)
+		return FM10K_ERR_PARAM;
 
-	/* these registers are only available on the PF */
-	if (hw->mac.type != fm10k_mac_pf)
-		return;
+	/* verify the dglort values */
+	if ((dglort->idx > 7) || (dglort->rss_l > 7) || (dglort->pc_l > 3) ||
+	    (dglort->vsi_l > 6) || (dglort->vsi_b > 64) ||
+	    (dglort->queue_l > 8) || (dglort->queue_b >= 256))
+		return FM10K_ERR_PARAM;
 
-	/* configure SWPRI to PC map */
-	for (i = 0; i < FM10K_SWPRI_MAX; i++)
-		fm10k_write_reg(hw, FM10K_SWPRI_MAP(i),
-				netdev_get_prio_tc_map(netdev, i));
+	/* determine count of VSIs and queues */
+	queue_count = BIT(dglort->rss_l + dglort->pc_l);
+	vsi_count = BIT(dglort->vsi_l + dglort->queue_l);
+	glort = dglort->glort;
+	q_idx = dglort->queue_b;
+
+	/* configure SGLORT for queues */
+	for (vsi = 0; vsi < vsi_count; vsi++, glort++) {
+		for (queue = 0; queue < queue_count; queue++, q_idx++) {
+			if (q_idx >= FM10K_MAX_QUEUES)
+				break;
+
+			fm10k_write_reg(hw, FM10K_TX_SGLORT(q_idx), glort);
+			fm10k_write_reg(hw, FM10K_RX_SGLORT(q_idx), glort);
+		}
+	}
+
+	/* determine count of PCs and queues */
+	queue_count = BIT(dglort->queue_l + dglort->rss_l + dglort->vsi_l);
+	pc_count = BIT(dglort->pc_l);
+
+	/* configure PC for Tx queues */
+	for (pc = 0; pc < pc_count; pc++) {
+		q_idx = pc + dglort->queue_b;
+		for (queue = 0; queue < queue_count; queue++) {
+			if (q_idx >= FM10K_MAX_QUEUES)
+				break;
+
+			txqctl = fm10k_read_reg(hw, FM10K_TXQCTL(q_idx));
+			txqctl &= ~FM10K_TXQCTL_PC_MASK;
+			txqctl |= pc << FM10K_TXQCTL_PC_SHIFT;
+			fm10k_write_reg(hw, FM10K_TXQCTL(q_idx), txqctl);
+
+			q_idx += pc_count;
+		}
+	}
+
+	/* configure DGLORTDEC */
+	dglortdec = ((u32)(dglort->rss_l) << FM10K_DGLORTDEC_RSSLENGTH_SHIFT) |
+		    ((u32)(dglort->queue_b) << FM10K_DGLORTDEC_QBASE_SHIFT) |
+		    ((u32)(dglort->pc_l) << FM10K_DGLORTDEC_PCLENGTH_SHIFT) |
+		    ((u32)(dglort->vsi_b) << FM10K_DGLORTDEC_VSIBASE_SHIFT) |
+		    ((u32)(dglort->vsi_l) << FM10K_DGLORTDEC_VSILENGTH_SHIFT) |
+		    ((u32)(dglort->queue_l));
+	if (dglort->inner_rss)
+		dglortdec |=  FM10K_DGLORTDEC_INNERRSS_ENABLE;
+
+	/* configure DGLORTMAP */
+	dglortmap = (dglort->idx == fm10k_dglort_default) ?
+			FM10K_DGLORTMAP_ANY : FM10K_DGLORTMAP_ZERO;
+	dglortmap <<= dglort->vsi_l + dglort->queue_l + dglort->shared_l;
+	dglortmap |= dglort->glort;
+
+	/* write values to hardware */
+	fm10k_write_reg(hw, FM10K_DGLORTDEC(dglort->idx), dglortdec);
+	fm10k_write_reg(hw, FM10K_DGLORTMAP(dglort->idx), dglortmap);
+
+	return 0;
 }
 
 static void fm10k_configure_dglort(struct fm10k_intfc *interface)
@@ -142,15 +200,12 @@ static void fm10k_configure_dglort(struct fm10k_intfc *interface)
 	/* Generate RSS hash based on packet types, TCP/UDP
 	 * port numbers and/or IPv4/v6 src and dst addresses
 	 */
-	mrqc = FM10K_MRQC_IPV4 |
-	       FM10K_MRQC_TCP_IPV4 |
-	       FM10K_MRQC_IPV6 |
-	       FM10K_MRQC_TCP_IPV6;
-
-	if (interface->flags & FM10K_FLAG_RSS_FIELD_IPV4_UDP)
-		mrqc |= FM10K_MRQC_UDP_IPV4;
-	if (interface->flags & FM10K_FLAG_RSS_FIELD_IPV6_UDP)
-		mrqc |= FM10K_MRQC_UDP_IPV6;
+	mrqc =	FM10K_MRQC_IPV4 |
+		FM10K_MRQC_TCP_IPV4 |
+		FM10K_MRQC_UDP_IPV4 |
+		FM10K_MRQC_IPV6 |
+		FM10K_MRQC_TCP_IPV6 |
+		FM10K_MRQC_UDP_IPV6;
 
 	fm10k_write_reg(hw, FM10K_MRQC(0), mrqc);
 
@@ -186,18 +241,18 @@ static void fm10k_configure_dglort(struct fm10k_intfc *interface)
 }
 
 static void ufp_fm10k_configure_rx_ring(struct ufp_handle *ih,
-        uint8_t reg_idx)
+	uint8_t reg_idx)
 {
-        uint64_t addr_dma;
-        struct ufp_ring *ring;
+	uint64_t addr_dma;
+	struct ufp_ring *ring;
 	uint32_t size;
 
 	u32 rxqctl, rxdctl = FM10K_RXDCTL_WRITE_BACK_MIN_DELAY;
 	u32 srrctl = FM10K_SRRCTL_BUFFER_CHAINING_EN;
 	u8 rx_pause = interface->rx_pause;
 
-        addr_dma = (uint64_t)ring->addr_dma;
-        ring = &ih->rx_ring[i];
+	addr_dma = (uint64_t)ring->addr_dma;
+	ring = &ih->rx_ring[i];
 	size = ih->num_rx_desc * sizeof(union fm10k_rx_desc);
 
 	/* disable queue to avoid issues while updating state */
@@ -239,9 +294,6 @@ static void ufp_fm10k_configure_rx_ring(struct ufp_handle *ih,
 static void ufp_fm10k_configure_rx(struct ufp_handle *ih)
 {
 	int i;
-
-	/* Configure SWPRI to PC map */
-	fm10k_configure_swpri_map(interface);
 
 	/* Configure RSS and DGLORT map */
 	fm10k_configure_dglort(interface);
