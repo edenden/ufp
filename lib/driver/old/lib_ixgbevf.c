@@ -241,7 +241,7 @@ static int ufp_ixgbevf_configure_tx(struct ufp_handle *ih)
 
 	/* Setup the HW Tx Head and Tail descriptor pointers */
 	for (i = 0; i < ih->num_qps; i++)
-		ufp_ixgbevf_configure_tx_ring(ih, i, &ih->rx_ring[i]);
+		ufp_ixgbevf_configure_tx_ring(ih, i, &ih->tx_ring[i]);
 
 	return 0;
 }
