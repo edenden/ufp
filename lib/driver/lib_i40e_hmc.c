@@ -1,5 +1,3 @@
-/* lan specific interface functions */
-
 /**
  * i40e_align_l2obj_base - aligns base object pointer to 512 bytes
  * @offset: base address offset needing alignment
@@ -47,9 +45,7 @@ u64 i40e_calculate_l2fpm_size(u32 txq_num, u32 rxq_num)
  *   - HMC Resource Profile has been selected before calling this function.
  **/
 
-int ufp_i40e_init_lan_hmc(struct i40e_hw *hw, u32 txq_num,
-					u32 rxq_num, u32 fcoe_cntx_num,
-					u32 fcoe_filt_num)
+int ufp_i40e_init_lan_hmc(struct i40e_hw *hw, u32 txq_num, u32 rxq_num)
 {
 	struct i40e_hmc_obj_info *obj, *full_obj;
 	i40e_status ret_code = I40E_SUCCESS;
@@ -138,33 +134,6 @@ int ufp_i40e_init_lan_hmc(struct i40e_hw *hw, u32 txq_num,
 	full_obj->size = l2fpm_size;
 
 init_lan_hmc_out:
-	return ret_code;
-}
-
-/**
- * i40e_remove_sd_bp - remove a backing page from a segment descriptor
- * @hw: pointer to our HW structure
- * @hmc_info: pointer to the HMC configuration information structure
- * @idx: the page index
- *
- * This function:
- *	1. Marks the entry in sd table (for direct address mode) invalid
- *	2. write to register PMSDCMD, PMSDDATALOW(PMSDDATALOW.PMSDVALID set
- *	   to 0) and PMSDDATAHIGH to invalidate the sd page
- *	3. Decrement the ref count for the sd_entry
- * assumptions:
- *	1. caller can deallocate the memory used by backing storage after this
- *	   function returns.
- **/
-static i40e_status i40e_remove_sd_bp(struct i40e_hw *hw,
-					       struct i40e_hmc_info *hmc_info,
-					       u32 idx)
-{
-	i40e_status ret_code = I40E_SUCCESS;
-
-	if (i40e_prep_remove_sd_bp(hmc_info, idx) == I40E_SUCCESS)
-		ret_code = i40e_remove_sd_bp_new(hw, hmc_info, idx, true);
-
 	return ret_code;
 }
 
@@ -344,18 +313,6 @@ i40e_status i40e_configure_lan_hmc(struct i40e_hw *hw,
 	wr32(hw, I40E_GLHMC_LANRXBASE(hmc_fn_id),
 	     (u32)((obj->base & I40E_GLHMC_LANRXBASE_FPMLANRXBASE_MASK) / 512));
 	wr32(hw, I40E_GLHMC_LANRXCNT(hmc_fn_id), obj->cnt);
-
-	/* FCoE contexts */
-	obj = &hw->hmc.hmc_obj[I40E_HMC_FCOE_CTX];
-	wr32(hw, I40E_GLHMC_FCOEDDPBASE(hmc_fn_id),
-	 (u32)((obj->base & I40E_GLHMC_FCOEDDPBASE_FPMFCOEDDPBASE_MASK) / 512));
-	wr32(hw, I40E_GLHMC_FCOEDDPCNT(hmc_fn_id), obj->cnt);
-
-	/* FCoE filters */
-	obj = &hw->hmc.hmc_obj[I40E_HMC_FCOE_FILT];
-	wr32(hw, I40E_GLHMC_FCOEFBASE(hmc_fn_id),
-	     (u32)((obj->base & I40E_GLHMC_FCOEFBASE_FPMFCOEFBASE_MASK) / 512));
-	wr32(hw, I40E_GLHMC_FCOEFCNT(hmc_fn_id), obj->cnt);
 
 configure_lan_hmc_out:
 	return ret_code;
@@ -545,12 +502,6 @@ static struct i40e_context_ele i40e_hmc_rxq_ce_info[] = {
 	{ 0 }
 };
 
-/**
- * i40e_write_byte - replace HMC context byte
- * @hmc_bits: pointer to the HMC memory
- * @ce_info: a description of the struct to be read from
- * @src: the struct to be read from
- **/
 static void i40e_write_byte(u8 *hmc_bits,
 			    struct i40e_context_ele *ce_info,
 			    u8 *src)
@@ -585,12 +536,6 @@ static void i40e_write_byte(u8 *hmc_bits,
 	i40e_memcpy(dest, &dest_byte, sizeof(dest_byte), I40E_NONDMA_TO_DMA);
 }
 
-/**
- * i40e_write_word - replace HMC context word
- * @hmc_bits: pointer to the HMC memory
- * @ce_info: a description of the struct to be read from
- * @src: the struct to be read from
- **/
 static void i40e_write_word(u8 *hmc_bits,
 			    struct i40e_context_ele *ce_info,
 			    u8 *src)
@@ -629,12 +574,6 @@ static void i40e_write_word(u8 *hmc_bits,
 	i40e_memcpy(dest, &dest_word, sizeof(dest_word), I40E_NONDMA_TO_DMA);
 }
 
-/**
- * i40e_write_dword - replace HMC context dword
- * @hmc_bits: pointer to the HMC memory
- * @ce_info: a description of the struct to be read from
- * @src: the struct to be read from
- **/
 static void i40e_write_dword(u8 *hmc_bits,
 			     struct i40e_context_ele *ce_info,
 			     u8 *src)
@@ -681,12 +620,6 @@ static void i40e_write_dword(u8 *hmc_bits,
 	i40e_memcpy(dest, &dest_dword, sizeof(dest_dword), I40E_NONDMA_TO_DMA);
 }
 
-/**
- * i40e_write_qword - replace HMC context qword
- * @hmc_bits: pointer to the HMC memory
- * @ce_info: a description of the struct to be read from
- * @src: the struct to be read from
- **/
 static void i40e_write_qword(u8 *hmc_bits,
 			     struct i40e_context_ele *ce_info,
 			     u8 *src)
@@ -1279,50 +1212,31 @@ exit:
 }
 
 /**
- * i40e_prep_remove_sd_bp - Prepares to remove a backing page from a sd entry
- * @hmc_info: pointer to the HMC configuration information structure
- * @idx: the page index
- **/
-i40e_status i40e_prep_remove_sd_bp(struct i40e_hmc_info *hmc_info,
-					     u32 idx)
-{
-	i40e_status ret_code = I40E_SUCCESS;
-	struct i40e_hmc_sd_entry *sd_entry;
-
-	/* get the entry and decrease its ref counter */
-	sd_entry = &hmc_info->sd_table.sd_entry[idx];
-	I40E_DEC_BP_REFCNT(&sd_entry->u.bp);
-	if (sd_entry->u.bp.ref_cnt) {
-		ret_code = I40E_ERR_NOT_READY;
-		goto exit;
-	}
-	I40E_DEC_SD_REFCNT(&hmc_info->sd_table);
-
-	/* mark the entry invalid */
-	sd_entry->valid = false;
-exit:
-	return ret_code;
-}
-
-/**
  * i40e_remove_sd_bp_new - Removes a backing page from a segment descriptor
  * @hw: pointer to our hw struct
  * @hmc_info: pointer to the HMC configuration information structure
  * @idx: the page index
  * @is_pf: used to distinguish between VF and PF
  **/
-i40e_status i40e_remove_sd_bp_new(struct i40e_hw *hw,
-					    struct i40e_hmc_info *hmc_info,
-					    u32 idx, bool is_pf)
+i40e_status i40e_remove_sd_bp(struct i40e_hw *hw,
+	struct i40e_hmc_info *hmc_info, u32 idx)
 {
 	struct i40e_hmc_sd_entry *sd_entry;
 
-	if (!is_pf)
-		return I40E_NOT_SUPPORTED;
+        /* get the entry and decrease its ref counter */
+        sd_entry = &hmc_info->sd_table.sd_entry[idx];
+        I40E_DEC_BP_REFCNT(&sd_entry->u.bp);
+        if (sd_entry->u.bp.ref_cnt) {
+		goto err_not_ready;
+        }
+        I40E_DEC_SD_REFCNT(&hmc_info->sd_table);
 
-	/* get the entry and decrease its ref counter */
-	sd_entry = &hmc_info->sd_table.sd_entry[idx];
+        /* mark the entry invalid */
+        sd_entry->valid = false;
+
 	I40E_CLEAR_PF_SD_ENTRY(hw, idx, I40E_SD_TYPE_DIRECT);
-
 	return i40e_free_dma_mem(hw, &(sd_entry->u.bp.addr));
+
+err_not_ready:
+	return I40E_ERR_NOT_READY;
 }
