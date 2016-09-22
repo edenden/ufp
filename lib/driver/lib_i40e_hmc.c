@@ -452,25 +452,25 @@ struct i40e_context_ele {
 /* LAN Tx Queue Context */
 static struct i40e_context_ele i40e_hmc_txq_ce_info[] = {
 					     /* Field      Width    LSB */
-	{I40E_HMC_STORE(i40e_hmc_obj_txq, head),           13,      0 },
+	{I40E_HMC_STORE(i40e_hmc_obj_txq, head),	   13,      0 },
 	{I40E_HMC_STORE(i40e_hmc_obj_txq, new_context),     1,     30 },
-	{I40E_HMC_STORE(i40e_hmc_obj_txq, base),           57,     32 },
-	{I40E_HMC_STORE(i40e_hmc_obj_txq, fc_ena),          1,     89 },
+	{I40E_HMC_STORE(i40e_hmc_obj_txq, base),	   57,     32 },
+	{I40E_HMC_STORE(i40e_hmc_obj_txq, fc_ena),	  1,     89 },
 	{I40E_HMC_STORE(i40e_hmc_obj_txq, timesync_ena),    1,     90 },
-	{I40E_HMC_STORE(i40e_hmc_obj_txq, fd_ena),          1,     91 },
+	{I40E_HMC_STORE(i40e_hmc_obj_txq, fd_ena),	  1,     91 },
 	{I40E_HMC_STORE(i40e_hmc_obj_txq, alt_vlan_ena),    1,     92 },
-	{I40E_HMC_STORE(i40e_hmc_obj_txq, cpuid),           8,     96 },
+	{I40E_HMC_STORE(i40e_hmc_obj_txq, cpuid),	   8,     96 },
 /* line 1 */
 	{I40E_HMC_STORE(i40e_hmc_obj_txq, thead_wb),       13,  0 + 128 },
 	{I40E_HMC_STORE(i40e_hmc_obj_txq, head_wb_ena),     1, 32 + 128 },
-	{I40E_HMC_STORE(i40e_hmc_obj_txq, qlen),           13, 33 + 128 },
+	{I40E_HMC_STORE(i40e_hmc_obj_txq, qlen),	   13, 33 + 128 },
 	{I40E_HMC_STORE(i40e_hmc_obj_txq, tphrdesc_ena),    1, 46 + 128 },
 	{I40E_HMC_STORE(i40e_hmc_obj_txq, tphrpacket_ena),  1, 47 + 128 },
 	{I40E_HMC_STORE(i40e_hmc_obj_txq, tphwdesc_ena),    1, 48 + 128 },
 	{I40E_HMC_STORE(i40e_hmc_obj_txq, head_wb_addr),   64, 64 + 128 },
 /* line 7 */
-	{I40E_HMC_STORE(i40e_hmc_obj_txq, crc),            32,  0 + (7 * 128) },
-	{I40E_HMC_STORE(i40e_hmc_obj_txq, rdylist),        10, 84 + (7 * 128) },
+	{I40E_HMC_STORE(i40e_hmc_obj_txq, crc),	    32,  0 + (7 * 128) },
+	{I40E_HMC_STORE(i40e_hmc_obj_txq, rdylist),	10, 84 + (7 * 128) },
 	{I40E_HMC_STORE(i40e_hmc_obj_txq, rdylist_act),     1, 94 + (7 * 128) },
 	{ 0 }
 };
@@ -478,14 +478,14 @@ static struct i40e_context_ele i40e_hmc_txq_ce_info[] = {
 /* LAN Rx Queue Context */
 static struct i40e_context_ele i40e_hmc_rxq_ce_info[] = {
 					 /* Field      Width    LSB */
-	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, head),        13,	0   },
-	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, cpuid),        8,	13  },
-	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, base),        57,	32  },
-	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, qlen),        13,	89  },
-	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, dbuff),        7,	102 },
-	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, hbuff),        5,	109 },
-	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, dtype),        2,	114 },
-	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, dsize),        1,	116 },
+	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, head),	13,	0   },
+	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, cpuid),	8,	13  },
+	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, base),	57,	32  },
+	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, qlen),	13,	89  },
+	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, dbuff),	7,	102 },
+	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, hbuff),	5,	109 },
+	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, dtype),	2,	114 },
+	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, dsize),	1,	116 },
 	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, crcstrip),     1,	117 },
 	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, fc_ena),       1,	118 },
 	{ I40E_HMC_STORE(i40e_hmc_obj_rxq, l2tsel),       1,	119 },
@@ -502,444 +502,95 @@ static struct i40e_context_ele i40e_hmc_rxq_ce_info[] = {
 	{ 0 }
 };
 
-static void i40e_write_byte(u8 *hmc_bits,
-			    struct i40e_context_ele *ce_info,
-			    u8 *src)
+void i40e_hmc_write(uint8_t *hmc_bits,
+	struct i40e_context_ele *ce_info, uint8_t *host_buf)
 {
-	u8 src_byte, dest_byte, mask;
-	u8 *from, *dest;
-	u16 shift_width;
+	uint8_t data[8], mask[8];
+	uint8_t *src, *dst;
+	uint8_t byte_data, prev_data, byte_mask, prev_mask;
+	uint16_t shift_width, width_remain;
+	int i;
 
 	/* copy from the next struct field */
-	from = src + ce_info->offset;
-
-	/* prepare the bits and mask */
-	shift_width = ce_info->lsb % 8;
-	mask = (u8)(BIT(ce_info->width) - 1);
-
-	src_byte = *from;
-	src_byte &= mask;
-
-	/* shift to correct alignment */
-	mask <<= shift_width;
-	src_byte <<= shift_width;
-
-	/* get the current bits from the target bit string */
-	dest = hmc_bits + (ce_info->lsb / 8);
-
-	i40e_memcpy(&dest_byte, dest, sizeof(dest_byte), I40E_DMA_TO_NONDMA);
-
-	dest_byte &= ~mask;	/* get the bits not changing */
-	dest_byte |= src_byte;	/* add in the new bits */
-
-	/* put it all back */
-	i40e_memcpy(dest, &dest_byte, sizeof(dest_byte), I40E_NONDMA_TO_DMA);
-}
-
-static void i40e_write_word(u8 *hmc_bits,
-			    struct i40e_context_ele *ce_info,
-			    u8 *src)
-{
-	u16 src_word, mask;
-	u8 *from, *dest;
-	u16 shift_width;
-	__le16 dest_word;
-
-	/* copy from the next struct field */
-	from = src + ce_info->offset;
-
-	/* prepare the bits and mask */
-	shift_width = ce_info->lsb % 8;
-	mask = BIT(ce_info->width) - 1;
-
-	/* don't swizzle the bits until after the mask because the mask bits
-	 * will be in a different bit position on big endian machines
-	 */
-	src_word = *(u16 *)from;
-	src_word &= mask;
-
-	/* shift to correct alignment */
-	mask <<= shift_width;
-	src_word <<= shift_width;
-
-	/* get the current bits from the target bit string */
-	dest = hmc_bits + (ce_info->lsb / 8);
-
-	i40e_memcpy(&dest_word, dest, sizeof(dest_word), I40E_DMA_TO_NONDMA);
-
-	dest_word &= ~(CPU_TO_LE16(mask));	/* get the bits not changing */
-	dest_word |= CPU_TO_LE16(src_word);	/* add in the new bits */
-
-	/* put it all back */
-	i40e_memcpy(dest, &dest_word, sizeof(dest_word), I40E_NONDMA_TO_DMA);
-}
-
-static void i40e_write_dword(u8 *hmc_bits,
-			     struct i40e_context_ele *ce_info,
-			     u8 *src)
-{
-	u32 src_dword, mask;
-	u8 *from, *dest;
-	u16 shift_width;
-	__le32 dest_dword;
-
-	/* copy from the next struct field */
-	from = src + ce_info->offset;
-
-	/* prepare the bits and mask */
-	shift_width = ce_info->lsb % 8;
-
-	/* if the field width is exactly 32 on an x86 machine, then the shift
-	 * operation will not work because the SHL instructions count is masked
-	 * to 5 bits so the shift will do nothing
-	 */
-	if (ce_info->width < 32)
-		mask = BIT(ce_info->width) - 1;
-	else
-		mask = ~(u32)0;
-
-	/* don't swizzle the bits until after the mask because the mask bits
-	 * will be in a different bit position on big endian machines
-	 */
-	src_dword = *(u32 *)from;
-	src_dword &= mask;
-
-	/* shift to correct alignment */
-	mask <<= shift_width;
-	src_dword <<= shift_width;
-
-	/* get the current bits from the target bit string */
-	dest = hmc_bits + (ce_info->lsb / 8);
-
-	i40e_memcpy(&dest_dword, dest, sizeof(dest_dword), I40E_DMA_TO_NONDMA);
-
-	dest_dword &= ~(CPU_TO_LE32(mask));	/* get the bits not changing */
-	dest_dword |= CPU_TO_LE32(src_dword);	/* add in the new bits */
-
-	/* put it all back */
-	i40e_memcpy(dest, &dest_dword, sizeof(dest_dword), I40E_NONDMA_TO_DMA);
-}
-
-static void i40e_write_qword(u8 *hmc_bits,
-			     struct i40e_context_ele *ce_info,
-			     u8 *src)
-{
-	u64 src_qword, mask;
-	u8 *from, *dest;
-	u16 shift_width;
-	__le64 dest_qword;
-
-	/* copy from the next struct field */
-	from = src + ce_info->offset;
-
-	/* prepare the bits and mask */
-	shift_width = ce_info->lsb % 8;
-
-	/* if the field width is exactly 64 on an x86 machine, then the shift
-	 * operation will not work because the SHL instructions count is masked
-	 * to 6 bits so the shift will do nothing
-	 */
-	if (ce_info->width < 64)
-		mask = BIT_ULL(ce_info->width) - 1;
-	else
-		mask = ~(u64)0;
-
-	/* don't swizzle the bits until after the mask because the mask bits
-	 * will be in a different bit position on big endian machines
-	 */
-	src_qword = *(u64 *)from;
-	src_qword &= mask;
-
-	/* shift to correct alignment */
-	mask <<= shift_width;
-	src_qword <<= shift_width;
-
-	/* get the current bits from the target bit string */
-	dest = hmc_bits + (ce_info->lsb / 8);
-
-	i40e_memcpy(&dest_qword, dest, sizeof(dest_qword), I40E_DMA_TO_NONDMA);
-
-	dest_qword &= ~(CPU_TO_LE64(mask));	/* get the bits not changing */
-	dest_qword |= CPU_TO_LE64(src_qword);	/* add in the new bits */
-
-	/* put it all back */
-	i40e_memcpy(dest, &dest_qword, sizeof(dest_qword), I40E_NONDMA_TO_DMA);
-}
-
-/**
- * i40e_read_byte - read HMC context byte into struct
- * @hmc_bits: pointer to the HMC memory
- * @ce_info: a description of the struct to be filled
- * @dest: the struct to be filled
- **/
-static void i40e_read_byte(u8 *hmc_bits,
-			   struct i40e_context_ele *ce_info,
-			   u8 *dest)
-{
-	u8 dest_byte, mask;
-	u8 *src, *target;
-	u16 shift_width;
-
-	/* prepare the bits and mask */
-	shift_width = ce_info->lsb % 8;
-	mask = (u8)(BIT(ce_info->width) - 1);
-
-	/* shift to correct alignment */
-	mask <<= shift_width;
-
-	/* get the current bits from the src bit string */
-	src = hmc_bits + (ce_info->lsb / 8);
-
-	i40e_memcpy(&dest_byte, src, sizeof(dest_byte), I40E_DMA_TO_NONDMA);
-
-	dest_byte &= ~(mask);
-
-	dest_byte >>= shift_width;
-
-	/* get the address from the struct field */
-	target = dest + ce_info->offset;
-
-	/* put it back in the struct */
-	i40e_memcpy(target, &dest_byte, sizeof(dest_byte), I40E_NONDMA_TO_DMA);
-}
-
-/**
- * i40e_read_word - read HMC context word into struct
- * @hmc_bits: pointer to the HMC memory
- * @ce_info: a description of the struct to be filled
- * @dest: the struct to be filled
- **/
-static void i40e_read_word(u8 *hmc_bits,
-			   struct i40e_context_ele *ce_info,
-			   u8 *dest)
-{
-	u16 dest_word, mask;
-	u8 *src, *target;
-	u16 shift_width;
-	__le16 src_word;
-
-	/* prepare the bits and mask */
-	shift_width = ce_info->lsb % 8;
-	mask = BIT(ce_info->width) - 1;
-
-	/* shift to correct alignment */
-	mask <<= shift_width;
-
-	/* get the current bits from the src bit string */
-	src = hmc_bits + (ce_info->lsb / 8);
-
-	i40e_memcpy(&src_word, src, sizeof(src_word), I40E_DMA_TO_NONDMA);
-
-	/* the data in the memory is stored as little endian so mask it
-	 * correctly
-	 */
-	src_word &= ~(CPU_TO_LE16(mask));
-
-	/* get the data back into host order before shifting */
-	dest_word = LE16_TO_CPU(src_word);
-
-	dest_word >>= shift_width;
-
-	/* get the address from the struct field */
-	target = dest + ce_info->offset;
-
-	/* put it back in the struct */
-	i40e_memcpy(target, &dest_word, sizeof(dest_word), I40E_NONDMA_TO_DMA);
-}
-
-/**
- * i40e_read_dword - read HMC context dword into struct
- * @hmc_bits: pointer to the HMC memory
- * @ce_info: a description of the struct to be filled
- * @dest: the struct to be filled
- **/
-static void i40e_read_dword(u8 *hmc_bits,
-			    struct i40e_context_ele *ce_info,
-			    u8 *dest)
-{
-	u32 dest_dword, mask;
-	u8 *src, *target;
-	u16 shift_width;
-	__le32 src_dword;
-
-	/* prepare the bits and mask */
-	shift_width = ce_info->lsb % 8;
-
-	/* if the field width is exactly 32 on an x86 machine, then the shift
-	 * operation will not work because the SHL instructions count is masked
-	 * to 5 bits so the shift will do nothing
-	 */
-	if (ce_info->width < 32)
-		mask = BIT(ce_info->width) - 1;
-	else
-		mask = ~(u32)0;
-
-	/* shift to correct alignment */
-	mask <<= shift_width;
-
-	/* get the current bits from the src bit string */
-	src = hmc_bits + (ce_info->lsb / 8);
-
-	i40e_memcpy(&src_dword, src, sizeof(src_dword), I40E_DMA_TO_NONDMA);
-
-	/* the data in the memory is stored as little endian so mask it
-	 * correctly
-	 */
-	src_dword &= ~(CPU_TO_LE32(mask));
-
-	/* get the data back into host order before shifting */
-	dest_dword = LE32_TO_CPU(src_dword);
-
-	dest_dword >>= shift_width;
-
-	/* get the address from the struct field */
-	target = dest + ce_info->offset;
-
-	/* put it back in the struct */
-	i40e_memcpy(target, &dest_dword, sizeof(dest_dword),
-		    I40E_NONDMA_TO_DMA);
-}
-
-/**
- * i40e_read_qword - read HMC context qword into struct
- * @hmc_bits: pointer to the HMC memory
- * @ce_info: a description of the struct to be filled
- * @dest: the struct to be filled
- **/
-static void i40e_read_qword(u8 *hmc_bits,
-			    struct i40e_context_ele *ce_info,
-			    u8 *dest)
-{
-	u64 dest_qword, mask;
-	u8 *src, *target;
-	u16 shift_width;
-	__le64 src_qword;
-
-	/* prepare the bits and mask */
-	shift_width = ce_info->lsb % 8;
-
-	/* if the field width is exactly 64 on an x86 machine, then the shift
-	 * operation will not work because the SHL instructions count is masked
-	 * to 6 bits so the shift will do nothing
-	 */
-	if (ce_info->width < 64)
-		mask = BIT_ULL(ce_info->width) - 1;
-	else
-		mask = ~(u64)0;
-
-	/* shift to correct alignment */
-	mask <<= shift_width;
-
-	/* get the current bits from the src bit string */
-	src = hmc_bits + (ce_info->lsb / 8);
-
-	i40e_memcpy(&src_qword, src, sizeof(src_qword), I40E_DMA_TO_NONDMA);
-
-	/* the data in the memory is stored as little endian so mask it
-	 * correctly
-	 */
-	src_qword &= ~(CPU_TO_LE64(mask));
-
-	/* get the data back into host order before shifting */
-	dest_qword = LE64_TO_CPU(src_qword);
-
-	dest_qword >>= shift_width;
-
-	/* get the address from the struct field */
-	target = dest + ce_info->offset;
-
-	/* put it back in the struct */
-	i40e_memcpy(target, &dest_qword, sizeof(dest_qword),
-		    I40E_NONDMA_TO_DMA);
-}
-
-/**
- * i40e_get_hmc_context - extract HMC context bits
- * @context_bytes: pointer to the context bit array
- * @ce_info: a description of the struct to be filled
- * @dest: the struct to be filled
- **/
-static i40e_status i40e_get_hmc_context(u8 *context_bytes,
-					struct i40e_context_ele *ce_info,
-					u8 *dest)
-{
-	int f;
-
-	for (f = 0; ce_info[f].width != 0; f++) {
-		switch (ce_info[f].size_of) {
-		case 1:
-			i40e_read_byte(context_bytes, &ce_info[f], dest);
-			break;
-		case 2:
-			i40e_read_word(context_bytes, &ce_info[f], dest);
-			break;
-		case 4:
-			i40e_read_dword(context_bytes, &ce_info[f], dest);
-			break;
-		case 8:
-			i40e_read_qword(context_bytes, &ce_info[f], dest);
-			break;
-		default:
-			/* nothing to do, just keep going */
-			break;
-		}
+	src = host_buf + ce_info->offset;
+
+	for(i = 0; i < ce_info->size_of; i++){
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+		data[i] = src[i];
+#elif __BYTE_ORDER == __BIG_ENDIAN
+		data[i] = src[ce_info->size_of - (i + 1)];
+#endif
+
+		width_remain = ce_info->width - (i * 8);
+		mask[i] = (1 << min(width_remain, (uint16_t)8)) - 1;
 	}
 
-	return I40E_SUCCESS;
-}
+	/* prepare the bits and mask */
+	shift_width = ce_info->lsb % 8;
 
-/**
- * i40e_clear_hmc_context - zero out the HMC context bits
- * @hw:       the hardware struct
- * @context_bytes: pointer to the context bit array (DMA memory)
- * @hmc_type: the type of HMC resource
- **/
-static i40e_status i40e_clear_hmc_context(struct i40e_hw *hw,
-					u8 *context_bytes,
-					enum i40e_hmc_lan_rsrc_type hmc_type)
-{
-	/* clean the bit array */
-	i40e_memset(context_bytes, 0, (u32)hw->hmc.hmc_obj[hmc_type].size,
-		    I40E_DMA_MEM);
+	/* get the current bits from the target bit string */
+	dst = hmc_bits + (ce_info->lsb / 8);
 
-	return I40E_SUCCESS;
-}
+	prev_data = 0;
+	prev_mask = 0;
+	for(i = 0; i < ce_info->size_of; i++){
+		byte_data = data[i] << shift_width;
+		byte_data |= prev_data;
 
-/**
- * i40e_set_hmc_context - replace HMC context bits
- * @context_bytes: pointer to the context bit array
- * @ce_info:  a description of the struct to be filled
- * @dest:     the struct to be filled
- **/
-static i40e_status i40e_set_hmc_context(u8 *context_bytes,
-					struct i40e_context_ele *ce_info,
-					u8 *dest)
-{
-	int f;
+		byte_mask = mask[i] << shift_width;
+		byte_mask |= prev_mask;
 
-	for (f = 0; ce_info[f].width != 0; f++) {
+		dst[i] = byte_data | (~byte_mask & dst[i]);
 
-		/* we have to deal with each element of the HMC using the
-		 * correct size so that we are correct regardless of the
-		 * endianness of the machine
-		 */
-		switch (ce_info[f].size_of) {
-		case 1:
-			i40e_write_byte(context_bytes, &ce_info[f], dest);
-			break;
-		case 2:
-			i40e_write_word(context_bytes, &ce_info[f], dest);
-			break;
-		case 4:
-			i40e_write_dword(context_bytes, &ce_info[f], dest);
-			break;
-		case 8:
-			i40e_write_qword(context_bytes, &ce_info[f], dest);
-			break;
-		}
+		prev_data = data[i] >> (8 - shift_width);
+		prev_mask = mask[i] >> (8 - shift_width);
 	}
 
-	return I40E_SUCCESS;
+	return;
+}
+
+void i40e_hmc_read(uint8_t *hmc_bits,
+	struct i40e_context_ele *ce_info, uint8_t *host_buf)
+{
+	uint8_t data[8], mask[8];
+	uint8_t *src, *dst;
+	uint8_t byte_data, next_data;
+	uint16_t shift_width, width_remain;
+	int i;
+
+	/* prepare the bits and mask */
+	shift_width = ce_info->lsb % 8;
+
+	/* get the current bits from the src bit string */
+	src = hmc_bits + (ce_info->lsb / 8);
+
+	for(i = 0; i < ce_info->size_of; i++){
+		width_remain = ce_info->width - (i * 8);
+		mask[i] = (1 << min(width_remain, (uint16_t)8)) - 1;
+	}
+
+	next_data = 0;
+	for(i = ce_info->size_of - 1; i >= 0; i--){
+		byte_data = src[i] >> shift_width;
+		byte_data |= next_data;
+
+		data[i] = byte_data & mask[i];
+
+		next_data = src[i] << (8 - shift_width);
+	}
+
+	/* get the address from the struct field */
+	dst = host_buf + ce_info->offset;
+
+	for(i = 0; i < ce_info->size_of; i++){
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+		dst[i] = data[i];
+#elif __BYTE_ORDER == __BIG_ENDIAN
+		dst[i] = data[ce_info->size_of - (i + 1)];
+#endif
+	}
+
+	return;
 }
 
 /**
@@ -1005,126 +656,6 @@ i40e_status i40e_hmc_get_object_va(struct i40e_hw *hw,
 	*object_base = (u8 *)sd_entry->u.bp.addr.va + obj_offset_in_sd;
 exit:
 	return ret_code;
-}
-
-/**
- * i40e_get_lan_tx_queue_context - return the HMC context for the queue
- * @hw:    the hardware struct
- * @queue: the queue we care about
- * @s:     the struct to be filled
- **/
-i40e_status i40e_get_lan_tx_queue_context(struct i40e_hw *hw,
-						    u16 queue,
-						    struct i40e_hmc_obj_txq *s)
-{
-	i40e_status err;
-	u8 *context_bytes;
-
-	err = i40e_hmc_get_object_va(hw, &context_bytes, I40E_HMC_LAN_TX, queue);
-	if (err < 0)
-		return err;
-
-	return i40e_get_hmc_context(context_bytes,
-				    i40e_hmc_txq_ce_info, (u8 *)s);
-}
-
-/**
- * i40e_clear_lan_tx_queue_context - clear the HMC context for the queue
- * @hw:    the hardware struct
- * @queue: the queue we care about
- **/
-i40e_status i40e_clear_lan_tx_queue_context(struct i40e_hw *hw,
-						      u16 queue)
-{
-	i40e_status err;
-	u8 *context_bytes;
-
-	err = i40e_hmc_get_object_va(hw, &context_bytes, I40E_HMC_LAN_TX, queue);
-	if (err < 0)
-		return err;
-
-	return i40e_clear_hmc_context(hw, context_bytes, I40E_HMC_LAN_TX);
-}
-
-/**
- * i40e_set_lan_tx_queue_context - set the HMC context for the queue
- * @hw:    the hardware struct
- * @queue: the queue we care about
- * @s:     the struct to be filled
- **/
-i40e_status i40e_set_lan_tx_queue_context(struct i40e_hw *hw,
-						    u16 queue,
-						    struct i40e_hmc_obj_txq *s)
-{
-	i40e_status err;
-	u8 *context_bytes;
-
-	err = i40e_hmc_get_object_va(hw, &context_bytes, I40E_HMC_LAN_TX, queue);
-	if (err < 0)
-		return err;
-
-	return i40e_set_hmc_context(context_bytes,
-				    i40e_hmc_txq_ce_info, (u8 *)s);
-}
-
-/**
- * i40e_get_lan_rx_queue_context - return the HMC context for the queue
- * @hw:    the hardware struct
- * @queue: the queue we care about
- * @s:     the struct to be filled
- **/
-i40e_status i40e_get_lan_rx_queue_context(struct i40e_hw *hw,
-						    u16 queue,
-						    struct i40e_hmc_obj_rxq *s)
-{
-	i40e_status err;
-	u8 *context_bytes;
-
-	err = i40e_hmc_get_object_va(hw, &context_bytes, I40E_HMC_LAN_RX, queue);
-	if (err < 0)
-		return err;
-
-	return i40e_get_hmc_context(context_bytes,
-				    i40e_hmc_rxq_ce_info, (u8 *)s);
-}
-
-/**
- * i40e_clear_lan_rx_queue_context - clear the HMC context for the queue
- * @hw:    the hardware struct
- * @queue: the queue we care about
- **/
-i40e_status i40e_clear_lan_rx_queue_context(struct i40e_hw *hw,
-						      u16 queue)
-{
-	i40e_status err;
-	u8 *context_bytes;
-
-	err = i40e_hmc_get_object_va(hw, &context_bytes, I40E_HMC_LAN_RX, queue);
-	if (err < 0)
-		return err;
-
-	return i40e_clear_hmc_context(hw, context_bytes, I40E_HMC_LAN_RX);
-}
-
-/**
- * i40e_set_lan_rx_queue_context - set the HMC context for the queue
- * @hw:    the hardware struct
- * @queue: the queue we care about
- * @s:     the struct to be filled
- **/
-i40e_status i40e_set_lan_rx_queue_context(struct i40e_hw *hw,
-						    u16 queue,
-						    struct i40e_hmc_obj_rxq *s)
-{
-	i40e_status err;
-	u8 *context_bytes;
-
-	err = i40e_hmc_get_object_va(hw, &context_bytes, I40E_HMC_LAN_RX, queue);
-	if (err < 0)
-		return err;
-
-	return i40e_set_hmc_context(context_bytes,
-				    i40e_hmc_rxq_ce_info, (u8 *)s);
 }
 
 /**
@@ -1223,16 +754,16 @@ i40e_status i40e_remove_sd_bp(struct i40e_hw *hw,
 {
 	struct i40e_hmc_sd_entry *sd_entry;
 
-        /* get the entry and decrease its ref counter */
-        sd_entry = &hmc_info->sd_table.sd_entry[idx];
-        I40E_DEC_BP_REFCNT(&sd_entry->u.bp);
-        if (sd_entry->u.bp.ref_cnt) {
+	/* get the entry and decrease its ref counter */
+	sd_entry = &hmc_info->sd_table.sd_entry[idx];
+	I40E_DEC_BP_REFCNT(&sd_entry->u.bp);
+	if (sd_entry->u.bp.ref_cnt) {
 		goto err_not_ready;
-        }
-        I40E_DEC_SD_REFCNT(&hmc_info->sd_table);
+	}
+	I40E_DEC_SD_REFCNT(&hmc_info->sd_table);
 
-        /* mark the entry invalid */
-        sd_entry->valid = false;
+	/* mark the entry invalid */
+	sd_entry->valid = false;
 
 	I40E_CLEAR_PF_SD_ENTRY(hw, idx, I40E_SD_TYPE_DIRECT);
 	return i40e_free_dma_mem(hw, &(sd_entry->u.bp.addr));
