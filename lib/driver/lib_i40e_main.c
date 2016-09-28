@@ -13,56 +13,46 @@
 #include "lib_i40e.h"
 #include "lib_i40e_main.h"
 
-struct ufp_desc *ufp_i40e_desc_alloc(struct ufp_handle *ih)
+struct ufp_i40e_dmabuf *ufp_i40e_dma_alloc(struct ufp_handle *ih, unsigned long size)
 {
 	struct ufp_desc *desc;
-	unsigned long size, size_mem;
 	unsigned long addr_dma;
-	void *addr_virt, *addr_mem;
+	void *addr_virt, *addr_dma;
 	int ret;
 
-	desc = malloc(sizeof(struct ufp_desc));
-	if(!desc)
-		goto err_alloc_desc;
+	dma = malloc(sizeof(struct ufp_i40e_dma));
+	if(!dma)
+		goto err_alloc_dma;
 
-	size = SIZE_1GB;
-	addr_virt = mmap(NULL, size, PROT_READ | PROT_WRITE,
-		MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, 0, 0);
-	if(addr_virt == MAP_FAILED){
+	err = posix_memalign(&addr_virt, sysconf(_SC_PAGESIZE), size);
+	if(err){
 		goto err_mmap;
 	}
 
-	desc->addr_virt = addr_virt;
+	dma->addr_virt = addr_virt;
 
 	ret = ufp_dma_map(ih, addr_virt, &addr_dma, size);
 	if(ret < 0){
 		goto err_dma_map;
 	}
 
-	addr_mem	= (void *)ALIGN((unsigned long)addr_virt, L1_CACHE_BYTES);
-	size_mem	= size - (addr_mem - dma->addr_virt);
-	desc->node	= ufp_mem_init(addr_mem, size_mem);
-	if(!desc->node)
-		goto err_mem_init;
+	dma->addr_dma = addr_dma;
 
-	return desc;
+	return dma;
 
-err_mem_init:
-	ufp_dma_unmap(ih, ih->rx_ring[thread_id].addr_dma);
 err_dma_map:
-	munmap(desc->addr_virt, size);
+	free(dma->addr_virt);
 err_mmap:
-	free(desc);
-err_alloc_desc:
+	free(dma);
+err_alloc_dma:
 	return NULL;
 }
 
-void ufp_i40e_desc_release(struct ufp_handle *ih, struct ufp_desc *desc)
+void ufp_i40e_dma_release(struct ufp_handle *ih, struct ufp_i40e_dmabuf *dma)
 {
-	ufp_mem_destroy(desc->node);
-	ufp_dma_unmap(ih, ih->tx_ring[thread_id].addr_dma);
-	munmap(desc->addr_virt, SIZE_1GB);
-	free(desc);
+	ufp_dma_unmap(ih, dma->addr_dma);
+	free(dma->addr_virt);
+	free(dma);
 	return;
 }
 
