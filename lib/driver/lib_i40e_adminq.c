@@ -1,3 +1,24 @@
+// Usage Sample
+static i40e_status i40e_aq_mac_address_read(struct i40e_hw *hw,
+				   u16 *flags,
+				   struct i40e_aqc_mac_address_read_data *addrs,
+				   struct i40e_asq_cmd_details *cmd_details)
+{
+	struct i40e_aq_desc desc;
+	struct i40e_aqc_mac_address_read *cmd_data =
+		(struct i40e_aqc_mac_address_read *)&desc.params.raw;
+	i40e_status status;
+
+	i40e_fill_default_direct_cmd_desc(&desc, i40e_aqc_opc_mac_address_read);
+	desc.flags |= CPU_TO_LE16(I40E_AQ_FLAG_BUF);
+
+	status = i40e_asq_send_command(hw, &desc, addrs,
+				       sizeof(*addrs), cmd_details);
+	*flags = LE16_TO_CPU(cmd_data->command_flags);
+
+	return status;
+}
+
 /**
  *  i40e_alloc_adminq_asq_ring - Allocate Admin Queue send rings
  *  @hw: pointer to the hardware structure
@@ -680,10 +701,6 @@ i40e_status i40e_asq_send_command(struct i40e_hw *hw,
 		status = I40E_ERR_QUEUE_EMPTY;
 		goto asq_send_command_error;
 	}
-
-	/* clear requested flags and then set additional flags if defined */
-	desc->flags &= ~CPU_TO_LE16(details->flags_dis);
-	desc->flags |= CPU_TO_LE16(details->flags_ena);
 
 	if (buff_size > hw->aq.asq_buf_size) {
 		i40e_debug(hw,
