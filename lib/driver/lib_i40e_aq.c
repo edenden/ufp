@@ -216,9 +216,6 @@ static void i40e_free_asq_bufs(struct i40e_hw *hw)
 		if (hw->aq.asq.r.asq_bi[i].pa)
 			i40e_free_dma_mem(hw, &hw->aq.asq.r.asq_bi[i]);
 
-	/* free the buffer info list */
-	i40e_free_virt_mem(hw, &hw->aq.asq.cmd_buf);
-
 	/* free the descriptor memory */
 	i40e_free_dma_mem(hw, &hw->aq.asq.desc_buf);
 
@@ -238,17 +235,17 @@ static i40e_status i40e_config_asq_regs(struct i40e_hw *hw)
 	u32 reg = 0;
 
 	/* Clear Head and Tail */
-	wr32(hw, I40E_PF_ATQH, 0);
-	wr32(hw, I40E_PF_ATQT, 0);
+	ufp_write_reg(hw, I40E_PF_ATQH, 0);
+	ufp_write_reg(hw, I40E_PF_ATQT, 0);
 
 	/* set starting point */
-	wr32(hw, I40E_PF_ATQLEN, (hw->aq.num_asq_entries |
+	ufp_write_reg(hw, I40E_PF_ATQLEN, (hw->aq.num_asq_entries |
 				  I40E_PF_ATQLEN_ATQENABLE_MASK));
-	wr32(hw, I40E_PF_ATQBAL, lower_32_bits(hw->aq.asq.desc_buf.pa));
-	wr32(hw, I40E_PF_ATQBAH, upper_32_bits(hw->aq.asq.desc_buf.pa));
+	ufp_write_reg(hw, I40E_PF_ATQBAL, lower_32_bits(hw->aq.asq.desc_buf.pa));
+	ufp_write_reg(hw, I40E_PF_ATQBAH, upper_32_bits(hw->aq.asq.desc_buf.pa));
 
 	/* Check one register to verify that config was applied */
-	reg = rd32(hw, I40E_PF_ATQBAL);
+	reg = ufp_read_reg(hw, I40E_PF_ATQBAL);
 	if (reg != lower_32_bits(hw->aq.asq.desc_buf.pa))
 		err = I40E_ERR_ADMIN_QUEUE_ERROR;
 
@@ -267,20 +264,20 @@ static i40e_status i40e_config_arq_regs(struct i40e_hw *hw)
 	u32 reg = 0;
 
 	/* Clear Head and Tail */
-	wr32(hw, I40E_PF_ARQH, 0);
-	wr32(hw, I40E_PF_ARQT, 0);
+	ufp_write_reg(hw, I40E_PF_ARQH, 0);
+	ufp_write_reg(hw, I40E_PF_ARQT, 0);
 
 	/* set starting point */
-	wr32(hw, I40E_PF_ARQLEN, (hw->aq.num_arq_entries |
+	ufp_write_reg(hw, I40E_PF_ARQLEN, (hw->aq.num_arq_entries |
 				  I40E_PF_ARQLEN_ARQENABLE_MASK));
-	wr32(hw, I40E_PF_ARQBAL, lower_32_bits(hw->aq.arq.desc_buf.pa));
-	wr32(hw, I40E_PF_ARQBAH, upper_32_bits(hw->aq.arq.desc_buf.pa));
+	ufp_write_reg(hw, I40E_PF_ARQBAL, lower_32_bits(hw->aq.arq.desc_buf.pa));
+	ufp_write_reg(hw, I40E_PF_ARQBAH, upper_32_bits(hw->aq.arq.desc_buf.pa));
 
 	/* Update tail in the HW to post pre-allocated buffers */
-	wr32(hw, I40E_PF_ARQT, hw->aq.num_arq_entries - 1);
+	ufp_write_reg(hw, I40E_PF_ARQT, hw->aq.num_arq_entries - 1);
 
 	/* Check one register to verify that config was applied */
-	reg = rd32(hw, I40E_PF_ARQBAL);
+	reg = ufp_read_reg(hw, I40E_PF_ARQBAL);
 	if (reg != lower_32_bits(hw->aq.arq.desc_buf.pa))
 		err = I40E_ERR_ADMIN_QUEUE_ERROR;
 
@@ -421,11 +418,11 @@ i40e_status i40e_shutdown_asq(struct i40e_hw *hw)
 	}
 
 	/* Stop firmware AdminQ processing */
-	wr32(hw, I40E_PF_ATQH, 0);
-	wr32(hw, I40E_PF_ATQT, 0);
-	wr32(hw, I40E_PF_ATQLEN, 0);
-	wr32(hw, I40E_PF_ATQBAL, 0);
-	wr32(hw, I40E_PF_ATQBAH, 0);
+	ufp_write_reg(hw, I40E_PF_ATQH, 0);
+	ufp_write_reg(hw, I40E_PF_ATQT, 0);
+	ufp_write_reg(hw, I40E_PF_ATQLEN, 0);
+	ufp_write_reg(hw, I40E_PF_ATQBAL, 0);
+	ufp_write_reg(hw, I40E_PF_ATQBAH, 0);
 
 	hw->aq.asq.count = 0; /* to indicate uninitialized queue */
 
@@ -452,11 +449,11 @@ i40e_status i40e_shutdown_arq(struct i40e_hw *hw)
 	}
 
 	/* Stop firmware AdminQ processing */
-	wr32(hw, I40E_PF_ARQH, 0);
-	wr32(hw, I40E_PF_ARQT, 0);
-	wr32(hw, I40E_PF_ARQLEN, 0);
-	wr32(hw, I40E_PF_ARQBAL, 0);
-	wr32(hw, I40E_PF_ARQBAH, 0);
+	ufp_write_reg(hw, I40E_PF_ARQH, 0);
+	ufp_write_reg(hw, I40E_PF_ARQT, 0);
+	ufp_write_reg(hw, I40E_PF_ARQLEN, 0);
+	ufp_write_reg(hw, I40E_PF_ARQBAL, 0);
+	ufp_write_reg(hw, I40E_PF_ARQBAH, 0);
 
 	hw->aq.arq.count = 0; /* to indicate uninitialized queue */
 
@@ -465,24 +462,6 @@ i40e_status i40e_shutdown_arq(struct i40e_hw *hw)
 
 shutdown_arq_out:
 	return err;
-}
-
-/**
- *  i40e_resume_aq - resume AQ processing from 0
- *  @hw: pointer to the hardware structure
- **/
-static void i40e_resume_aq(struct i40e_hw *hw)
-{
-	/* Registers are reset after PF reset */
-	hw->aq.asq.next_to_use = 0;
-	hw->aq.asq.next_to_clean = 0;
-
-	i40e_config_asq_regs(hw);
-
-	hw->aq.arq.next_to_use = 0;
-	hw->aq.arq.next_to_clean = 0;
-
-	i40e_config_arq_regs(hw);
 }
 
 int i40e_init_adminq(struct i40e_hw *hw)
@@ -515,37 +494,8 @@ int i40e_init_adminq(struct i40e_hw *hw)
 	if(err < 0)
 		goto err_init_arq;
 
-	/* There are some cases where the firmware may not be quite ready
-	 * for AdminQ operations, so we retry the AdminQ setup a few times
-	 * if we see timeouts in this first AQ call.
-	 */
-	do {
-		err = i40e_aq_get_firmware_version(hw,
-			&hw->aq.fw_maj_ver,
-			&hw->aq.fw_min_ver,
-			&hw->aq.fw_build,
-			&hw->aq.api_maj_ver,
-			&hw->aq.api_min_ver,
-			NULL);
-		if (err != I40E_ERR_ADMIN_QUEUE_TIMEOUT)
-			break;
-		retry++;
-		msleep(100);
-		i40e_resume_aq(hw);
-	} while (retry < 10);
-	if (err != I40E_SUCCESS)
-		goto err_get_firmware_version;
-
-	if (hw->aq.api_maj_ver > I40E_FW_API_VERSION_MAJOR) {
-		err = I40E_ERR_FIRMWARE_API_VERSION;
-		goto err_firmware;
-	}
-
 	return 0;
 
-err_firmware:
-err_get_firmware_version:
-	i40e_shutdown_arq(hw);
 err_init_arq:
 	i40e_shutdown_asq(hw);
 err_init_asq:
@@ -565,8 +515,6 @@ i40e_status i40e_shutdown_adminq(struct i40e_hw *hw)
 
 	i40e_shutdown_asq(hw);
 	i40e_shutdown_arq(hw);
-	i40e_destroy_spinlock(&hw->aq.asq_spinlock);
-	i40e_destroy_spinlock(&hw->aq.arq_spinlock);
 
 	if (hw->nvm_buff.va)
 		i40e_free_virt_mem(hw, &hw->nvm_buff);
@@ -587,10 +535,8 @@ u16 i40e_clean_asq(struct i40e_hw *hw)
 	struct i40e_aq_desc *desc;
 
 	desc = I40E_ADMINQ_DESC(*asq, ntc);
-	while (rd32(hw, I40E_PF_ATQH) != ntc) {
-		/* TBD: process returned desc */
-
-		i40e_memset(desc, 0, sizeof(*desc), I40E_DMA_MEM);
+	while (ufp_read_reg(hw, I40E_PF_ATQH) != ntc) {
+		memset(desc, 0, sizeof(*desc));
 		ntc++;
 		if (ntc == asq->count)
 			ntc = 0;
@@ -614,7 +560,7 @@ static bool i40e_asq_done(struct i40e_hw *hw)
 	/* AQ designers suggest use of head for better
 	 * timing reliability than DD bit
 	 */
-	return rd32(hw, I40E_PF_ATQH) == hw->aq.asq.next_to_use;
+	return ufp_read_reg(hw, I40E_PF_ATQH) == hw->aq.asq.next_to_use;
 
 }
 
@@ -644,8 +590,6 @@ i40e_status i40e_asq_send_command(struct i40e_hw *hw,
 	struct timespec ts;
 	uint32_t total_delay;
 
-	i40e_acquire_spinlock(&hw->aq.asq_spinlock);
-
 	hw->aq.asq_last_status = I40E_AQ_RC_OK;
 
 	if (hw->aq.asq.count == 0) {
@@ -655,7 +599,7 @@ i40e_status i40e_asq_send_command(struct i40e_hw *hw,
 		goto asq_send_command_error;
 	}
 
-	val = rd32(hw, I40E_PF_ATQH);
+	val = ufp_read_reg(hw, I40E_PF_ATQH);
 	if (val >= hw->aq.num_asq_entries) {
 		i40e_debug(hw, I40E_DEBUG_AQ_MESSAGE,
 			   "AQTX: head overrun at %d\n", val);
@@ -691,15 +635,13 @@ i40e_status i40e_asq_send_command(struct i40e_hw *hw,
 	desc_on_ring = I40E_ADMINQ_DESC(hw->aq.asq, hw->aq.asq.next_to_use);
 
 	/* if the desc is available copy the temp desc to the right place */
-	i40e_memcpy(desc_on_ring, desc, sizeof(struct i40e_aq_desc),
-		    I40E_NONDMA_TO_DMA);
+	memcpy(desc_on_ring, desc, sizeof(struct i40e_aq_desc));
 
 	/* if buff is not NULL assume indirect command */
 	if (buff != NULL) {
 		dma_buff = &(hw->aq.asq.r.asq_bi[hw->aq.asq.next_to_use]);
 		/* copy the user buff into the respective DMA buff */
-		i40e_memcpy(dma_buff->va, buff, buff_size,
-			    I40E_NONDMA_TO_DMA);
+		memcpy(dma_buff->va, buff, buff_size);
 		desc_on_ring->datalen = CPU_TO_LE16(buff_size);
 
 		/* Update the address values in the desc with the pa value
@@ -719,7 +661,7 @@ i40e_status i40e_asq_send_command(struct i40e_hw *hw,
 	if (hw->aq.asq.next_to_use == hw->aq.asq.count)
 		hw->aq.asq.next_to_use = 0;
 
-	wr32(hw, I40E_PF_ATQT, hw->aq.asq.next_to_use);
+	ufp_write_reg(hw, I40E_PF_ATQT, hw->aq.asq.next_to_use);
 
 	do {
 		/* AQ designers suggest use of head for better
@@ -733,11 +675,9 @@ i40e_status i40e_asq_send_command(struct i40e_hw *hw,
 
 	/* if ready, copy the desc back to temp */
 	if (i40e_asq_done(hw)) {
-		i40e_memcpy(desc, desc_on_ring, sizeof(struct i40e_aq_desc),
-			    I40E_DMA_TO_NONDMA);
+		memcpy(desc, desc_on_ring, sizeof(struct i40e_aq_desc));
 		if (buff != NULL)
-			i40e_memcpy(buff, dma_buff->va, buff_size,
-				    I40E_DMA_TO_NONDMA);
+			memcpy(buff, dma_buff->va, buff_size);
 		retval = LE16_TO_CPU(desc->retval);
 		if (retval != 0) {
 			i40e_debug(hw,
@@ -782,8 +722,7 @@ void i40e_fill_default_direct_cmd_desc(struct i40e_aq_desc *desc,
 				       u16 opcode)
 {
 	/* zero out the desc */
-	i40e_memset((void *)desc, 0, sizeof(struct i40e_aq_desc),
-		    I40E_NONDMA_MEM);
+	memset((void *)desc, 0, sizeof(struct i40e_aq_desc));
 	desc->opcode = CPU_TO_LE16(opcode);
 	desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_SI);
 }
@@ -812,10 +751,7 @@ i40e_status i40e_clean_arq_element(struct i40e_hw *hw,
 	u16 ntu;
 
 	/* pre-clean the event info */
-	i40e_memset(&e->desc, 0, sizeof(e->desc), I40E_NONDMA_MEM);
-
-	/* take the lock before we start messing with the ring */
-	i40e_acquire_spinlock(&hw->aq.arq_spinlock);
+	memset(&e->desc, 0, sizeof(e->desc));
 
 	if (hw->aq.arq.count == 0) {
 		i40e_debug(hw, I40E_DEBUG_AQ_MESSAGE,
@@ -825,7 +761,7 @@ i40e_status i40e_clean_arq_element(struct i40e_hw *hw,
 	}
 
 	/* set next_to_use to head */
-	ntu = (rd32(hw, I40E_PF_ARQH) & I40E_PF_ARQH_ARQH_MASK);
+	ntu = (ufp_read_reg(hw, I40E_PF_ARQH) & I40E_PF_ARQH_ARQH_MASK);
 	if (ntu == ntc) {
 		/* nothing to do - shouldn't need to update ring's values */
 		err = I40E_ERR_ADMIN_QUEUE_NO_WORK;
@@ -847,14 +783,11 @@ i40e_status i40e_clean_arq_element(struct i40e_hw *hw,
 			   hw->aq.arq_last_status);
 	}
 
-	i40e_memcpy(&e->desc, desc, sizeof(struct i40e_aq_desc),
-		    I40E_DMA_TO_NONDMA);
+	memcpy(&e->desc, desc, sizeof(struct i40e_aq_desc));
 	datalen = LE16_TO_CPU(desc->datalen);
 	e->msg_len = min(datalen, e->buf_len);
 	if (e->msg_buf != NULL && (e->msg_len != 0))
-		i40e_memcpy(e->msg_buf,
-			    hw->aq.arq.r.arq_bi[desc_idx].va,
-			    e->msg_len, I40E_DMA_TO_NONDMA);
+		memcpy(e->msg_buf, hw->aq.arq.r.arq_bi[desc_idx].va, e->msg_len);
 
 	i40e_debug(hw, I40E_DEBUG_AQ_MESSAGE, "AQRX: desc and buffer:\n");
 	i40e_debug_aq(hw, I40E_DEBUG_AQ_COMMAND, (void *)desc, e->msg_buf,
@@ -865,7 +798,7 @@ i40e_status i40e_clean_arq_element(struct i40e_hw *hw,
 	 * size
 	 */
 	bi = &hw->aq.arq.r.arq_bi[ntc];
-	i40e_memset((void *)desc, 0, sizeof(struct i40e_aq_desc), I40E_DMA_MEM);
+	memset((void *)desc, 0, sizeof(struct i40e_aq_desc));
 
 	desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_BUF);
 	if (hw->aq.arq_buf_size > I40E_AQ_LARGE_BUF)
@@ -875,7 +808,7 @@ i40e_status i40e_clean_arq_element(struct i40e_hw *hw,
 	desc->params.external.addr_low = CPU_TO_LE32(lower_32_bits(bi->pa));
 
 	/* set tail = the last cleaned desc index. */
-	wr32(hw, I40E_PF_ARQT, ntc);
+	ufp_write_reg(hw, I40E_PF_ARQT, ntc);
 	/* ntc is updated to tail + 1 */
 	ntc++;
 	if (ntc == hw->aq.num_arq_entries)
@@ -889,7 +822,6 @@ clean_arq_element_out:
 	if (pending != NULL)
 		*pending = (ntc > ntu ? hw->aq.arq.count : 0) + (ntu - ntc);
 clean_arq_element_err:
-	i40e_release_spinlock(&hw->aq.arq_spinlock);
 
 	return err;
 }
