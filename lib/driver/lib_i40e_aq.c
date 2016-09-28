@@ -20,64 +20,6 @@ static i40e_status i40e_aq_mac_address_read(struct i40e_hw *hw,
 }
 
 /**
- *  i40e_alloc_adminq_asq_ring - Allocate Admin Queue send rings
- *  @hw: pointer to the hardware structure
- **/
-i40e_status i40e_alloc_adminq_asq_ring(struct i40e_hw *hw)
-{
-	i40e_status err;
-
-	err = i40e_allocate_dma_mem(hw, &hw->aq.asq.desc_buf,
-					 i40e_mem_atq_ring,
-					 (hw->aq.num_asq_entries *
-					 sizeof(struct i40e_aq_desc)),
-					 I40E_ADMINQ_DESC_ALIGNMENT);
-
-	return err;
-}
-
-/**
- *  i40e_alloc_adminq_arq_ring - Allocate Admin Queue receive rings
- *  @hw: pointer to the hardware structure
- **/
-i40e_status i40e_alloc_adminq_arq_ring(struct i40e_hw *hw)
-{
-	i40e_status err;
-
-	err = i40e_allocate_dma_mem(hw, &hw->aq.arq.desc_buf,
-					 i40e_mem_arq_ring,
-					 (hw->aq.num_arq_entries *
-					 sizeof(struct i40e_aq_desc)),
-					 I40E_ADMINQ_DESC_ALIGNMENT);
-
-	return err;
-}
-
-/**
- *  i40e_free_adminq_asq - Free Admin Queue send rings
- *  @hw: pointer to the hardware structure
- *
- *  This assumes the posted send buffers have already been cleaned
- *  and de-allocated
- **/
-void i40e_free_adminq_asq(struct i40e_hw *hw)
-{
-	i40e_free_dma_mem(hw, &hw->aq.asq.desc_buf);
-}
-
-/**
- *  i40e_free_adminq_arq - Free Admin Queue receive rings
- *  @hw: pointer to the hardware structure
- *
- *  This assumes the posted receive buffers have already been cleaned
- *  and de-allocated
- **/
-void i40e_free_adminq_arq(struct i40e_hw *hw)
-{
-	i40e_free_dma_mem(hw, &hw->aq.arq.desc_buf);
-}
-
-/**
  *  i40e_alloc_arq_bufs - Allocate pre-posted buffers for the receive queue
  *  @hw: pointer to the hardware structure
  **/
@@ -96,7 +38,7 @@ static i40e_status i40e_alloc_arq_bufs(struct i40e_hw *hw)
 	err = i40e_allocate_virt_mem(hw, &hw->aq.arq.dma_head,
 		(hw->aq.num_arq_entries * sizeof(struct i40e_dma_mem)));
 	if (err)
-		goto alloc_arq_bufs;
+		goto alloc_arq;
 	hw->aq.arq.r.arq_bi = (struct i40e_dma_mem *)hw->aq.arq.dma_head.va;
 
 	/* allocate the mapped buffers */
@@ -107,7 +49,7 @@ static i40e_status i40e_alloc_arq_bufs(struct i40e_hw *hw)
 						 hw->aq.arq_buf_size,
 						 I40E_ADMINQ_DESC_ALIGNMENT);
 		if (err)
-			goto unwind_alloc_arq_bufs;
+			goto unwind_alloc_arq;
 
 		/* now configure the descriptors for use */
 		desc = I40E_ADMINQ_DESC(hw->aq.arq, i);
@@ -131,10 +73,10 @@ static i40e_status i40e_alloc_arq_bufs(struct i40e_hw *hw)
 		desc->params.external.param1 = 0;
 	}
 
-alloc_arq_bufs:
+alloc_arq:
 	return err;
 
-unwind_alloc_arq_bufs:
+unwind_alloc_arq:
 	/* don't try to free the one that failed... */
 	i--;
 	for (; i >= 0; i--)
@@ -185,10 +127,10 @@ unwind_alloc_asq_bufs:
 }
 
 /**
- *  i40e_free_arq_bufs - Free receive queue buffer info elements
+ *  i40e_free_arq - Free receive queue buffer info elements
  *  @hw: pointer to the hardware structure
  **/
-static void i40e_free_arq_bufs(struct i40e_hw *hw)
+static void i40e_free_arq(struct i40e_hw *hw)
 {
 	int i;
 
@@ -197,17 +139,17 @@ static void i40e_free_arq_bufs(struct i40e_hw *hw)
 		i40e_free_dma_mem(hw, &hw->aq.arq.r.arq_bi[i]);
 
 	/* free the descriptor memory */
-	i40e_free_dma_mem(hw, &hw->aq.arq.desc_buf);
+	ufp_mem_free(hw->aq.arq.desc_buf.va);
 
 	/* free the dma header */
 	i40e_free_virt_mem(hw, &hw->aq.arq.dma_head);
 }
 
 /**
- *  i40e_free_asq_bufs - Free send queue buffer info elements
+ *  i40e_free_asq - Free send queue buffer info elements
  *  @hw: pointer to the hardware structure
  **/
-static void i40e_free_asq_bufs(struct i40e_hw *hw)
+static void i40e_free_asq(struct i40e_hw *hw)
 {
 	int i;
 
@@ -217,7 +159,7 @@ static void i40e_free_asq_bufs(struct i40e_hw *hw)
 			i40e_free_dma_mem(hw, &hw->aq.asq.r.asq_bi[i]);
 
 	/* free the descriptor memory */
-	i40e_free_dma_mem(hw, &hw->aq.asq.desc_buf);
+	ufp_mem_free(hw->aq.asq.desc_buf.va);
 
 	/* free the dma header */
 	i40e_free_virt_mem(hw, &hw->aq.asq.dma_head);
@@ -284,122 +226,102 @@ static i40e_status i40e_config_arq_regs(struct i40e_hw *hw)
 	return err;
 }
 
-/**
- *  i40e_init_asq - main initialization routine for ASQ
- *  @hw: pointer to the hardware structure
- *
- *  This is the main initialization routine for the Admin Send Queue
- *  Prior to calling this function, drivers *MUST* set the following fields
- *  in the hw->aq structure:
- *     - hw->aq.num_asq_entries
- *     - hw->aq.arq_buf_size
- *
- *  Do *NOT* hold the lock when calling this as the memory allocation routines
- *  called are not going to be atomic context safe
- **/
-i40e_status i40e_init_asq(struct i40e_hw *hw)
+int i40e_init_asq(struct i40e_hw *hw)
 {
-	i40e_status err = I40E_SUCCESS;
+	uint64_t size;
 
 	if (hw->aq.asq.count > 0) {
 		/* queue already initialized */
-		err = I40E_ERR_NOT_READY;
-		goto init_adminq_exit;
+		goto err_already;
 	}
 
 	/* verify input for valid configuration */
 	if ((hw->aq.num_asq_entries == 0) ||
 	    (hw->aq.asq_buf_size == 0)) {
-		err = I40E_ERR_CONFIG;
-		goto init_adminq_exit;
+		goto err_config;
 	}
 
 	hw->aq.asq.next_to_use = 0;
 	hw->aq.asq.next_to_clean = 0;
 
 	/* allocate the ring memory */
-	err = i40e_alloc_adminq_asq_ring(hw);
-	if (err != I40E_SUCCESS)
-		goto init_adminq_exit;
+	size = hw->aq.num_asq_entries * sizeof(struct i40e_aq_desc);
+	size = ALIGN(size, I40E_ADMINQ_DESC_ALIGNMENT);
+	hw->aq.asq.desc_buf.va = ufp_mem_alloc(desc, size, I40E_ADMINQ_DESC_ALIGNMENT);
+	if(!hw->aq.asq.desc_buf.va)
+		goto err_desc_alloc;
 
 	/* allocate buffers in the rings */
 	err = i40e_alloc_asq_bufs(hw);
 	if (err != I40E_SUCCESS)
-		goto init_adminq_free_rings;
+		goto err_buf_alloc;
 
 	/* initialize base registers */
 	err = i40e_config_asq_regs(hw);
 	if (err != I40E_SUCCESS)
-		goto init_adminq_free_rings;
+		goto err_regs_config;
 
 	/* success! */
 	hw->aq.asq.count = hw->aq.num_asq_entries;
-	goto init_adminq_exit;
 
-init_adminq_free_rings:
-	i40e_free_adminq_asq(hw);
+	return 0;
 
-init_adminq_exit:
-	return err;
+err_regs_config:
+err_buf_alloc:
+	ufp_mem_free(hw->aq.asq.desc_buf.va);
+err_desc_alloc:
+err_config:
+err_already:
+	return -1;
 }
 
-/**
- *  i40e_init_arq - initialize ARQ
- *  @hw: pointer to the hardware structure
- *
- *  The main initialization routine for the Admin Receive (Event) Queue.
- *  Prior to calling this function, drivers *MUST* set the following fields
- *  in the hw->aq structure:
- *     - hw->aq.num_asq_entries
- *     - hw->aq.arq_buf_size
- *
- *  Do *NOT* hold the lock when calling this as the memory allocation routines
- *  called are not going to be atomic context safe
- **/
-i40e_status i40e_init_arq(struct i40e_hw *hw)
+int i40e_init_arq(struct i40e_hw *hw)
 {
-	i40e_status err = I40E_SUCCESS;
+	uint64_t size;
 
 	if (hw->aq.arq.count > 0) {
 		/* queue already initialized */
-		err = I40E_ERR_NOT_READY;
-		goto init_adminq_exit;
+		goto err_already;
 	}
 
 	/* verify input for valid configuration */
 	if ((hw->aq.num_arq_entries == 0) ||
 	    (hw->aq.arq_buf_size == 0)) {
-		err = I40E_ERR_CONFIG;
-		goto init_adminq_exit;
+		goto err_config;
 	}
 
 	hw->aq.arq.next_to_use = 0;
 	hw->aq.arq.next_to_clean = 0;
 
 	/* allocate the ring memory */
-	err = i40e_alloc_adminq_arq_ring(hw);
-	if (err != I40E_SUCCESS)
-		goto init_adminq_exit;
+	size = hw->aq.num_arq_entries * sizeof(struct i40e_aq_desc);
+	size = ALIGN(size, I40E_ADMINQ_DESC_ALIGNMENT);
+	hw->aq.arq.desc_buf.va = ufp_mem_alloc(desc, size, I40E_ADMINQ_DESC_ALIGNMENT);
+	if(!hw->aq.arq.desc_buf.va)
+		goto err_desc_alloc;
 
 	/* allocate buffers in the rings */
 	err = i40e_alloc_arq_bufs(hw);
 	if (err != I40E_SUCCESS)
-		goto init_adminq_free_rings;
+		goto err_buf_alloc;
 
 	/* initialize base registers */
 	err = i40e_config_arq_regs(hw);
 	if (err != I40E_SUCCESS)
-		goto init_adminq_free_rings;
+		goto err_regs_config;
 
 	/* success! */
 	hw->aq.arq.count = hw->aq.num_arq_entries;
-	goto init_adminq_exit;
 
-init_adminq_free_rings:
-	i40e_free_adminq_arq(hw);
+	return 0;
 
-init_adminq_exit:
-	return err;
+err_regs_config:
+err_buf_alloc:
+	ufp_mem_free(hw->aq.arq.desc_buf.va);
+err_desc_alloc:
+err_config:
+err_already:
+	return -1;
 }
 
 /**
@@ -427,7 +349,7 @@ i40e_status i40e_shutdown_asq(struct i40e_hw *hw)
 	hw->aq.asq.count = 0; /* to indicate uninitialized queue */
 
 	/* free ring buffers */
-	i40e_free_asq_bufs(hw);
+	i40e_free_asq(hw);
 
 shutdown_asq_out:
 	return err;
@@ -458,7 +380,7 @@ i40e_status i40e_shutdown_arq(struct i40e_hw *hw)
 	hw->aq.arq.count = 0; /* to indicate uninitialized queue */
 
 	/* free ring buffers */
-	i40e_free_arq_bufs(hw);
+	i40e_free_arq(hw);
 
 shutdown_arq_out:
 	return err;
