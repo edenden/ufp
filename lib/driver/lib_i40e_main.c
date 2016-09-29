@@ -13,46 +13,48 @@
 #include "lib_i40e.h"
 #include "lib_i40e_main.h"
 
-struct ufp_i40e_dmabuf *ufp_i40e_dma_alloc(struct ufp_handle *ih, unsigned long size)
+struct ufp_i40e_page *ufp_i40e_page_alloc(struct ufp_handle *ih)
 {
-	struct ufp_desc *desc;
-	unsigned long addr_dma;
-	void *addr_virt, *addr_dma;
-	int ret;
+	struct ufp_i40e_page *page;
+	unsigned long addr_dma, size;
+	void *addr_virt;
+	int err;
 
-	dma = malloc(sizeof(struct ufp_i40e_dma));
-	if(!dma)
-		goto err_alloc_dma;
+	page = malloc(sizeof(struct ufp_i40e_page));
+	if(!page)
+		goto err_alloc_page;
 
-	err = posix_memalign(&addr_virt, sysconf(_SC_PAGESIZE), size);
-	if(err){
+	size = sysconf(_SC_PAGESIZE);
+	addr_virt = mmap(NULL, size, PROT_READ | PROT_WRITE,
+		MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+	if(addr_virt == MAP_FAILED){
 		goto err_mmap;
 	}
 
-	dma->addr_virt = addr_virt;
+	page->addr_virt = addr_virt;
 
-	ret = ufp_dma_map(ih, addr_virt, &addr_dma, size);
-	if(ret < 0){
+	err = ufp_dma_map(ih, addr_virt, &addr_dma, size);
+	if(err < 0){
 		goto err_dma_map;
 	}
 
-	dma->addr_dma = addr_dma;
+	page->addr_dma = addr_dma;
 
-	return dma;
+	return page;
 
 err_dma_map:
-	free(dma->addr_virt);
+	munmap(page->addr_virt, size);
 err_mmap:
-	free(dma);
-err_alloc_dma:
+	free(page);
+err_alloc_page:
 	return NULL;
 }
 
-void ufp_i40e_dma_release(struct ufp_handle *ih, struct ufp_i40e_dmabuf *dma)
+void ufp_i40e_page_release(struct ufp_handle *ih, struct ufp_i40e_page *page)
 {
-	ufp_dma_unmap(ih, dma->addr_dma);
-	free(dma->addr_virt);
-	free(dma);
+	ufp_dma_unmap(ih, page->addr_dma);
+	munmap(page->addr_virt, sysconf(_SC_PAGESIZE));
+	free(page);
 	return;
 }
 
