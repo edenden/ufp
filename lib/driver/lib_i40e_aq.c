@@ -272,33 +272,6 @@ int i40e_fill_arq()
 	ufp_write_reg(hw, ring->tail, hw->aq.num_arq_entries - 1);
 }
 
-/**
- *  i40e_asq_done - check if FW has processed the Admin Send Queue
- *  @hw: pointer to the hw struct
- *
- *  Returns true if the firmware has processed all descriptors on the
- *  admin send queue. Returns false if there are still requests pending.
- **/
-static bool i40e_asq_done(struct i40e_hw *hw)
-{
-	/* AQ designers suggest use of head for better
-	 * timing reliability than DD bit
-	 */
-	return ufp_read_reg(hw, ring->head) == hw->aq.asq.next_to_use;
-
-}
-
-/**
- *  i40e_asq_send_command - send command to Admin Queue
- *  @hw: pointer to the hw struct
- *  @desc: prefilled descriptor describing the command (non DMA mem)
- *  @buff: buffer to use for indirect commands
- *  @buff_size: size of buffer for indirect commands
- *  @cmd_details: pointer to command details structure
- *
- *  This is the main send command driver routine for the Admin Queue send
- *  queue.  It runs the queue, cleans the queue, etc
- **/
 i40e_status i40e_asq_send_command(struct i40e_hw *hw,
 				struct i40e_aq_desc *desc,
 				void *buff, /* can be NULL */
@@ -333,13 +306,6 @@ i40e_status i40e_asq_send_command(struct i40e_hw *hw,
 		goto asq_send_command_error;
 	}
 
-	/* call clean and check queue available function to reclaim the
-	 * descriptors that were processed by FW, the function returns the
-	 * number of desc available
-	 */
-	/* the clean function called here could be called in a separate thread
-	 * in case of asynchronous completions
-	 */
 	if (i40e_clean_asq(hw) == 0) {
 		i40e_debug(hw,
 			   I40E_DEBUG_AQ_MESSAGE,
@@ -348,10 +314,7 @@ i40e_status i40e_asq_send_command(struct i40e_hw *hw,
 		goto asq_send_command_error;
 	}
 
-	/* initialize the temp desc pointer with the right desc */
 	desc_on_ring = I40E_ADMINQ_DESC(hw->aq.asq, hw->aq.asq.next_to_use);
-
-	/* if the desc is available copy the temp desc to the right place */
 	memcpy(desc_on_ring, desc, sizeof(struct i40e_aq_desc));
 
 	/* if buff is not NULL assume indirect command */
@@ -371,9 +334,6 @@ i40e_status i40e_asq_send_command(struct i40e_hw *hw,
 	}
 
 	/* bump the tail */
-	i40e_debug(hw, I40E_DEBUG_AQ_MESSAGE, "AQTX: desc and buffer:\n");
-	i40e_debug_aq(hw, I40E_DEBUG_AQ_COMMAND, (void *)desc_on_ring,
-		      buff, buff_size);
 	(hw->aq.asq.next_to_use)++;
 	if (hw->aq.asq.next_to_use == hw->aq.num_entries)
 		hw->aq.asq.next_to_use = 0;
@@ -381,49 +341,27 @@ i40e_status i40e_asq_send_command(struct i40e_hw *hw,
 	ufp_write_reg(hw, ring->tail, hw->aq.asq.next_to_use);
 
 	do {
-		/* AQ designers suggest use of head for better
-		 * timing reliability than DD bit
-		 */
-		if (i40e_asq_done(hw))
+		if (ufp_read_reg(hw, ring->head) == ring->next_to_use)
 			break;
+
 		usleep(&ts, 1000);
 		total_delay++;
 	} while (total_delay < I40E_ASQ_CMD_TIMEOUT);
 
-	/* if ready, copy the desc back to temp */
-	if (i40e_asq_done(hw)) {
-		memcpy(desc, desc_on_ring, sizeof(struct i40e_aq_desc));
-		if (buff != NULL)
-			memcpy(buff, dma_buff->va, buff_size);
-		retval = LE16_TO_CPU(desc->retval);
-		if (retval != 0) {
-			i40e_debug(hw,
-				   I40E_DEBUG_AQ_MESSAGE,
-				   "AQTX: Command completed with error 0x%X.\n",
-				   retval);
-
-			/* strip off FW internal code */
-			retval &= 0xff;
-		}
-		cmd_completed = true;
-		if ((enum i40e_admin_queue_err)retval == I40E_AQ_RC_OK)
-			status = I40E_SUCCESS;
-		else
-			status = I40E_ERR_ADMIN_QUEUE_ERROR;
-		hw->aq.asq_last_status = (enum i40e_admin_queue_err)retval;
-	}
-
-	i40e_debug(hw, I40E_DEBUG_AQ_MESSAGE,
-		   "AQTX: desc and buffer writeback:\n");
-	i40e_debug_aq(hw, I40E_DEBUG_AQ_COMMAND, (void *)desc, buff, buff_size);
-
-	/* update the error if time out occurred */
-	if (!cmd_completed){
+	if(total_delay == I40E_ASQ_CMD_TIMEOUT)
 		goto err_timeout;
-	}
+
+	memcpy(desc, desc_on_ring, sizeof(struct i40e_aq_desc));
+	if (buff != NULL)
+		memcpy(buff, dma_buff->va, buff_size);
+
+	retval = LE16_TO_CPU(desc->retval);
+	if(retval != 0)
+		goto err_send;
 
 	return 0;
 
+err_send:
 err_timeout:
 	return -1;
 }
