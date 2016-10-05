@@ -1,22 +1,23 @@
 // Usage Sample
-static i40e_status i40e_aq_mac_address_read(struct i40e_hw *hw,
-				   u16 *flags,
-				   struct i40e_aqc_mac_address_read_data *addrs,
-				   struct i40e_asq_cmd_details *cmd_details)
+int i40e_aq_mac_address_read(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 {
-	struct i40e_aq_desc desc;
-	struct i40e_aqc_mac_address_read *cmd_data =
-		(struct i40e_aqc_mac_address_read *)&desc.params.raw;
-	i40e_status status;
+	struct ufp_i40e_page *buf;
+	int err;
 
-	i40e_fill_default_direct_cmd_desc(&desc, i40e_aqc_opc_mac_address_read);
-	desc.flags |= CPU_TO_LE16(I40E_AQ_FLAG_BUF);
+	buf = ufp_i40e_page_alloc(ih);
+	if(!buf)
+		goto err_page_alloc;
 
-	status = i40e_asq_send_command(hw, &desc, addrs,
-				       sizeof(*addrs), cmd_details);
-	*flags = LE16_TO_CPU(cmd_data->command_flags);
+	err = i40e_asq_xmit(ih, ring, i40e_aqc_opc_mac_address_read,
+		buf, sizeof(struct i40e_aqc_mac_address_read_data));
+	if(err < 0)
+		goto err_xmit;
 
-	return status;
+	return 0;
+
+err_xmit:
+err_page_alloc:
+	return -1;
 }
 
 int i40e_aq_init(struct i40e_hw *hw)
@@ -109,7 +110,7 @@ err_init_ring:
 int i40e_aq_ring_alloc(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 {
 	uint64_t size;
-	int i, page_allocated = 0;
+	int i;
 
 	/* verify input for valid configuration */
 	if ((hw->aq.num_asq_entries == 0) ||
@@ -135,19 +136,8 @@ int i40e_aq_ring_alloc(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 	if(!ring->bufs)
 		goto err_buf_alloc;
 
-	for(i = 0; i < ring->num_entries; i++, page_allocated++){
-		ring->bufs[i] = ufp_i40e_page_alloc(ih);
-		if(!ring->bufs[i])
-			goto err_page_alloc;
-	}
-
 	return 0;
 
-err_regs_config:
-err_page_alloc:
-	for(i = 0; i < page_allocated; i++)
-		ufp_i40e_page_release(ring->bufs[i]);
-	free(ring->bufs);
 err_buf_alloc:
 	ufp_i40e_page_release(ring->desc);
 err_desc_alloc:
@@ -226,13 +216,7 @@ void i40e_aq_asq_clean(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 	desc = I40E_ADMINQ_DESC(*asq, ntc);
 	while (ufp_read_reg(hw, ring->head) != ntc) {
 		buf = ring->bufs[ntc];
-		if(buf){
-			ufp_i40e_page_release(buf);
-		}
-
-		retval = LE16_TO_CPU(desc->retval);
-		if(retval != 0)
-			printf("send fail detected\n");
+		i40e_aq_asq_process(desc, buf);
 
 		memset(desc, 0, sizeof(*desc));
 		ntc++;
@@ -286,16 +270,24 @@ err_send:
 	return -1;
 }
 
-int i40e_aq_arq_fill()
+int i40e_aq_arq_fill(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 {
+	unsigned int desc_filled = 0;
+	struct i40e_aq_desc *desc;
+	struct ufp_i40e_page *buf;
+
 	/* allocate the mapped buffers */
-	for (i = 0; i < hw->aq.num_arq_entries; i++) {
+	for (i = 0; i < ring->num_entries; i++, desc_filled++) {
+		buf = ufp_i40e_page_alloc(ih);
+		if(!buf)
+			goto err_page_alloc;
+
+		ring->bufs[i] = buf;
+
 		/* now configure the descriptors for use */
 		desc = I40E_ADMINQ_DESC(hw->aq.arq, i);
 
-		desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_BUF);
-		if (hw->aq.arq_buf_size > I40E_AQ_LARGE_BUF)
-			desc->flags |= CPU_TO_LE16(I40E_AQ_FLAG_LB);
+		desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_LB);
 		desc->opcode = 0;
 		/* This is in accordance with Admin queue design, there is no
 		 * register for buffer size configuration
@@ -305,15 +297,23 @@ int i40e_aq_arq_fill()
 		desc->cookie_high = 0;
 		desc->cookie_low = 0;
 		desc->params.external.addr_high =
-			CPU_TO_LE32(upper_32_bits(bi->pa));
+			CPU_TO_LE32(upper_32_bits(buf->addr_dma));
 		desc->params.external.addr_low =
-			CPU_TO_LE32(lower_32_bits(bi->pa));
+			CPU_TO_LE32(lower_32_bits(buf->addr_dma));
 		desc->params.external.param0 = 0;
 		desc->params.external.param1 = 0;
 	}
 
 	/* Update tail in the HW to post pre-allocated buffers */
-	ufp_write_reg(hw, ring->tail, hw->aq.num_arq_entries - 1);
+	ufp_write_reg(hw, ring->tail, ring->num_entries - 1);
+
+	return 0;
+
+err_page_alloc:
+	for(i = 0; i < desc_filled; i++){
+		ufp_i40e_page_release(ring->bufs[i]);
+	}
+	return -1;
 }
 
 int i40e_aq_arq_clean(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
@@ -322,31 +322,34 @@ int i40e_aq_arq_clean(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 	struct i40e_aq_desc *desc;
 	struct i40e_aq_page *buf;
 	u16 ntu;
+	u16 ntc;
 
 	/* set next_to_use to head */
+	ntc = ring->next_to_clean;
 	ntu = (ufp_read_reg(hw, ring->head) & I40E_PF_ARQH_ARQH_MASK);
-	if (ntu == ntc) {
-		goto err_no_work;
+
+	while(ntc != ntu){
+		/* now clean the next descriptor */
+		desc = ((i40e_aq_desc *)ring->desc->addr_virt)[ntc];
+		buf = ring->bufs[ntc];
+		i40e_arq_process(desc, buf->addr_virt);
+
+		/* Restore the original datalen and buffer address in the desc */
+		memset((void *)desc, 0, sizeof(struct i40e_aq_desc));
+		desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_LB);
+		desc->datalen = CPU_TO_LE16((u16)bi->size);
+		desc->params.external.addr_high = CPU_TO_LE32(upper_32_bits(buf->addr_dma));
+		desc->params.external.addr_low = CPU_TO_LE32(lower_32_bits(buf->addr_dma));
+
+		/* ntc is updated to tail + 1 */
+		ntc++;
+		if (ntc == hw->aq.num_arq_entries)
+			ntc = 0;
 	}
-
-	/* now clean the next descriptor */
-	desc = ((i40e_aq_desc *)ring->desc->addr_virt)[ntc];
-	buf = ring->bufs[ntc];
-	i40e_arq_process(desc, buf->addr_virt);
-
-	/* Restore the original datalen and buffer address in the desc */
-	memset((void *)desc, 0, sizeof(struct i40e_aq_desc));
-	desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_LB);
-	desc->datalen = CPU_TO_LE16((u16)bi->size);
-	desc->params.external.addr_high = CPU_TO_LE32(upper_32_bits(buf->addr_dma));
-	desc->params.external.addr_low = CPU_TO_LE32(lower_32_bits(buf->addr_dma));
 
 	/* set tail = the last cleaned desc index. */
 	ufp_write_reg(hw, ring->tail, ntc);
-	/* ntc is updated to tail + 1 */
-	ntc++;
-	if (ntc == hw->aq.num_arq_entries)
-		ntc = 0;
+
 	hw->aq.arq.next_to_clean = ntc;
 	hw->aq.arq.next_to_use = ntu;
 
@@ -356,17 +359,46 @@ err_no_work:
 	return -1;
 }
 
+void i40e_aq_asq_process(struct i40e_aq_desc *desc, void *buf)
+{
+	uint16_t retval;
+	uint16_t opcode;
+
+	retval = LE16_TO_CPU(desc->retval);
+	opcode = LE16_TO_CPU(desc->opcode);
+
+	if(retval != 0)
+		goto err_retval;
+
+	switch(opcode){
+	case i40e_aqc_opc_mac_address_read:
+		hoge
+	default:
+	}
+
+err_retval:
+	return;
+}
+
 void i40e_aq_arq_process(struct i40e_aq_desc *desc, void *buf)
 {
 	uint16_t len;
 	uint16_t flags;
+	uint16_t opcode;
 
 	len = LE16_TO_CPU(desc->datalen);
 	flags = LE16_TO_CPU(desc->flags);
+	opcode = LE16_TO_CPU(desc->opcode);
 
 	if (flags & I40E_AQ_FLAG_ERR) {
 		goto err_flag;
 	}
+
+	switch(opcode){
+	case :
+	default:
+	}
+
 
 err_flag:
 	return;
