@@ -382,78 +382,30 @@ void i40e_fill_default_direct_cmd_desc(struct i40e_aq_desc *desc,
 	desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_SI);
 }
 
-/**
- *  i40e_clean_arq_element
- *  @hw: pointer to the hw struct
- *  @e: event info from the receive descriptor, includes any buffers
- *  @pending: number of events that could be left to process
- *
- *  This function cleans one Admin Receive Queue element and returns
- *  the contents through e.  It can also return how many events are
- *  left to process through 'pending'
- **/
-i40e_status i40e_clean_arq_element(struct i40e_hw *hw,
-					     struct i40e_arq_event_info *e,
-					     u16 *pending)
+int i40e_arq_clean(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 {
-	i40e_status err = I40E_SUCCESS;
-	u16 ntc = hw->aq.arq.next_to_clean;
+	u16 ntc = ring->next_to_clean;
 	struct i40e_aq_desc *desc;
-	struct i40e_dma_mem *bi;
-	u16 desc_idx;
-	u16 datalen;
-	u16 flags;
+	struct i40e_aq_page *buf;
 	u16 ntu;
-
-	/* pre-clean the event info */
-	memset(&e->desc, 0, sizeof(e->desc));
 
 	/* set next_to_use to head */
 	ntu = (ufp_read_reg(hw, ring->head) & I40E_PF_ARQH_ARQH_MASK);
 	if (ntu == ntc) {
-		/* nothing to do - shouldn't need to update ring's values */
-		err = I40E_ERR_ADMIN_QUEUE_NO_WORK;
-		goto clean_arq_element_out;
+		goto err_no_work;
 	}
 
 	/* now clean the next descriptor */
-	desc = I40E_ADMINQ_DESC(hw->aq.arq, ntc);
-	desc_idx = ntc;
+	desc = ((i40e_aq_desc *)ring->desc->addr_virt)[ntc];
+	buf = ring->bufs[ntc];
+	i40e_arq_process(desc, buf->addr_virt);
 
-	flags = LE16_TO_CPU(desc->flags);
-	if (flags & I40E_AQ_FLAG_ERR) {
-		err = I40E_ERR_ADMIN_QUEUE_ERROR;
-		hw->aq.arq_last_status =
-			(enum i40e_admin_queue_err)LE16_TO_CPU(desc->retval);
-		i40e_debug(hw,
-			   I40E_DEBUG_AQ_MESSAGE,
-			   "AQRX: Event received with error 0x%X.\n",
-			   hw->aq.arq_last_status);
-	}
-
-	memcpy(&e->desc, desc, sizeof(struct i40e_aq_desc));
-	datalen = LE16_TO_CPU(desc->datalen);
-	e->msg_len = min(datalen, e->buf_len);
-	if (e->msg_buf != NULL && (e->msg_len != 0))
-		memcpy(e->msg_buf, hw->aq.arq.r.arq_bi[desc_idx].va, e->msg_len);
-
-	i40e_debug(hw, I40E_DEBUG_AQ_MESSAGE, "AQRX: desc and buffer:\n");
-	i40e_debug_aq(hw, I40E_DEBUG_AQ_COMMAND, (void *)desc, e->msg_buf,
-		      hw->aq.arq_buf_size);
-
-	/* Restore the original datalen and buffer address in the desc,
-	 * FW updates datalen to indicate the event message
-	 * size
-	 */
-	bi = &hw->aq.arq.r.arq_bi[ntc];
+	/* Restore the original datalen and buffer address in the desc */
 	memset((void *)desc, 0, sizeof(struct i40e_aq_desc));
-
-	desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_BUF);
-	if (hw->aq.arq_buf_size > I40E_AQ_LARGE_BUF)
-		desc->flags |= CPU_TO_LE16(I40E_AQ_FLAG_LB);
+	desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_LB);
 	desc->datalen = CPU_TO_LE16((u16)bi->size);
-	desc->params.external.addr_high = CPU_TO_LE32(upper_32_bits(bi->pa));
-	desc->params.external.addr_low = CPU_TO_LE32(lower_32_bits(bi->pa));
+	desc->params.external.addr_high = CPU_TO_LE32(upper_32_bits(buf->addr_dma));
+	desc->params.external.addr_low = CPU_TO_LE32(lower_32_bits(buf->addr_dma));
 
 	/* set tail = the last cleaned desc index. */
 	ufp_write_reg(hw, ring->tail, ntc);
@@ -464,12 +416,24 @@ i40e_status i40e_clean_arq_element(struct i40e_hw *hw,
 	hw->aq.arq.next_to_clean = ntc;
 	hw->aq.arq.next_to_use = ntu;
 
-	i40e_nvmupd_check_wait_event(hw, LE16_TO_CPU(e->desc.opcode));
-clean_arq_element_out:
-	/* Set pending if needed, unlock and return */
-	if (pending != NULL)
-		*pending = (ntc > ntu ? hw->aq.num_entries : 0) + (ntu - ntc);
+	return 0;
 
-	return err;
+err_no_work:
+	return -1;
 }
 
+void i40e_arq_process(struct i40e_aq_desc *desc, void *buf)
+{
+	uint16_t len;
+	uint16_t flags;
+
+	len = LE16_TO_CPU(desc->datalen);
+	flags = LE16_TO_CPU(desc->flags);
+
+	if (flags & I40E_AQ_FLAG_ERR) {
+		goto err_flag;
+	}
+
+err_flag:
+	return;
+}
