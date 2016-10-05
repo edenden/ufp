@@ -216,20 +216,24 @@ void i40e_aq_ring_release(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 	return;
 }
 
-/**
- *  i40e_clean_asq - cleans Admin send queue
- *  @hw: pointer to the hardware structure
- *
- *  returns the number of free desc
- **/
-u16 i40e_clean_asq(struct i40e_hw *hw)
+void i40e_aq_asq_clean(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 {
 	struct i40e_adminq_ring *asq = &(hw->aq.asq);
 	u16 ntc = asq->next_to_clean;
 	struct i40e_aq_desc *desc;
+	struct ufp_i40e_page *buf;
 
 	desc = I40E_ADMINQ_DESC(*asq, ntc);
 	while (ufp_read_reg(hw, ring->head) != ntc) {
+		buf = ring->bufs[ntc];
+		if(buf){
+			ufp_i40e_page_release(buf);
+		}
+
+		retval = LE16_TO_CPU(desc->retval);
+		if(retval != 0)
+			printf("send fail detected\n");
+
 		memset(desc, 0, sizeof(*desc));
 		ntc++;
 		if (ntc == asq->count)
@@ -238,11 +242,51 @@ u16 i40e_clean_asq(struct i40e_hw *hw)
 	}
 
 	asq->next_to_clean = ntc;
-
-	return I40E_DESC_UNUSED(asq);
+	return;
 }
 
-int i40e_fill_arq()
+int i40e_aq_asq_xmit(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring,
+	uint16_t opcode, struct ufp_i40e_page *buf, uint16_t buf_size)
+{
+	struct i40e_aq_desc *desc;
+
+	if(!I40E_DESC_UNUSED(asq)){
+		/* queue is full */
+		goto err_send;
+	}
+
+	desc = I40E_ADMINQ_DESC(hw->aq.asq, hw->aq.asq.next_to_use);
+	desc->opcode = CPU_TO_LE16(opcode);
+
+	/* if buf is not NULL assume indirect command */
+	if (buf) {
+		ring->bufs[ntu] = buf;
+		desc->flags |= CPU_TO_LE16(I40E_AQ_FLAG_BUF)
+		desc->datalen = CPU_TO_LE16(buf_size);
+
+		/* Update the address values in the desc with the pa value
+		 * for respective buffer
+		 */
+		desc->params.external.addr_high =
+				CPU_TO_LE32(upper_32_bits(buf->addr_dma));
+		desc->params.external.addr_low =
+				CPU_TO_LE32(lower_32_bits(buf->addr_dma));
+	}
+
+	/* bump the tail */
+	(hw->aq.asq.next_to_use)++;
+	if (hw->aq.asq.next_to_use == hw->aq.num_entries)
+		hw->aq.asq.next_to_use = 0;
+
+	ufp_write_reg(hw, ring->tail, hw->aq.asq.next_to_use);
+
+	return 0;
+
+err_send:
+	return -1;
+}
+
+int i40e_aq_arq_fill()
 {
 	/* allocate the mapped buffers */
 	for (i = 0; i < hw->aq.num_arq_entries; i++) {
@@ -272,117 +316,7 @@ int i40e_fill_arq()
 	ufp_write_reg(hw, ring->tail, hw->aq.num_arq_entries - 1);
 }
 
-i40e_status i40e_asq_send_command(struct i40e_hw *hw,
-				struct i40e_aq_desc *desc,
-				void *buff, /* can be NULL */
-				u16  buff_size)
-{
-	i40e_status status = I40E_SUCCESS;
-	struct i40e_dma_mem *dma_buff = NULL;
-	struct i40e_aq_desc *desc_on_ring;
-	bool cmd_completed = false;
-	u16  retval = 0;
-	u32  val = 0;
-
-	struct timespec ts;
-	uint32_t total_delay;
-
-	hw->aq.asq_last_status = I40E_AQ_RC_OK;
-
-	val = ufp_read_reg(hw, ring->head);
-	if (val >= hw->aq.num_asq_entries) {
-		i40e_debug(hw, I40E_DEBUG_AQ_MESSAGE,
-			   "AQTX: head overrun at %d\n", val);
-		status = I40E_ERR_QUEUE_EMPTY;
-		goto asq_send_command_error;
-	}
-
-	if (buff_size > hw->aq.asq_buf_size) {
-		i40e_debug(hw,
-			   I40E_DEBUG_AQ_MESSAGE,
-			   "AQTX: Invalid buffer size: %d.\n",
-			   buff_size);
-		status = I40E_ERR_INVALID_SIZE;
-		goto asq_send_command_error;
-	}
-
-	if (i40e_clean_asq(hw) == 0) {
-		i40e_debug(hw,
-			   I40E_DEBUG_AQ_MESSAGE,
-			   "AQTX: Error queue is full.\n");
-		status = I40E_ERR_ADMIN_QUEUE_FULL;
-		goto asq_send_command_error;
-	}
-
-	desc_on_ring = I40E_ADMINQ_DESC(hw->aq.asq, hw->aq.asq.next_to_use);
-	memcpy(desc_on_ring, desc, sizeof(struct i40e_aq_desc));
-
-	/* if buff is not NULL assume indirect command */
-	if (buff != NULL) {
-		dma_buff = &(hw->aq.asq.r.asq_bi[hw->aq.asq.next_to_use]);
-		/* copy the user buff into the respective DMA buff */
-		memcpy(dma_buff->va, buff, buff_size);
-		desc_on_ring->datalen = CPU_TO_LE16(buff_size);
-
-		/* Update the address values in the desc with the pa value
-		 * for respective buffer
-		 */
-		desc_on_ring->params.external.addr_high =
-				CPU_TO_LE32(upper_32_bits(dma_buff->pa));
-		desc_on_ring->params.external.addr_low =
-				CPU_TO_LE32(lower_32_bits(dma_buff->pa));
-	}
-
-	/* bump the tail */
-	(hw->aq.asq.next_to_use)++;
-	if (hw->aq.asq.next_to_use == hw->aq.num_entries)
-		hw->aq.asq.next_to_use = 0;
-
-	ufp_write_reg(hw, ring->tail, hw->aq.asq.next_to_use);
-
-	do {
-		if (ufp_read_reg(hw, ring->head) == ring->next_to_use)
-			break;
-
-		usleep(&ts, 1000);
-		total_delay++;
-	} while (total_delay < I40E_ASQ_CMD_TIMEOUT);
-
-	if(total_delay == I40E_ASQ_CMD_TIMEOUT)
-		goto err_timeout;
-
-	memcpy(desc, desc_on_ring, sizeof(struct i40e_aq_desc));
-	if (buff != NULL)
-		memcpy(buff, dma_buff->va, buff_size);
-
-	retval = LE16_TO_CPU(desc->retval);
-	if(retval != 0)
-		goto err_send;
-
-	return 0;
-
-err_send:
-err_timeout:
-	return -1;
-}
-
-/**
- *  i40e_fill_default_direct_cmd_desc - AQ descriptor helper function
- *  @desc:     pointer to the temp descriptor (non DMA mem)
- *  @opcode:   the opcode can be used to decide which flags to turn off or on
- *
- *  Fill the desc with default values
- **/
-void i40e_fill_default_direct_cmd_desc(struct i40e_aq_desc *desc,
-				       u16 opcode)
-{
-	/* zero out the desc */
-	memset((void *)desc, 0, sizeof(struct i40e_aq_desc));
-	desc->opcode = CPU_TO_LE16(opcode);
-	desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_SI);
-}
-
-int i40e_arq_clean(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
+int i40e_aq_arq_clean(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 {
 	u16 ntc = ring->next_to_clean;
 	struct i40e_aq_desc *desc;
@@ -422,7 +356,7 @@ err_no_work:
 	return -1;
 }
 
-void i40e_arq_process(struct i40e_aq_desc *desc, void *buf)
+void i40e_aq_arq_process(struct i40e_aq_desc *desc, void *buf)
 {
 	uint16_t len;
 	uint16_t flags;
