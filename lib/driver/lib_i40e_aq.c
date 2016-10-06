@@ -1,8 +1,15 @@
 // Usage Sample
-int i40e_aq_mac_address_read(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
+int i40e_aq_mac_address_read(struct ufp_handle *ih)
 {
+	struct ufp_i40e_data *data;
+	struct ufp_i40e_ring *ring;
+	struct ufp_irq_handle *irq;
 	struct ufp_i40e_page *buf;
 	int err;
+
+	data = ih->ops->data;
+	ring = data->aq_tx_ring;
+	irq = data->aq_tx_irq;
 
 	buf = ufp_i40e_page_alloc(ih);
 	if(!buf)
@@ -13,6 +20,8 @@ int i40e_aq_mac_address_read(struct ufp_handle *ih, struct ufp_i40e_aq_ring *rin
 	if(err < 0)
 		goto err_xmit;
 
+	
+
 	return 0;
 
 err_xmit:
@@ -20,10 +29,10 @@ err_page_alloc:
 	return -1;
 }
 
-int i40e_aq_init(struct i40e_hw *hw)
+int i40e_aq_init(struct ufp_handle *ih)
 {       
 	int err;
-	
+
 	/* verify input for valid configuration */
 	if ((hw->aq.num_arq_entries == 0) ||
 	    (hw->aq.num_asq_entries == 0) ||
@@ -34,12 +43,12 @@ int i40e_aq_init(struct i40e_hw *hw)
 	}
 	
 	/* allocate the ASQ */
-	err = i40e_aq_asq_init(hw, asq);
+	err = i40e_aq_asq_init(ih);
 	if(err < 0)
 		goto err_init_asq;
 	
 	/* allocate the ARQ */
-	err = i40e_aq_arq_init(hw, arq);
+	err = i40e_aq_arq_init(ih);
 	if(err < 0)
 		goto err_init_arq;
 	
@@ -51,9 +60,18 @@ err_init_asq:
 	return -1;
 }
 
-int i40e_aq_asq_init(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
+int i40e_aq_asq_init(struct ufp_handle *ih)
 {
+        struct ufp_i40e_data *data;
+        struct ufp_i40e_ring *ring;
+        struct ufp_irq_handle *irq;
 	int err;
+
+	data = ih->ops->data;
+
+	ring = malloc(sizeof(struct i40e_aq_ring));
+	if(!ring)
+		goto err_alloc_ring;
 
 	ring->tail = I40E_PF_ATQT;
 	ring->head = I40E_PF_ATQH;
@@ -61,7 +79,7 @@ int i40e_aq_asq_init(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 	ring->bal  = I40E_PF_ATQBAL;
 	ring->bah  = I40E_PF_ATQBAH;
 
-	err = i40e_aq_ring_alloc(ih, ring);
+	err = i40e_aq_ring_init(ih, ring);
 	if(err < 0)
 		goto err_init_ring;
 
@@ -70,17 +88,38 @@ int i40e_aq_asq_init(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 	if (err < 0)
 		goto err_regs_config;
 
+	data->aq_tx_ring = ring;
+
+	irq = ufp_irq_open(ih, UFP_IRQ_MISC, 0, 0);
+	if(!irq)
+		goto err_open_irq;
+
+	data->aq_tx_irq = irq;
+
 	return 0;
 
+err_open_irq:
+	ufp_irq_close(irq);
 err_regs_config:
 	i40e_aq_ring_release();
 err_init_ring:
+	free(ring);
+err_alloc_ring:
 	return -1;
 }
 
-int i40e_aq_arq_init(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
+int i40e_aq_arq_init(struct ufp_handle *ih)
 {
+        struct ufp_i40e_data *data;
+        struct ufp_i40e_ring *ring;
+        struct ufp_irq_handle *irq;
 	int err;
+
+	data = ih->ops->data;
+
+        ring = malloc(sizeof(struct i40e_aq_ring));
+        if(!ring)
+                goto err_alloc_ring;
 
 	ring->tail = I40E_PF_ARQT;
 	ring->head = I40E_PF_ARQH;
@@ -88,7 +127,7 @@ int i40e_aq_arq_init(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 	ring->bal  = I40E_PF_ARQBAL;
 	ring->bah  = I40E_PF_ARQBAH;
 
-	err = i40e_aq_ring_alloc(ih, ring);
+	err = i40e_aq_ring_init(ih, ring);
 	if(err < 0)
 		goto err_init_ring;
 
@@ -97,17 +136,29 @@ int i40e_aq_arq_init(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 	if (err < 0)
 		goto err_regs_config;
 
+	data->aq_rx_ring = ring;
+
+	irq = ufp_irq_open(ih, UFP_IRQ_MISC, 1, 0);
+	if(!irq)
+		goto err_open_irq;
+
+	data->aq_rx_irq = irq;
+
 	i40e_fill_arq();
 
 	return 0;
 
+err_open_irq:
+	ufp_irq_close(irq);
 err_regs_config:
 	i40e_aq_ring_release();
 err_init_ring:
+	free(ring);
+err_alloc_ring:
 	return -1;
 }
 
-int i40e_aq_ring_alloc(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
+int i40e_aq_ring_init(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 {
 	uint64_t size;
 	int i;
@@ -168,18 +219,28 @@ err_init_ring:
 	return -1;
 }
 
-void i40e_aq_shutdown(struct i40e_hw *hw)
+void i40e_aq_shutdown(struct ufp_handle *ih)
 {
-	if (i40e_check_asq_alive(hw))
-		i40e_aq_queue_shutdown(hw, true);
+        struct ufp_i40e_data *data;
+        struct ufp_i40e_ring *ring;
+        struct ufp_irq_handle *irq;
 
-	i40e_aq_ring_shutdown(asq);
-	i40e_aq_ring_shutdown(arq);
+	data = ih->ops->data;
+
+	i40e_aq_queue_shutdown(ih, true);
+
+	i40e_aq_ring_shutdown(ih, data->aq_tx_ring);
+	free(data->aq_tx_ring);
+	ufp_irq_close(data->aq_tx_irq);
+
+	i40e_aq_ring_shutdown(ih, data->aq_rx_ring);
+	free(data->aq_rx_ring);
+	ufp_irq_close(data->aq_rx_irq);
 
 	return;
 }
 
-void i40e_aq_ring_shutdown(struct i40e_hw *hw)
+void i40e_aq_ring_shutdown(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 {
 	/* Stop firmware AdminQ processing */
 	ufp_write_reg(hw, ring->head, 0);
@@ -189,7 +250,7 @@ void i40e_aq_ring_shutdown(struct i40e_hw *hw)
 	ufp_write_reg(hw, ring->bah, 0);
 
 	/* free ring buffers */
-	i40e_aq_ring_release(hw);
+	i40e_aq_ring_release(ih, ring);
 
 	return;
 }
@@ -198,20 +259,26 @@ void i40e_aq_ring_release(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 {
 	int i;
 
-	for(i = 0; i < ring->num_entries; i++)
-		ufp_i40e_page_release(ring->bufs[i]);
+	for(i = 0; i < ring->num_entries; i++){
+		if(ring->bufs[i])
+			ufp_i40e_page_release(ring->bufs[i]);
+	}
 	free(ring->bufs);
 	ufp_i40e_page_release(ring->desc);
 
 	return;
 }
 
-void i40e_aq_asq_clean(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
+void i40e_aq_asq_clean(struct ufp_handle *ih)
 {
-	struct i40e_adminq_ring *asq = &(hw->aq.asq);
+	struct ufp_i40e_data *data;
+	struct i40e_aq_ring *ring;
 	u16 ntc = asq->next_to_clean;
 	struct i40e_aq_desc *desc;
 	struct ufp_i40e_page *buf;
+
+	data = ih->ops->data;
+	ring = data->aq_tx_ring;
 
 	desc = I40E_ADMINQ_DESC(*asq, ntc);
 	while (ufp_read_reg(hw, ring->head) != ntc) {
@@ -229,10 +296,15 @@ void i40e_aq_asq_clean(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
 	return;
 }
 
-int i40e_aq_asq_xmit(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring,
-	uint16_t opcode, struct ufp_i40e_page *buf, uint16_t buf_size)
+int i40e_aq_asq_xmit(struct ufp_handle *ih, uint16_t opcode,
+	struct ufp_i40e_page *buf, uint16_t buf_size)
 {
+        struct ufp_i40e_data *data; 
+        struct i40e_aq_ring *ring;
 	struct i40e_aq_desc *desc;
+
+	data = ih->ops->data;
+	ring = data->aq_tx_ring;
 
 	if(!I40E_DESC_UNUSED(asq)){
 		/* queue is full */
@@ -270,11 +342,16 @@ err_send:
 	return -1;
 }
 
-int i40e_aq_arq_fill(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
+int i40e_aq_arq_fill(struct ufp_handle *ih)
 {
+        struct ufp_i40e_data *data;
+        struct i40e_aq_ring *ring;
 	unsigned int desc_filled = 0;
 	struct i40e_aq_desc *desc;
 	struct ufp_i40e_page *buf;
+
+        data = ih->ops->data;
+        ring = data->aq_rx_ring;
 
 	/* allocate the mapped buffers */
 	for (i = 0; i < ring->num_entries; i++, desc_filled++) {
@@ -316,13 +393,18 @@ err_page_alloc:
 	return -1;
 }
 
-int i40e_aq_arq_clean(struct ufp_handle *ih, struct ufp_i40e_aq_ring *ring)
+int i40e_aq_arq_clean(struct ufp_handle *ih)
 {
+        struct ufp_i40e_data *data;
+        struct i40e_aq_ring *ring;
 	u16 ntc = ring->next_to_clean;
 	struct i40e_aq_desc *desc;
 	struct i40e_aq_page *buf;
 	u16 ntu;
 	u16 ntc;
+
+        data = ih->ops->data;
+        ring = data->aq_rx_ring;
 
 	/* set next_to_use to head */
 	ntc = ring->next_to_clean;
