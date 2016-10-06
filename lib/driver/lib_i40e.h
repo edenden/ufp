@@ -37,8 +37,8 @@ struct ufp_i40e_data {
 
 	struct i40e_aq_ring *aq_rx_ring;
 	struct i40e_aq_ring *aq_tx_ring;
-	struct ufp_irq_handle *aq_rx_irq;
-	struct ufp_irq_handle *aq_tx_irq;
+	struct ufp_irq_handle *aq_rx_irqh;
+	struct ufp_irq_handle *aq_tx_irqh;
 };
 
 #define msleep(t, n)		(t)->tv_sec = 0; \
