@@ -1,5 +1,5 @@
 // Usage Sample
-int i40e_aq_mac_address_read(struct ufp_handle *ih)
+int i40e_aq_cmd_xmit_macaddr(struct ufp_handle *ih)
 {
 	struct ufp_i40e_data *data;
 	struct ufp_i40e_ring *ring;
@@ -7,7 +7,6 @@ int i40e_aq_mac_address_read(struct ufp_handle *ih)
 	struct ufp_i40e_page *buf;
 	int err;
 	unsigned long read_buf;
-	struct i40e_aq_cmd_macaddr *result;
 
 	data = ih->ops->data;
 	ring = data->aq_tx_ring;
@@ -26,19 +25,26 @@ int i40e_aq_mac_address_read(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_read;
 
-	result = buf->addr_virt;
-	memcpy(ih->mac_addr, result->port_mac, ETH_ALEN);
-	ufp_i40e_page_release(buf);
-
+	data->aq_flag &= ~AQ_MAC_ADDR;
 	i40e_aq_asq_clean(ih);
+	if(!(data->aq_flag & AQ_MAC_ADDR))
+		goto err_xmit_fail;
 
 	return 0;
 
+err_xmit_fail:
 err_read:
 err_xmit:
 	ufp_i40e_page_release(buf);
 err_page_alloc:
 	return -1;
+}
+
+int i40e_aq_cmd_read_macaddr(struct ufp_handle *ih,
+	struct i40e_aq_cmd_macaddr *result)
+{
+	memcpy(ih->mac_addr, result->port_mac, ETH_ALEN);
+	return 0;
 }
 
 int i40e_aq_init(struct ufp_handle *ih)
@@ -293,7 +299,7 @@ void i40e_aq_asq_clean(struct ufp_handle *ih)
 	desc = I40E_ADMINQ_DESC(*asq, ntc);
 	while (ufp_read_reg(hw, ring->head) != ntc) {
 		buf = ring->bufs[ntc];
-		i40e_aq_asq_process(desc, buf);
+		i40e_aq_asq_process(ih, desc, buf);
 
 		memset(desc, 0, sizeof(*desc));
 		ntc++;
@@ -424,7 +430,7 @@ int i40e_aq_arq_clean(struct ufp_handle *ih)
 		/* now clean the next descriptor */
 		desc = ((i40e_aq_desc *)ring->desc->addr_virt)[ntc];
 		buf = ring->bufs[ntc];
-		i40e_arq_process(desc, buf->addr_virt);
+		i40e_arq_process(ih, desc, buf->addr_virt);
 
 		/* Restore the original datalen and buffer address in the desc */
 		memset((void *)desc, 0, sizeof(struct i40e_aq_desc));
@@ -451,10 +457,12 @@ err_no_work:
 	return -1;
 }
 
-void i40e_aq_asq_process(struct i40e_aq_desc *desc, void *buf)
+void i40e_aq_asq_process(struct ufp_handle *ih, struct i40e_aq_desc *desc,
+	void *buf)
 {
 	uint16_t retval;
 	uint16_t opcode;
+	int err;
 
 	retval = LE16_TO_CPU(desc->retval);
 	opcode = LE16_TO_CPU(desc->opcode);
@@ -464,15 +472,23 @@ void i40e_aq_asq_process(struct i40e_aq_desc *desc, void *buf)
 
 	switch(opcode){
 	case i40e_aqc_opc_mac_address_read:
-		hoge
+		err = i40e_aq_cmd_read_macaddr(ih, buf->addr_virt);
+		if(err < 0)
+			goto err_read;
+
+		data->aq_flag |= AQ_MAC_ADDR;
+		break;
 	default:
 	}
 
+err_read:
 err_retval:
+	ufp_i40e_page_release(buf);
 	return;
 }
 
-void i40e_aq_arq_process(struct i40e_aq_desc *desc, void *buf)
+void i40e_aq_arq_process(struct ufp_handle *ih, struct i40e_aq_desc *desc,
+	void *buf)
 {
 	uint16_t len;
 	uint16_t flags;
@@ -491,6 +507,7 @@ void i40e_aq_arq_process(struct i40e_aq_desc *desc, void *buf)
 	default:
 	}
 
+	ufp_i40e_page_release(buf);
 
 err_flag:
 	return;
