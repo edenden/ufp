@@ -536,8 +536,7 @@ int ufp_up(struct ufp_handle *ih, unsigned int irq_rate,
 	int err;
 
 	memset(&req, 0, sizeof(struct ufp_start_req));
-	req.num_rx_queues = ih->num_qps;
-	req.num_tx_queues = ih->num_qps;
+	req.num_irqs = (ih->num_qps * 2) + ih->num_misc_irqs;
 	if(ioctl(ih->fd, UFP_START, (unsigned long)&req) < 0)
 		goto err_ioctl_start;
 
@@ -582,24 +581,32 @@ err_stop_adapter:
 }
 
 static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
-	enum ufp_irq_type type, unsigned int thread_id, unsigned int core_id)
+	enum ufp_irq_type type, unsigned int irq_idx, unsigned int core_id)
 {
 	struct ufp_irq_handle *irqh;
 	uint64_t qmask;
 	int efd, ret;
 	struct ufp_irqbind_req req;
 
-	if(thread_id >= ih->num_qps){
-		goto err_invalid_thread_id;
-	}
-
 	efd = eventfd(0, 0);
 	if(efd < 0)
 		goto err_open_efd;
 
-	req.type	= type;
-	req.queue_idx	= thread_id;
 	req.event_fd	= efd;
+
+	switch(type){
+	case UFP_IRQ_RX:
+		req.vector = irq_idx;
+		break;
+	case UFP_IRQ_TX:
+		req.vector = irq_idx + ih->num_qps;
+		break;
+	case UFP_IRQ_MISC:
+		req.vector = irq_idx + (ih->num_qps * 2);
+		break;
+	default:
+		goto err_invalid_type;
+	}
 
 	ret = ioctl(ih->fd, UFP_IRQBIND, (unsigned long)&req);
 	if(ret < 0){
@@ -630,7 +637,7 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 
 	irqh->fd		= efd;
 	irqh->qmask		= qmask;
-	irqh->vector		= req.vector;
+	irqh->vector		= req.k_vector;
 
 	return irqh;
 
@@ -638,9 +645,9 @@ err_alloc_handle:
 err_undefined_type:
 err_irq_setaffinity:
 err_irq_bind:
+err_invalid_type:
 	close(efd);
 err_open_efd:
-err_invalid_thread_id:
 	return NULL;
 }
 

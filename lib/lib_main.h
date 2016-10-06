@@ -84,6 +84,7 @@ struct ufp_handle {
 	uint32_t		tx_budget;
 
 	uint32_t		num_qps;
+	uint32_t		num_misc_irqs;
 	uint32_t		irq_rate;
 	uint32_t		promisc;
 	uint32_t		mtu_frame;
@@ -186,8 +187,7 @@ struct ufp_info_req {
 
 #define UFP_START		_IOW('E', 202, int)
 struct ufp_start_req {
-	__u32			num_rx_queues;
-	__u32			num_tx_queues;
+	__u32			num_irqs;
 };
 
 #define UFP_STOP		_IOW('E', 203, int)
@@ -207,12 +207,11 @@ struct ufp_unmap_req {
 
 #define UFP_IRQBIND		_IOW('E', 220, int)
 struct ufp_irqbind_req {
-	enum ufp_irq_type	type;
-	__u32			queue_idx;
+	__u32			vector;
 	__s32			event_fd;
 
-	__u32			vector;
-	__u16			entry;
+	__u32			k_vector;
+	__u16			k_entry;
 };
 
 inline uint32_t ufp_readl(const volatile void *addr);

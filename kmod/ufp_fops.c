@@ -103,8 +103,7 @@ static int ufp_cmd_start(struct ufp_device *device, void __user *argp)
 		goto err_copy_from_user;
 	}
 
-	err = ufp_start(device,
-		req.num_rx_queues, req.num_tx_queues);
+	err = ufp_start(device, req.num_irqs);
 	if (err){
 		err = -EINVAL;
 		goto err_start;
@@ -193,8 +192,8 @@ static int ufp_cmd_irqbind(struct ufp_device *device, void __user *argp)
 	if (copy_from_user(&req, argp, sizeof(req)))
 		return -EFAULT;
 
-	ret = ufp_irq_bind(device, req.type, req.queue_idx,
-		req.event_fd, &req.vector, &req.entry);
+	ret = ufp_irq_bind(device, req.vector, req.event_fd,
+		&req.k_vector, &req.k_entry);
 	if(ret != 0)
 		return ret;
 

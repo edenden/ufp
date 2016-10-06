@@ -155,28 +155,16 @@ static void ufp_irq_free(struct ufp_irq *irq)
 	return;
 }
 
-int ufp_irq_bind(struct ufp_device *device, enum ufp_irq_type type,
-	u32 queue_idx, int event_fd, u32 *vector, u16 *entry)
+int ufp_irq_bind(struct ufp_device *device, u32 vector,
+	int event_fd, u32 *k_vector, u16 *k_entry)
 {
 	struct ufp_irq *irq;
 	struct eventfd_ctx *efd_ctx;
 
-	switch(type){
-	case IXMAP_IRQ_RX:
-		if(queue_idx > device->num_rx_queues)
-			goto err_invalid_arg;
-
-		irq = device->rx_irq[queue_idx];
-		break;
-	case IXMAP_IRQ_TX:
-		if(queue_idx > device->num_tx_queues)
-			goto err_invalid_arg;
-
-		irq = device->tx_irq[queue_idx];
-		break;
-	default:
+	if(vector >= device->num_irqs)
 		goto err_invalid_arg;
-	}
+
+	irq = device->irqs[vector];
 
 	efd_ctx = eventfd_ctx_fdget(event_fd);
 	if(IS_ERR(efd_ctx)){
@@ -187,8 +175,8 @@ int ufp_irq_bind(struct ufp_device *device, enum ufp_irq_type type,
 		eventfd_ctx_put(irq->efd_ctx);
 
 	irq->efd_ctx = efd_ctx;
-	*vector = irq->msix_entry->vector;
-	*entry = irq->msix_entry->entry;
+	*k_vector = irq->msix_entry->vector;
+	*k_entry = irq->msix_entry->entry;
 
 	return 0;
 
@@ -201,20 +189,13 @@ static void ufp_free_msix(struct ufp_device *device)
 {
 	int i;
 
-	for(i = 0; i < device->num_rx_queues; i++){
-		free_irq(device->rx_irq[i]->msix_entry->vector,
-			device->rx_irq[i]);
-		ufp_irq_free(device->rx_irq[i]);
-	}
+        for(i = 0; i < device->num_irqs; i++){
+                free_irq(device->irqs[i]->msix_entry->vector,
+                        device->irqs[i]);
+                ufp_irq_free(device->irqs[i]);
+        }
 
-	for(i = 0; i < device->num_tx_queues; i++){
-		free_irq(device->tx_irq[i]->msix_entry->vector,
-			device->tx_irq[i]);
-		ufp_irq_free(device->tx_irq[i]);
-	}
-
-	kfree(device->tx_irq);
-	kfree(device->rx_irq);
+	kfree(device->irqs);
 	pci_disable_msix(device->pdev);
 	kfree(device->msix_entries);
 	device->msix_entries = NULL;
@@ -224,108 +205,66 @@ static void ufp_free_msix(struct ufp_device *device)
 
 static int ufp_configure_msix(struct ufp_device *device)
 {
-	int vector = 0, vector_num, queue_idx, err, i;
-	int num_rx_requested = 0, num_tx_requested = 0;
+	int vector = 0, err, i;
+	int num_irq_requested = 0;
 	struct msix_entry *entry;
 
-	vector_num = device->num_rx_queues + device->num_tx_queues;
-	pr_info("required vector num = %d\n", vector_num);
+	pr_info("required vector num = %d\n", device->num_irqs);
 
-	device->msix_entries = kcalloc(vector_num,
+	device->msix_entries = kcalloc(device->num_irqs,
 		sizeof(struct msix_entry), GFP_KERNEL);
 	if (!device->msix_entries) {
 		goto err_allocate_msix_entries;
 	}
 
-	for (vector = 0; vector < vector_num; vector++){
+	for (vector = 0; vector < device->num_irqs; vector++){
 		device->msix_entries[vector].entry = vector;
 	}
 
 	err = pci_enable_msix(device->pdev,
-		device->msix_entries, vector_num);
+		device->msix_entries, device->num_irqs);
 	if(err){
 		/* failed to allocate enough msix vector */
 		goto err_pci_enable_msix;
 	}
 
-	device->rx_irq = kcalloc(device->num_rx_queues,
+	device->irqs = kcalloc(device->num_irqs,
 		sizeof(struct ufp_irq *), GFP_KERNEL);
-	if(!device->rx_irq)
-		goto err_alloc_irq_array_rx;
+	if(!device->irqs)
+		goto err_alloc_irq_array;
 
-	device->tx_irq = kcalloc(device->num_tx_queues,
-		sizeof(struct ufp_irq *), GFP_KERNEL);
-	if(!device->tx_irq)
-		goto err_alloc_irq_array_tx;
-
-	for(queue_idx = 0, vector = 0; queue_idx < device->num_rx_queues;
-	queue_idx++, vector++, num_rx_requested++){
+	for(vector = 0; vector < device->num_irqs; vector++, num_irq_requested++){
 		entry = &device->msix_entries[vector];
 
-		device->rx_irq[queue_idx] = ufp_irq_alloc(entry);
-		if(!device->rx_irq[queue_idx]){
-			goto err_alloc_irq_rx;
+		device->irqs[vector] = ufp_irq_alloc(entry);
+		if(!device->irqs[vector]){
+			goto err_alloc_irq;
 		}
 
 		err = request_irq(entry->vector, &ufp_interrupt, 0,
-				pci_name(device->pdev), device->rx_irq[queue_idx]);
+			pci_name(device->pdev), device->irqs[vector]);
 		if(err){
-			goto err_request_irq_rx;
+			goto err_request_irq;
 		}
 
-		pr_info("RX irq registered: index = %d, vector = %d\n",
-			queue_idx, entry->vector);
-
+		pr_info("IRQ registered: vector = %d\n", vector);
 		continue;
 
-err_request_irq_rx:
-		kfree(device->rx_irq[queue_idx]);
-		goto err_alloc_irq_rx;
-	}
-
-	for(queue_idx = 0; queue_idx < device->num_tx_queues;
-	queue_idx++, vector++, num_tx_requested++){
-		entry = &device->msix_entries[vector];
-
-		device->tx_irq[queue_idx] = ufp_irq_alloc(entry);
-		if(!device->tx_irq[queue_idx]){
-			goto err_alloc_irq_tx;
-		}
-
-		err = request_irq(entry->vector, &ufp_interrupt, 0,
-			pci_name(device->pdev), device->tx_irq[queue_idx]);
-		if(err){
-			goto err_request_irq_tx;
-		}
-
-		pr_info("TX irq registered: index = %d, vector = %d\n",
-			queue_idx, entry->vector);
-
-		continue;
-
-err_request_irq_tx:
-		kfree(device->tx_irq[queue_idx]);
-		goto err_alloc_irq_tx;
+err_request_irq:
+		kfree(device->irqs[vector]);
+		goto err_alloc_irq;
 	}
 
 	return 0;
 
-err_alloc_irq_tx:
-	for(i = 0; i < num_tx_requested; i++){
-		free_irq(device->tx_irq[i]->msix_entry->vector,
-			device->tx_irq[i]);
-		kfree(device->tx_irq[i]);
+err_alloc_irq:
+	for(i = 0; i < num_irq_requested; i++){
+		free_irq(device->irqs[i]->msix_entry->vector,
+			device->irqs[i]);
+		kfree(device->irqs[i]);
 	}
-err_alloc_irq_rx:
-	for(i = 0; i < num_rx_requested; i++){
-		free_irq(device->rx_irq[i]->msix_entry->vector,
-			device->rx_irq[i]);
-		kfree(device->rx_irq[i]);
-	}
-	kfree(device->tx_irq);
-err_alloc_irq_array_tx:
-	kfree(device->rx_irq);
-err_alloc_irq_array_rx:
+	kfree(device->irqs);
+err_alloc_irq_array:
 	pci_disable_msix(device->pdev);
 err_pci_enable_msix:
 	kfree(device->msix_entries);
@@ -336,21 +275,15 @@ err_allocate_msix_entries:
 
 static void ufp_interrupt_disable(struct ufp_device *device)
 {
-	int vector = 0, queue_idx;
+	int vector;
 
-	for(queue_idx = 0; queue_idx < device->num_rx_queues;
-	queue_idx++, vector++)
-		synchronize_irq(device->msix_entries[vector].vector);
-
-	for(queue_idx = 0; queue_idx < device->num_tx_queues;
-	queue_idx++, vector++)
+	for(vector = 0; vector < device->num_irqs; vector++)
 		synchronize_irq(device->msix_entries[vector].vector);
 
 	return;
 }
 
-int ufp_start(struct ufp_device *device,
-	u32 num_rx_queues, u32 num_tx_queues)
+int ufp_start(struct ufp_device *device, u32 num_irqs)
 {
 	int err;
 
@@ -358,12 +291,11 @@ int ufp_start(struct ufp_device *device,
 		goto err_already;
 	}
 
-	if(!num_rx_queues || !num_tx_queues){
+	if(!num_irqs){
 		goto err_num_queues;
 	}
 
-	device->num_rx_queues = num_rx_queues;
-	device->num_tx_queues = num_tx_queues;
+	device->num_irqs = num_irqs;
 
 	err = ufp_configure_msix(device);
 	if(err < 0){
