@@ -23,7 +23,7 @@ static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma);
 static struct ufp_ops *ufp_ops_alloc(uint16_t device_id);
 static void ufp_ops_release(struct ufp_ops *ops);
 static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
-	enum ufp_irq_type type, unsigned int thread_id, unsigned int core_id);
+	enum ufp_irq_type type, unsigned int irq_idx, unsigned int core_id)
 static void ufp_irq_close(struct ufp_irq_handle *irqh);
 static int ufp_irq_setaffinity(unsigned int vector, unsigned int core_id);
 
@@ -596,13 +596,13 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 
 	switch(type){
 	case UFP_IRQ_RX:
-		req.vector = irq_idx;
+		req.entry_idx = irq_idx;
 		break;
 	case UFP_IRQ_TX:
-		req.vector = irq_idx + ih->num_qps;
+		req.entry_idx = irq_idx + ih->num_qps;
 		break;
 	case UFP_IRQ_MISC:
-		req.vector = irq_idx + (ih->num_qps * 2);
+		req.entry_idx = irq_idx + (ih->num_qps * 2);
 		break;
 	default:
 		goto err_invalid_type;
@@ -622,10 +622,10 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 
 	switch(type){
 	case UFP_IRQ_RX:
-		qmask = 1 << thread_id;
+		qmask = 1 << irq_idx;
 		break;
 	case UFP_IRQ_TX:
-		qmask = 1 << (thread_id + ih->num_qps);
+		qmask = 1 << (irq_idx + ih->num_qps);
 		break;
 	default:
 		goto err_undefined_type;
@@ -637,7 +637,7 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 
 	irqh->fd		= efd;
 	irqh->qmask		= qmask;
-	irqh->vector		= req.k_vector;
+	irqh->vector		= req.vector;
 
 	return irqh;
 

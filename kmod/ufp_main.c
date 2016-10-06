@@ -155,16 +155,16 @@ static void ufp_irq_free(struct ufp_irq *irq)
 	return;
 }
 
-int ufp_irq_bind(struct ufp_device *device, u32 vector,
-	int event_fd, u32 *k_vector, u16 *k_entry)
+int ufp_irq_bind(struct ufp_device *device, u32 entry_idx,
+	int event_fd, u32 *vector)
 {
 	struct ufp_irq *irq;
 	struct eventfd_ctx *efd_ctx;
 
-	if(vector >= device->num_irqs)
+	if(entry_idx >= device->num_irqs)
 		goto err_invalid_arg;
 
-	irq = device->irqs[vector];
+	irq = device->irqs[entry_idx];
 
 	efd_ctx = eventfd_ctx_fdget(event_fd);
 	if(IS_ERR(efd_ctx)){
@@ -175,8 +175,7 @@ int ufp_irq_bind(struct ufp_device *device, u32 vector,
 		eventfd_ctx_put(irq->efd_ctx);
 
 	irq->efd_ctx = efd_ctx;
-	*k_vector = irq->msix_entry->vector;
-	*k_entry = irq->msix_entry->entry;
+	*vector = irq->msix_entry->vector;
 
 	return 0;
 
@@ -205,7 +204,7 @@ static void ufp_free_msix(struct ufp_device *device)
 
 static int ufp_configure_msix(struct ufp_device *device)
 {
-	int vector = 0, err, i;
+	int entry_idx = 0, err, i;
 	int num_irq_requested = 0;
 	struct msix_entry *entry;
 
@@ -217,8 +216,8 @@ static int ufp_configure_msix(struct ufp_device *device)
 		goto err_allocate_msix_entries;
 	}
 
-	for (vector = 0; vector < device->num_irqs; vector++){
-		device->msix_entries[vector].entry = vector;
+	for (entry_idx = 0; entry_idx < device->num_irqs; entry_idx++){
+		device->msix_entries[entry_idx].entry = entry_idx;
 	}
 
 	err = pci_enable_msix(device->pdev,
@@ -233,25 +232,27 @@ static int ufp_configure_msix(struct ufp_device *device)
 	if(!device->irqs)
 		goto err_alloc_irq_array;
 
-	for(vector = 0; vector < device->num_irqs; vector++, num_irq_requested++){
-		entry = &device->msix_entries[vector];
+	for(entry_idx = 0; entry_idx < device->num_irqs; entry_idx++,
+	num_irq_requested++){
+		entry = &device->msix_entries[entry_idx];
 
-		device->irqs[vector] = ufp_irq_alloc(entry);
-		if(!device->irqs[vector]){
+		device->irqs[entry_idx] = ufp_irq_alloc(entry);
+		if(!device->irqs[entry_idx]){
 			goto err_alloc_irq;
 		}
 
 		err = request_irq(entry->vector, &ufp_interrupt, 0,
-			pci_name(device->pdev), device->irqs[vector]);
+			pci_name(device->pdev), device->irqs[entry_idx]);
 		if(err){
 			goto err_request_irq;
 		}
 
-		pr_info("IRQ registered: vector = %d\n", vector);
+		pr_info("IRQ registered: entry_idx = %d, vector = %d\n",
+			entry_idx, entry->vector);
 		continue;
 
 err_request_irq:
-		kfree(device->irqs[vector]);
+		kfree(device->irqs[entry_idx]);
 		goto err_alloc_irq;
 	}
 

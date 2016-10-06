@@ -192,8 +192,8 @@ static int ufp_cmd_irqbind(struct ufp_device *device, void __user *argp)
 	if (copy_from_user(&req, argp, sizeof(req)))
 		return -EFAULT;
 
-	ret = ufp_irq_bind(device, req.vector, req.event_fd,
-		&req.k_vector, &req.k_entry);
+	ret = ufp_irq_bind(device, req.entry_idx, req.event_fd,
+		&req.vector);
 	if(ret != 0)
 		return ret;
 

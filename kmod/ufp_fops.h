@@ -35,11 +35,10 @@ struct ufp_unmap_req {
 
 #define UFP_IRQBIND		_IOW('E', 220, int)
 struct ufp_irqbind_req {
-	__u32			vector;
+	__u32			entry_idx;
 	__s32			event_fd;
 
-	__u32			k_vector;
-	__u16			k_entry;
+	__u32			vector;
 };
 
 int ufp_miscdev_register(struct ufp_device *device);

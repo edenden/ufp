@@ -41,8 +41,8 @@ struct ufp_irq {
 
 int ufp_start(struct ufp_device *device, u32 num_irqs);
 void ufp_stop(struct ufp_device *device);
-int ufp_irq_bind(struct ufp_device *device, u32 vector,
-	int event_fd, u32 *k_vector, u16 *k_entry);
+int ufp_irq_bind(struct ufp_device *device, u32 entry_idx,
+	int event_fd, u32 *vector);
 int ufp_device_inuse(struct ufp_device *device);
 void ufp_device_get(struct ufp_device *device);
 void ufp_device_put(struct ufp_device *device);
