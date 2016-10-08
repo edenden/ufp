@@ -249,3 +249,62 @@ void i40e_set_mac_type(struct ufp_handle *ih)
 	return;
 }
 
+static int i40e_setup_pf_switch(struct i40e_pf *pf, bool reinit)
+{
+	u16 flags = 0;
+	struct i40e_vsi *vsi = NULL;
+	u16 uplink_seid;
+	int ret;
+
+	/* find out what's out there already */
+	ret = i40e_fetch_switch_configuration(pf, false);
+
+	if (pf->hw.pf_id == 0) {
+		u16 valid_flags;
+
+		valid_flags = I40E_AQ_SET_SWITCH_CFG_PROMISC;
+		ret = i40e_aq_set_switch_config(&pf->hw, flags, valid_flags,
+						NULL);
+	}
+
+	/* Set up the PF VSI associated with the PF's main VSI
+	 * that is already in the HW switch
+	 */
+	uplink_seid = pf->mac_seid;
+
+	vsi = i40e_vsi_setup(pf, I40E_VSI_MAIN, uplink_seid, 0);
+	if (!vsi) {
+		dev_info(&pf->pdev->dev, "setup of MAIN VSI failed\n");
+		i40e_fdir_teardown(pf);
+		return -EAGAIN;
+	}
+
+	i40e_vlan_stripping_disable(pf->vsi[pf->lan_vsi]);
+
+	i40e_fdir_sb_setup(pf);
+
+	/* Setup static PF queue filter control settings */
+	ret = i40e_setup_pf_filter_control(pf);
+	if (ret) {
+		dev_info(&pf->pdev->dev, "setup_pf_filter_control failed: %d\n",
+			 ret);
+		/* Failure here should not stop continuing other steps */
+	}
+
+	/* enable RSS in the HW, even for only one queue, as the stack can use
+	 * the hash
+	 */
+	if ((pf->flags & I40E_FLAG_RSS_ENABLED))
+		i40e_pf_config_rss(pf);
+
+	/* fill in link information and enable LSE reporting */
+	i40e_update_link_info(&pf->hw);
+	i40e_link_event(pf);
+
+	/* Initialize user-specific link properties */
+	pf->fc_autoneg_status = ((pf->hw.phy.link_info.an_info &
+				  I40E_AQ_AN_COMPLETED) ? true : false);
+
+	return ret;
+}
+

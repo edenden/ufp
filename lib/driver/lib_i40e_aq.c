@@ -20,6 +20,8 @@ int i40e_aq_init(struct ufp_handle *ih)
 	err = i40e_aq_arq_init(ih);
 	if(err < 0)
 		goto err_init_arq;
+
+	ih->num_misc_irqs += 2;
 	
 	return 0;
 
