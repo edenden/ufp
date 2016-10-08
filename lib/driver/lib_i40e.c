@@ -55,7 +55,7 @@ int ufp_i40e_open(struct ufp_handle *ih)
 	unsigned long read_buf;
 
 	i40e_set_mac_type(ih);
-        
+
 	switch (data->mac_type) {
 	case I40E_MAC_XL710:
 	case I40E_MAC_X722:
