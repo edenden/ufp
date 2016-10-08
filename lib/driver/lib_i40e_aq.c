@@ -444,12 +444,14 @@ void i40e_aq_asq_process(struct ufp_handle *ih, struct i40e_aq_desc *desc,
 
 	switch(opcode){
 	case i40e_aqc_opc_mac_addr:
-		err = i40e_aq_cmd_clean_macaddr(ih, &desc->params, buf->addr_virt);
+		err = i40e_aq_cmd_clean_macaddr(ih,
+			&desc->params, buf->addr_virt);
 		if(err < 0)
 			goto err_clean;
 		break;
 	case i40e_aqc_opc_clear_pxe:
-		err = i40e_aq_cmd_clean_clearpxe(ih, &desc->params);
+		err = i40e_aq_cmd_clean_clearpxe(ih,
+			&desc->params);
 		if(err < 0)
 			goto err_clean;
 	default:
