@@ -51,6 +51,8 @@ void ufp_i40e_destroy(struct ufp_ops *ops)
 int ufp_i40e_open(struct ufp_handle *ih)
 {
 	struct ufp_i40e_data *data = ih->ops->data;
+	struct ufp_irq_handle *irqh;
+	unsigned long read_buf;
 
 	i40e_set_mac_type(ih);
         
@@ -94,6 +96,15 @@ int ufp_i40e_open(struct ufp_handle *ih)
 		goto err_adminq_setup;
 
 	i40e_aq_send_driver_version(&pf->hw, &dv, NULL);
+
+	irqh = data->aq_tx_irqh;
+	while(!(data & AQ_XXX) | !(data & AQ_YYY)){
+		err = read(irqh->fd, &read_buf, sizeof(unsigned long));
+		if(err < 0)
+			goto err_read;
+
+		i40e_aq_asq_clean(ih);
+	}
 
 err_clear_pxe:
 err_init_adminq:

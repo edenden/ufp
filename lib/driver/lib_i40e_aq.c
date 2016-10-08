@@ -1,52 +1,3 @@
-// Usage Sample
-int i40e_aq_cmd_xmit_macaddr(struct ufp_handle *ih)
-{
-	struct ufp_i40e_data *data;
-	struct ufp_i40e_ring *ring;
-	struct ufp_irq_handle *irqh;
-	struct ufp_i40e_page *buf;
-	int err;
-	unsigned long read_buf;
-
-	data = ih->ops->data;
-	ring = data->aq_tx_ring;
-	irqh = data->aq_tx_irqh;
-
-	buf = ufp_i40e_page_alloc(ih);
-	if(!buf)
-		goto err_page_alloc;
-
-	err = i40e_aq_asq_xmit(ih, ring, i40e_aqc_opc_mac_address_read,
-		buf, sizeof(struct i40e_aq_cmd_macaddr));
-	if(err < 0)
-		goto err_xmit;
-
-	err = read(irqh->fd, &read_buf, sizeof(unsigned long));
-	if(err < 0)
-		goto err_read;
-
-	data->aq_flag &= ~AQ_MAC_ADDR;
-	i40e_aq_asq_clean(ih);
-	if(!(data->aq_flag & AQ_MAC_ADDR))
-		goto err_xmit_fail;
-
-	return 0;
-
-err_xmit_fail:
-err_read:
-err_xmit:
-	ufp_i40e_page_release(buf);
-err_page_alloc:
-	return -1;
-}
-
-int i40e_aq_cmd_read_macaddr(struct ufp_handle *ih,
-	struct i40e_aq_cmd_macaddr *result)
-{
-	memcpy(ih->mac_addr, result->port_mac, ETH_ALEN);
-	return 0;
-}
-
 int i40e_aq_init(struct ufp_handle *ih)
 {       
 	int err;
@@ -475,8 +426,6 @@ void i40e_aq_asq_process(struct ufp_handle *ih, struct i40e_aq_desc *desc,
 		err = i40e_aq_cmd_read_macaddr(ih, buf->addr_virt);
 		if(err < 0)
 			goto err_read;
-
-		data->aq_flag |= AQ_MAC_ADDR;
 		break;
 	default:
 	}
