@@ -89,7 +89,7 @@ int ufp_i40e_open(struct ufp_handle *ih)
 	i40e_aq_send_driver_version(&pf->hw, &dv, NULL);
 
 	irqh = data->aq_tx_irqh;
-	while(!(data & AQ_XXX) | !(data & AQ_YYY)){
+	while(!(data & AQ_MAC_ADDR) | !(data & AQ_CLEAR_PXE)){
 		err = read(irqh->fd, &read_buf, sizeof(unsigned long));
 		if(err < 0)
 			goto err_read;

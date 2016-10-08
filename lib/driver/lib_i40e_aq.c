@@ -264,7 +264,7 @@ void i40e_aq_asq_clean(struct ufp_handle *ih)
 }
 
 int i40e_aq_asq_xmit(struct ufp_handle *ih, uint16_t opcode,
-	struct ufp_i40e_page *buf, uint16_t buf_size)
+	void *cmd, uint16_t cmd_size, struct ufp_i40e_page *buf, uint16_t buf_size)
 {
 	struct ufp_i40e_data *data; 
 	struct i40e_aq_ring *ring;
@@ -280,6 +280,7 @@ int i40e_aq_asq_xmit(struct ufp_handle *ih, uint16_t opcode,
 
 	desc = I40E_ADMINQ_DESC(hw->aq.asq, hw->aq.asq.next_to_use);
 	desc->opcode = CPU_TO_LE16(opcode);
+	memcpy(&desc->params, cmd, cmd_size);
 
 	/* if buf is not NULL assume indirect command */
 	if (buf) {
@@ -422,15 +423,19 @@ void i40e_aq_asq_process(struct ufp_handle *ih, struct i40e_aq_desc *desc,
 		goto err_retval;
 
 	switch(opcode){
-	case i40e_aqc_opc_mac_address_read:
-		err = i40e_aq_cmd_read_macaddr(ih, buf->addr_virt);
+	case i40e_aqc_opc_mac_addr:
+		err = i40e_aq_cmd_clean_macaddr(ih, &desc->params, buf->addr_virt);
 		if(err < 0)
-			goto err_read;
+			goto err_clean;
 		break;
+	case i40e_aqc_opc_clear_pxe:
+		err = i40e_aq_cmd_clean_clearpxe(ih, &desc->params);
+		if(err < 0)
+			goto err_clean;
 	default:
 	}
 
-err_read:
+err_clean:
 err_retval:
 	ufp_i40e_page_release(buf);
 	return;

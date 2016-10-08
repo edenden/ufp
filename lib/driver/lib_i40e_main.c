@@ -263,26 +263,6 @@ int i40e_diag_eeprom_test(struct i40e_hw *hw)
 		return I40E_ERR_DIAG_TEST_FAILED;
 }
 
-int i40e_aq_clear_pxe_mode(struct i40e_hw *hw,
-			struct i40e_asq_cmd_details *cmd_details)
-{
-	struct i40e_aq_desc desc;
-	struct i40e_aqc_clear_pxe *cmd =
-		(struct i40e_aqc_clear_pxe *)&desc.params.raw;
-	int err;
-
-	i40e_fill_default_direct_cmd_desc(&desc,
-		i40e_aqc_opc_clear_pxe_mode);
-
-	cmd->rx_cnt = 0x2;
-
-	err = i40e_asq_send_command(hw, &desc, NULL, 0, cmd_details);
-
-	wr32(hw, I40E_GLLAN_RCTL_0, 0x1);
-
-	return err;
-}
-
 i40e_status i40e_aq_send_driver_version(struct i40e_hw *hw,
 				struct i40e_driver_version *dv,
 				struct i40e_asq_cmd_details *cmd_details)
