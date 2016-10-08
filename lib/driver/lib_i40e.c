@@ -78,15 +78,9 @@ int ufp_i40e_open(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_init_adminq;
 
-	err = i40e_aq_clear_pxe_mode(hw, NULL);
+	err = i40e_aq_clear_pxe_mode(ih);
 	if(err < 0)
 		goto err_clear_pxe;
-
-	err = i40e_get_capabilities(pf);
-	if (err)
-		goto err_adminq_setup;
-
-	i40e_aq_send_driver_version(&pf->hw, &dv, NULL);
 
 	irqh = data->aq_tx_irqh;
 	while(!(data & AQ_MAC_ADDR) | !(data & AQ_CLEAR_PXE)){
@@ -97,10 +91,9 @@ int ufp_i40e_open(struct ufp_handle *ih)
 		i40e_aq_asq_clean(ih);
 	}
 
+err_read:
 err_clear_pxe:
 err_init_adminq:
-err_eeprom_test:
-err_init_nvm:
 err_reset_hw;
 err_not_supported:
 	return -1;
