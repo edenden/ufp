@@ -73,15 +73,6 @@ int ufp_i40e_open(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_reset_hw;
 
-	/* NVM related initalization and depending process */
-	err = i40e_init_nvm(hw);
-	if(err < 0)
-		goto err_init_nvm;
-
-	err = i40e_diag_eeprom_test(hw);
-	if(err < 0)
-		goto err_eeprom_test;
-
 	/* adminQ related initialization and depending process */
 	err = i40e_init_adminq(hw);
 	if(err < 0)
