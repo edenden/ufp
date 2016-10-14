@@ -23,13 +23,10 @@ struct i40e_aq_cmd_clear_pxe {
         u8      reserved[15];
 };
 
-struct i40e_aq_cmd_driver_version {
-        u8      driver_major_ver;
-        u8      driver_minor_ver;
-        u8      driver_build_ver;
-        u8      driver_subbuild_ver;
-        u8      reserved[4];
-        __le32  address_high;
-        __le32  address_low;
+struct i40e_aq_cmd_getconf {
+	__le16  seid_offset;
+	u8      reserved[6];
+	__le32  addr_high;
+	__le32  addr_low;
 };
 
