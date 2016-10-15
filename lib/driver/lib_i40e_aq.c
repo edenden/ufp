@@ -285,7 +285,7 @@ void i40e_aq_asq_clean(struct ufp_handle *ih)
 	return;
 }
 
-int i40e_aq_asq_xmit(struct ufp_handle *ih, uint16_t opcode,
+int i40e_aq_asq_xmit(struct ufp_handle *ih, uint16_t opcode, uint16_t flags,
 	void *cmd, uint16_t cmd_size, struct ufp_i40e_page *buf, uint16_t buf_size)
 {
 	struct ufp_i40e_data *data; 
@@ -301,13 +301,13 @@ int i40e_aq_asq_xmit(struct ufp_handle *ih, uint16_t opcode,
 	}
 
 	desc = I40E_ADMINQ_DESC(hw->aq.asq, hw->aq.asq.next_to_use);
+	desc->flags = CPU_TO_LE16(flags);
 	desc->opcode = CPU_TO_LE16(opcode);
 	memcpy(&desc->params, cmd, cmd_size);
 
 	/* if buf is not NULL assume indirect command */
 	if (buf) {
 		ring->bufs[ntu] = buf;
-		desc->flags |= CPU_TO_LE16(I40E_AQ_FLAG_BUF)
 		desc->datalen = CPU_TO_LE16(buf_size);
 
 		/* Update the address values in the desc with the pa value
@@ -456,7 +456,15 @@ void i40e_aq_asq_process(struct ufp_handle *ih, struct i40e_aq_desc *desc,
 			&desc->params);
 		if(err < 0)
 			goto err_clean;
+		break;
+	case i40e_aqc_opc_add_vsi:
+		err = i40e_aq_cmd_clean_addvsi(ih,
+			&desc->params);
+		if(err < 0)
+			goto err_clean;
+		break;
 	default:
+		break;
 	}
 
 err_clean:

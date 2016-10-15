@@ -384,13 +384,7 @@ static int i40e_add_vsi(struct i40e_vsi *vsi)
 		ctxt.uplink_seid = vsi->uplink_seid;
 		ctxt.connection_type = I40E_AQ_VSI_CONN_TYPE_NORMAL;
 		ctxt.flags = I40E_AQ_VSI_TYPE_PF;
-		if ((pf->flags & I40E_FLAG_VEB_MODE_ENABLED) &&
-		    (i40e_is_vsi_uplink_mode_veb(vsi))) {
-			ctxt.info.valid_sections |=
-			     cpu_to_le16(I40E_AQ_VSI_PROP_SWITCH_VALID);
-			ctxt.info.switch_id =
-			   cpu_to_le16(I40E_AQ_VSI_SW_ID_FLAG_ALLOW_LB);
-		}
+
 		i40e_vsi_setup_queue_map(vsi, &ctxt, enabled_tc, true);
 		break;
 	default:
