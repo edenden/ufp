@@ -273,83 +273,9 @@ err_cmd_xmit_getconf:
 	return -1;
 }
 
-int i40e_vsi_configure(struct ufp_handle *ih, struct ufp_i40e_vsi *vsi)
-{
-	/* set up vectors and rings if needed */
-	ret = i40e_vsi_setup_vectors(vsi);
-	if (ret)
-		goto err_msix;
-
-	ret = i40e_alloc_rings(vsi);
-	if (ret)
-		goto err_rings;
-
-	/* map all of the rings to the q_vectors */
-	i40e_vsi_map_rings_to_vectors(vsi);
-
-	i40e_vsi_reset_stats(vsi);
-
-	i40e_vlan_stripping_disable(pf->vsi[pf->lan_vsi]);
-
-	return 0;
-
-err_rings:
-err_msix:
-
-	return -1;
-}
-
-static int i40e_vsi_setup_vectors(struct i40e_vsi *vsi)
-{
-	int ret = -ENOENT;
-	struct i40e_pf *pf = vsi->back;
-
-	if (vsi->q_vectors[0]) {
-		dev_info(&pf->pdev->dev, "VSI %d has existing q_vectors\n",
-			 vsi->seid);
-		return -EEXIST;
-	}
-
-	if (vsi->base_vector) {
-		dev_info(&pf->pdev->dev, "VSI %d has non-zero base vector %d\n",
-			 vsi->seid, vsi->base_vector);
-		return -EEXIST;
-	}
-
-	ret = i40e_vsi_alloc_q_vectors(vsi);
-	if (ret) {
-		dev_info(&pf->pdev->dev,
-			 "failed to allocate %d q_vector for VSI %d, ret=%d\n",
-			 vsi->num_q_vectors, vsi->seid, ret);
-		vsi->num_q_vectors = 0;
-		goto vector_setup_out;
-	}
-
-#if !defined(I40E_LEGACY_INTERRUPT) && !defined(I40E_MSI_INTERRUPT)
-	/* In Legacy mode, we do not have to get any other vector since we
-	 * piggyback on the misc/ICR0 for queue interrupts.
-	*/
-	if (!(pf->flags & I40E_FLAG_MSIX_ENABLED))
-		return ret;
-	if (vsi->num_q_vectors)
-		vsi->base_vector = i40e_get_lump(pf, pf->irq_pile,
-						 vsi->num_q_vectors, vsi->idx);
-	if (vsi->base_vector < 0) {
-		dev_info(&pf->pdev->dev,
-			 "failed to get tracking for %d vectors for VSI %d, err=%d\n",
-			 vsi->num_q_vectors, vsi->seid, vsi->base_vector);
-		i40e_vsi_free_q_vectors(vsi);
-		ret = -ENOENT;
-		goto vector_setup_out;
-	}
-
-#endif
-vector_setup_out:
-	return ret;
-}
-
 static int i40e_setup_pf_switch(struct ufp_handle *ih)
 {
+	struct ufp_i40e_data *data = ih->ops->data;
 	struct switch_elem *elem;
 	struct ufp_i40e_vsi *vsi;
 
@@ -369,9 +295,10 @@ static int i40e_setup_pf_switch(struct ufp_handle *ih)
 		goto err_alloc_vsi;
 
 	vsi->XXX = XXX;
-	i40e_vsi_configure(ih, vsi);
+	vsi->next = NULL;
 
-	i40e_vlan_stripping_disable(pf->vsi[pf->lan_vsi]);
+	i40e_vlan_stripping_disable(vsi);
+	data->vsi = vsi;
 
 	/* Switch Global Configuration */
 	if (pf->hw.pf_id == 0) {

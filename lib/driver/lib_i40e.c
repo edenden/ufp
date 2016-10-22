@@ -82,40 +82,6 @@ int ufp_i40e_open(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_clear_pxe;
 
-	irqh = data->aq_tx_irqh;
-	while(!(data & AQ_MAC_ADDR) | !(data & AQ_CLEAR_PXE)){
-		err = read(irqh->fd, &read_buf, sizeof(unsigned long));
-		if(err < 0)
-			goto err_read;
-
-		i40e_aq_asq_clean(ih);
-	}
-
-err_read:
-err_clear_pxe:
-err_init_adminq:
-err_reset_hw;
-err_not_supported:
-	return -1;
-}
-
-int ufp_i40e_up(struct ufp_handle *ih)
-{
-	err = i40e_init_lan_hmc(hw, hw->func_caps.num_tx_qp,
-				hw->func_caps.num_rx_qp,
-				pf->fcoe_hmc_cntx_num, pf->fcoe_hmc_filt_num);
-	if (err) {
-		dev_info(&pdev->dev, "init_lan_hmc failed: %d\n", err);
-		goto err_init_lan_hmc;
-	}
-
-	err = i40e_configure_lan_hmc(hw, I40E_HMC_MODEL_DIRECT_ONLY);
-	if (err) {
-		dev_info(&pdev->dev, "configure_lan_hmc failed: %d\n", err);
-		err = -ENOENT;
-		goto err_configure_lan_hmc;
-	}
-
 	/* Disable LLDP for NICs that have firmware versions lower than v4.3.
 	 * Ignore error return codes because if it was already disabled via
 	 * hardware settings this will fail
@@ -123,21 +89,36 @@ int ufp_i40e_up(struct ufp_handle *ih)
 	i40e_aq_stop_lldp(hw, true, NULL);
 
 	i40e_get_mac_addr(hw, hw->mac.addr);
-	if (!is_valid_ether_addr(hw->mac.addr)) {
-		dev_info(&pdev->dev, "invalid MAC address %pM\n", hw->mac.addr);
-		err = -EIO;
-		goto err_mac_addr;
-	}
 
-	err = i40e_init_interrupt_scheme(pf);
-	if (err)
-		goto err_switch_setup;
+        irqh = data->aq_tx_irqh;
+        while(!(data & AQ_MAC_ADDR) | !(data & AQ_CLEAR_PXE)){
+                err = read(irqh->fd, &read_buf, sizeof(unsigned long));
+                if(err < 0)
+                        goto err_read;
+
+                i40e_aq_asq_clean(ih);
+        }
 
 	err = i40e_setup_pf_switch(pf, false);
 	if (err) {
 		dev_info(&pdev->dev, "setup_pf_switch failed: %d\n", err);
 		goto err_vsis;
 	}
+
+        err = i40e_init_lan_hmc(hw, hw->func_caps.num_tx_qp,
+                                hw->func_caps.num_rx_qp,
+                                pf->fcoe_hmc_cntx_num, pf->fcoe_hmc_filt_num);
+        if (err) {
+                dev_info(&pdev->dev, "init_lan_hmc failed: %d\n", err);
+                goto err_init_lan_hmc;
+        }
+
+        err = i40e_configure_lan_hmc(hw, I40E_HMC_MODEL_DIRECT_ONLY);
+        if (err) {
+                dev_info(&pdev->dev, "configure_lan_hmc failed: %d\n", err);
+                err = -ENOENT;
+                goto err_configure_lan_hmc;
+        }
 
 	/* The driver only wants link up/down and module qualification
 	 * reports from firmware.  Note the negative logic.
@@ -151,37 +132,40 @@ int ufp_i40e_up(struct ufp_handle *ih)
 			 i40e_stat_str(&pf->hw, err),
 			 i40e_aq_str(&pf->hw, pf->hw.aq.asq_last_status));
 
-	if (pf->flags & I40E_FLAG_RESTART_AUTONEG) {
-		msleep(75);
-		err = i40e_aq_set_link_restart_an(&pf->hw, true, NULL);
-		if (err)
-			dev_info(&pf->pdev->dev, "link restart failed, err %s aq_err %s\n",
-				 i40e_stat_str(&pf->hw, err),
-				 i40e_aq_str(&pf->hw,
-					      pf->hw.aq.asq_last_status));
-	}
-
-	/* get the requested speeds from the fw */
-	err = i40e_aq_get_phy_capabilities(hw, false, false, &abilities, NULL);
-	if (err)
-		dev_dbg(&pf->pdev->dev, "get requested speeds ret =  %s last_status =  %s\n",
-			i40e_stat_str(&pf->hw, err),
-			i40e_aq_str(&pf->hw, pf->hw.aq.asq_last_status));
-	pf->hw.phy.link_info.requested_speeds = abilities.link_speed;
-
-	/* get the supported phy types from the fw */
-	err = i40e_aq_get_phy_capabilities(hw, false, true, &abilities, NULL);
-	if (err)
-		dev_dbg(&pf->pdev->dev, "get supported phy types ret =  %s last_status =  %s\n",
-			i40e_stat_str(&pf->hw, err),
-			i40e_aq_str(&pf->hw, pf->hw.aq.asq_last_status));
-	pf->hw.phy.phy_types = LE32_TO_CPU(abilities.phy_type);
-
-	if ((pf->hw.device_id == I40E_DEV_ID_10G_BASE_T) ||
-	    (pf->hw.device_id == I40E_DEV_ID_10G_BASE_T4))
-		pf->flags |= I40E_FLAG_HAVE_10GBASET_PHY;
-
 	return 0;
+
+err_read:
+err_clear_pxe:
+err_init_adminq:
+err_reset_hw;
+err_not_supported:
+        return -1;
+}
+
+int ufp_i40e_up(struct ufp_handle *ih)
+{
+        /* allocate descriptors */
+        err = i40e_vsi_setup_tx_resources(vsi);
+        if (err)
+                goto err_setup_tx;
+        err = i40e_vsi_setup_rx_resources(vsi);
+        if (err)
+                goto err_setup_rx;
+
+        err = i40e_vsi_configure(vsi);
+        if (err)
+                goto err_setup_rx;
+
+	snprintf(int_name, sizeof(int_name) - 1, "%s-%s:fdir",
+		dev_driver_string(&pf->pdev->dev),
+		dev_name(&pf->pdev->dev));
+	err = i40e_vsi_request_irq(vsi, int_name);
+
+        err = i40e_up_complete(vsi);
+        if (err)
+                goto err_up_complete;
+
+        return 0;
 }
 
 int ufp_i40e_down(struct ufp_handle *ih)

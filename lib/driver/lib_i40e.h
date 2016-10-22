@@ -40,6 +40,7 @@ struct ufp_i40e_data {
 	struct ufp_irq_handle	*aq_rx_irqh;
 	struct ufp_irq_handle	*aq_tx_irqh;
 	uint32_t		aq_flag;
+	struct ufp_i40e_vsi	*vsi;
 };
 
 #define msleep(t, n)		(t)->tv_sec = 0; \
