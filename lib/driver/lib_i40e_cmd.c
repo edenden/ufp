@@ -140,6 +140,40 @@ err_already:
 	return -1;
 }
 
+static void i40e_setup_pf_switch_element(struct i40e_pf *pf,
+        struct i40e_aqc_switch_config_element_resp *ele)
+{
+        u16 downlink_seid = le16_to_cpu(ele->downlink_seid);
+        u16 uplink_seid = le16_to_cpu(ele->uplink_seid);
+        u8 element_type = ele->element_type;
+        u16 seid = le16_to_cpu(ele->seid);
+
+        switch (element_type) {
+        case I40E_SWITCH_ELEMENT_TYPE_VSI:
+                /* By default, only 1 MAIN VSI exsits in HW switch */
+                struct switch_conf_elem *elem;
+                elem = add_elem_to_list(data->switch_conf);
+
+                elem->seid = seid;
+                elem->uplink_seid = uplink_seid;
+                elem->downlink_seid = downlink_seid;
+                elem->type = VSI;
+                break;
+        case I40E_SWITCH_ELEMENT_TYPE_MAC:
+        case I40E_SWITCH_ELEMENT_TYPE_VEB:
+        case I40E_SWITCH_ELEMENT_TYPE_PF:
+        case I40E_SWITCH_ELEMENT_TYPE_VF:
+        case I40E_SWITCH_ELEMENT_TYPE_EMP:
+        case I40E_SWITCH_ELEMENT_TYPE_BMC:
+        case I40E_SWITCH_ELEMENT_TYPE_PE:
+        case I40E_SWITCH_ELEMENT_TYPE_PA:
+                /* ignore these for now */
+                break;
+        default:
+                break;
+        }
+}
+
 int i40e_aq_cmd_xmit_addvsi(struct ufp_handle *ih)
 {       
 	struct ufp_i40e_data *data = ih->ops->data;
