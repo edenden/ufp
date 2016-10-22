@@ -249,38 +249,139 @@ void i40e_set_mac_type(struct ufp_handle *ih)
 	return;
 }
 
-static int i40e_setup_pf_switch(struct i40e_pf *pf, bool reinit)
+int i40e_switchconf_fetch(struct ufp_handle *ih)
 {
-	u16 flags = 0;
-	struct i40e_vsi *vsi = NULL;
-	u16 uplink_seid;
-	int ret;
+	struct ufp_i40e_data *data = ih->ops->data;
+	int err;
+
+	data->aq_seid_offset = 0;
+	clear_list(data->switch_elem);
+
+	do{
+		err = i40e_aq_cmd_xmit_getconf(ih);
+		if(err < 0)
+			goto err_cmd_xmit_getconf;
+
+		while(!(data->flag & AQ_GETCONF)){
+			i40e_aq_asq_clean(ih);
+		}
+	}while(data->aq_seid_offset);
+
+	return 0;
+
+err_cmd_xmit_getconf:
+	return -1;
+}
+
+int i40e_vsi_configure(struct ufp_handle *ih, struct ufp_i40e_vsi *vsi)
+{
+	/* set up vectors and rings if needed */
+	ret = i40e_vsi_setup_vectors(vsi);
+	if (ret)
+		goto err_msix;
+
+	ret = i40e_alloc_rings(vsi);
+	if (ret)
+		goto err_rings;
+
+	/* map all of the rings to the q_vectors */
+	i40e_vsi_map_rings_to_vectors(vsi);
+
+	i40e_vsi_reset_stats(vsi);
+
+	i40e_vlan_stripping_disable(pf->vsi[pf->lan_vsi]);
+
+	return 0;
+
+err_rings:
+err_msix:
+
+	return -1;
+}
+
+static int i40e_vsi_setup_vectors(struct i40e_vsi *vsi)
+{
+	int ret = -ENOENT;
+	struct i40e_pf *pf = vsi->back;
+
+	if (vsi->q_vectors[0]) {
+		dev_info(&pf->pdev->dev, "VSI %d has existing q_vectors\n",
+			 vsi->seid);
+		return -EEXIST;
+	}
+
+	if (vsi->base_vector) {
+		dev_info(&pf->pdev->dev, "VSI %d has non-zero base vector %d\n",
+			 vsi->seid, vsi->base_vector);
+		return -EEXIST;
+	}
+
+	ret = i40e_vsi_alloc_q_vectors(vsi);
+	if (ret) {
+		dev_info(&pf->pdev->dev,
+			 "failed to allocate %d q_vector for VSI %d, ret=%d\n",
+			 vsi->num_q_vectors, vsi->seid, ret);
+		vsi->num_q_vectors = 0;
+		goto vector_setup_out;
+	}
+
+#if !defined(I40E_LEGACY_INTERRUPT) && !defined(I40E_MSI_INTERRUPT)
+	/* In Legacy mode, we do not have to get any other vector since we
+	 * piggyback on the misc/ICR0 for queue interrupts.
+	*/
+	if (!(pf->flags & I40E_FLAG_MSIX_ENABLED))
+		return ret;
+	if (vsi->num_q_vectors)
+		vsi->base_vector = i40e_get_lump(pf, pf->irq_pile,
+						 vsi->num_q_vectors, vsi->idx);
+	if (vsi->base_vector < 0) {
+		dev_info(&pf->pdev->dev,
+			 "failed to get tracking for %d vectors for VSI %d, err=%d\n",
+			 vsi->num_q_vectors, vsi->seid, vsi->base_vector);
+		i40e_vsi_free_q_vectors(vsi);
+		ret = -ENOENT;
+		goto vector_setup_out;
+	}
+
+#endif
+vector_setup_out:
+	return ret;
+}
+
+static int i40e_setup_pf_switch(struct ufp_handle *ih)
+{
+	struct switch_elem *elem;
+	struct ufp_i40e_vsi *vsi;
 
 	/* find out what's out there already */
 	ret = i40e_switchconf_fetch(ih);
-	elem = first_vsi(data->switch_conf);
 
-	if (pf->hw.pf_id == 0) {
-		u16 valid_flags;
-
-		valid_flags = I40E_AQ_SET_SWITCH_CFG_PROMISC;
-		ret = i40e_aq_set_switch_config(&pf->hw, flags, valid_flags,
-						NULL);
+	foreach(data->switch_elem){
+		if(elem->type == I40E_SWITCH_ELEMENT_TYPE_VSI)
+			elem = current;
 	}
 
 	/* Set up the PF VSI associated with the PF's main VSI
 	 * that is already in the HW switch
 	 */
-	uplink_seid = pf->mac_seid;
+	vsi = malloc(sizeof(struct ufp_i40e_vsi));
+	if(!vsi)
+		goto err_alloc_vsi;
 
-	vsi = i40e_vsi_setup(pf, I40E_VSI_MAIN, uplink_seid, 0);
-	if (!vsi) {
-		dev_info(&pf->pdev->dev, "setup of MAIN VSI failed\n");
-		i40e_fdir_teardown(pf);
-		return -EAGAIN;
-	}
+	vsi->XXX = XXX;
+	i40e_vsi_configure(ih, vsi);
 
 	i40e_vlan_stripping_disable(pf->vsi[pf->lan_vsi]);
+
+	/* Switch Global Configuration */
+	if (pf->hw.pf_id == 0) {
+		uint16_t valid_flags;
+		
+		valid_flags = I40E_AQ_SET_SWITCH_CFG_PROMISC;
+		err = i40e_aq_cmd_xmit_setconf(ih, 0, valid_flags);
+		if(err < 0)
+			goto ;
+	}
 
 	i40e_fdir_sb_setup(pf);
 
@@ -307,148 +408,8 @@ static int i40e_setup_pf_switch(struct i40e_pf *pf, bool reinit)
 				  I40E_AQ_AN_COMPLETED) ? true : false);
 
 	return ret;
-}
 
-int i40e_switchconf_fetch(struct ufp_handle *ih)
-{
-	struct ufp_i40e_data *data = ih->ops->data;
-	int err;
-
-	data->aq_seid_offset = 0;
-	clear_list(data->switch_conf);
-
-	do{
-		err = i40e_aq_cmd_xmit_getconf(ih);
-		if(err < 0)
-			goto err_cmd_xmit_getconf;
-
-		while(!(data->flag & AQ_GETCONF)){
-			i40e_aq_asq_clean(ih);
-		}
-	}while(data->aq_seid_offset);
-
-	return 0;
-
-err_cmd_xmit_getconf:
+err_alloc_vsi:
 	return -1;
-}
-	
-struct i40e_vsi_context {
-	u16 seid;
-	u16 uplink_seid;
-	u16 vsi_number;
-	u16 vsis_allocated;
-	u16 vsis_unallocated;
-	u16 flags;
-	u8 pf_num;
-	u8 vf_num;
-	u8 connection_type;
-	struct i40e_aqc_vsi_properties_data info;
-};
-
-static int i40e_add_vsi(struct i40e_vsi *vsi)
-{
-	int ret = -ENODEV;
-	struct i40e_pf *pf = vsi->back;
-	struct i40e_hw *hw = &pf->hw;
-	struct i40e_vsi_context ctxt;
-
-	u8 enabled_tc = 0x1; /* TC0 enabled */
-	u32 val;
-
-	memset(&ctxt, 0, sizeof(ctxt));
-	switch (vsi->type) {
-	case I40E_VSI_MAIN:
-		/* The PF's main VSI is already setup as part of the
-		 * device initialization, so we'll not bother with
-		 * the add_vsi call, but we will retrieve the current
-		 * VSI context.
-		 */
-		ctxt.seid = pf->main_vsi_seid;
-		ctxt.pf_num = pf->hw.pf_id;
-		ctxt.vf_num = 0;
-		ret = i40e_aq_get_vsi_params(&pf->hw, &ctxt, NULL);
-		ctxt.flags = I40E_AQ_VSI_TYPE_PF;
-		if (ret) {
-			dev_info(&pf->pdev->dev,
-				 "couldn't get PF vsi config, err %s aq_err %s\n",
-				 i40e_stat_str(&pf->hw, ret),
-				 i40e_aq_str(&pf->hw,
-					      pf->hw.aq.asq_last_status));
-			return -ENOENT;
-		}
-		vsi->info = ctxt.info;
-		vsi->info.valid_sections = 0;
-
-		vsi->seid = ctxt.seid;
-		vsi->id = ctxt.vsi_number;
-
-		enabled_tc = i40e_pf_get_tc_map(pf);
-
-		/* Default/Main VSI is only enabled for TC0
-		 * reconfigure it to enable all TCs that are
-		 * available on the port in SFP mode.
-		 * For MFP case the iSCSI PF would use this
-		 * flow to enable LAN+iSCSI TC.
-		 */
-		ret = i40e_vsi_config_tc(vsi, enabled_tc);
-		if (ret) {
-			dev_info(&pf->pdev->dev,
-				 "failed to configure TCs for main VSI tc_map 0x%08x, err %s aq_err %s\n",
-				 enabled_tc,
-				 i40e_stat_str(&pf->hw, ret),
-				 i40e_aq_str(&pf->hw,
-					    pf->hw.aq.asq_last_status));
-			ret = -ENOENT;
-		}
-
-		break;
-	case I40E_VSI_FDIR:
-		ctxt.pf_num = hw->pf_id;
-		ctxt.vf_num = 0;
-		ctxt.uplink_seid = vsi->uplink_seid;
-		ctxt.connection_type = I40E_AQ_VSI_CONN_TYPE_NORMAL;
-		ctxt.flags = I40E_AQ_VSI_TYPE_PF;
-
-		i40e_vsi_setup_queue_map(vsi, &ctxt, enabled_tc, true);
-		break;
-	default:
-		return -ENODEV;
-	}
-
-	if (vsi->type != I40E_VSI_MAIN) {
-		ret = i40e_aq_add_vsi(hw, &ctxt, NULL);
-		if (ret) {
-			dev_info(&vsi->back->pdev->dev,
-				 "add vsi failed, err %s aq_err %s\n",
-				 i40e_stat_str(&pf->hw, ret),
-				 i40e_aq_str(&pf->hw,
-					      pf->hw.aq.asq_last_status));
-			ret = -ENOENT;
-			goto err;
-		}
-		vsi->info = ctxt.info;
-		vsi->info.valid_sections = 0;
-		vsi->seid = ctxt.seid;
-		vsi->id = ctxt.vsi_number;
-		val = rd32(&pf->hw, 0x208800 + (4*(vsi->id)));
-		if (!(val & 0x1)) /* MACVSIPRUNEENABLE = 1*/
-			dev_warn(&vsi->back->pdev->dev,
-				 "Note: VSI source pruning is not being set correctly by FW\n");
-	}
-
-	/* Update VSI BW information */
-	ret = i40e_vsi_get_bw_info(vsi);
-	if (ret) {
-		dev_info(&pf->pdev->dev,
-			 "couldn't get vsi bw info, err %s aq_err %s\n",
-			 i40e_stat_str(&pf->hw, ret),
-			 i40e_aq_str(&pf->hw, pf->hw.aq.asq_last_status));
-		/* VSI is already added so not tearing that up */
-		ret = 0;
-	}
-
-err:
-	return ret;
 }
 
