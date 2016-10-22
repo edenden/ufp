@@ -257,7 +257,7 @@ static int i40e_setup_pf_switch(struct i40e_pf *pf, bool reinit)
 	int ret;
 
 	/* find out what's out there already */
-	ret = i40e_fetch_switch_configuration(pf, false);
+	ret = i40e_vsi_fetch(ih);
 
 	if (pf->hw.pf_id == 0) {
 		u16 valid_flags;
@@ -306,6 +306,63 @@ static int i40e_setup_pf_switch(struct i40e_pf *pf, bool reinit)
 				  I40E_AQ_AN_COMPLETED) ? true : false);
 
 	return ret;
+}
+
+int i40e_vsi_fetch(struct ufp_handle *ih)
+{
+	struct ufp_i40e_data *data = ih->ops->data;
+	int err;
+
+	data->aq_seid_offset = 0;
+	clear_list(data->list);
+
+	do{
+		err = i40e_aq_cmd_xmit_getconf(ih);
+		if(err < 0)
+			goto err_cmd_xmit_getconf;
+
+		while(!(data->flag & AQ_GETCONF)){
+			i40e_aq_asq_clean(ih);
+		}
+	}while(data->aq_seid_offset);
+
+	return 0;
+
+err_cmd_xmit_getconf:
+	return -1;
+}
+	
+static void i40e_setup_pf_switch_element(struct i40e_pf *pf,
+	struct i40e_aqc_switch_config_element_resp *ele)
+{
+	u16 downlink_seid = le16_to_cpu(ele->downlink_seid);
+	u16 uplink_seid = le16_to_cpu(ele->uplink_seid);
+	u8 element_type = ele->element_type;
+	u16 seid = le16_to_cpu(ele->seid);
+
+	switch (element_type) {
+	case I40E_SWITCH_ELEMENT_TYPE_VSI:
+		/* By default, only 1 MAIN VSI exsits in HW switch */
+		struct vsi *vsi;
+		vsi = add_vsi_to_list();
+
+		vsi->seid = seid;
+		vsi->uplink_seid = uplink_seid;
+		vsi->downlink_seid = downlink_seid;
+		break;
+	case I40E_SWITCH_ELEMENT_TYPE_MAC:
+	case I40E_SWITCH_ELEMENT_TYPE_VEB:
+	case I40E_SWITCH_ELEMENT_TYPE_PF:
+	case I40E_SWITCH_ELEMENT_TYPE_VF:
+	case I40E_SWITCH_ELEMENT_TYPE_EMP:
+	case I40E_SWITCH_ELEMENT_TYPE_BMC:
+	case I40E_SWITCH_ELEMENT_TYPE_PE:
+	case I40E_SWITCH_ELEMENT_TYPE_PA:
+		/* ignore these for now */
+		break;
+	default:
+		break;
+	}
 }
 
 struct i40e_vsi_context {
