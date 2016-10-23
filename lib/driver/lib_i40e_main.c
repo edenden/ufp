@@ -427,6 +427,7 @@ static int i40e_setup_pf_switch(struct ufp_handle *ih)
 	vsi->type = VSI_TYPE_MAIN;
 
 	i40e_vlan_stripping_disable(vsi);
+	i40e_vsi_rss_config(ih, vsi);
 
 	data->vsi = vsi;
 
