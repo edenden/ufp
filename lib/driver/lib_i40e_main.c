@@ -315,57 +315,63 @@ int i40e_set_filter_control(struct ufp_handle *ih)
 	return 0;
 }
 
-static int i40e_pf_config_rss(struct i40e_pf *pf)
+int i40e_vsi_rss_config(struct ufp_handle *ih, struct ufp_i40e_vsi *vsi)
 {
-	struct i40e_vsi *vsi = pf->vsi[pf->lan_vsi];
-	u8 seed[I40E_HKEY_ARRAY_SIZE];
-	u8 *lut;
-	struct i40e_hw *hw = &pf->hw;
+        u8 seed[I40E_HKEY_ARRAY_SIZE];
+        u8 lut[512];
+
+        /* seed configuration */
+        netdev_rss_key_fill((void *)seed, I40E_HKEY_ARRAY_SIZE);
+
+        err = i40e_aq_cmd_xmit_setrsskey(ih, vsi,
+                seed, sizeof(seed));
+        if(err < 0)
+                goto err_set_rss_key;
+
+        /* lut configuration */
+        i40e_fill_rss_lut(pf, lut, sizeof(lut), ih->num_qp);
+
+        err = i40e_aq_cmd_xmit_setrsslut(ih, vsi,
+                lut, sizeof(lut));
+        if(err < 0)
+                goto err_set_rss_lut;
+
+	return 0;
+
+err_set_rss_lut:
+err_set_rss_key:
+        return -1;
+}
+
+static void i40e_pf_config_rss(struct ufp_handle *ih)
+{
 	u32 reg_val;
 	u64 hena;
-	int ret;
 
 	/* By default we enable TCP/UDP with IPv4/IPv6 ptypes */
 	hena = (u64)i40e_read_rx_ctl(hw, I40E_PFQF_HENA(0)) |
 		((u64)i40e_read_rx_ctl(hw, I40E_PFQF_HENA(1)) << 32);
-	hena |= i40e_pf_get_default_rss_hena(pf);
+	hena |=	BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_UDP) |
+		BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_SCTP) |
+		BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_TCP) |
+		BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_OTHER) |
+		BIT_ULL(I40E_FILTER_PCTYPE_FRAG_IPV4) |
+		BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV6_UDP) |
+		BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV6_TCP) |
+		BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV6_SCTP) |
+		BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV6_OTHER) |
+		BIT_ULL(I40E_FILTER_PCTYPE_FRAG_IPV6) |
+		BIT_ULL(I40E_FILTER_PCTYPE_L2_PAYLOAD);
 
 	i40e_write_rx_ctl(hw, I40E_PFQF_HENA(0), (u32)hena);
 	i40e_write_rx_ctl(hw, I40E_PFQF_HENA(1), (u32)(hena >> 32));
 
 	/* Determine the RSS table size based on the hardware capabilities */
 	reg_val = i40e_read_rx_ctl(hw, I40E_PFQF_CTL_0);
-	reg_val = (pf->rss_table_size == 512) ?
-			(reg_val | I40E_PFQF_CTL_0_HASHLUTSIZE_512) :
-			(reg_val & ~I40E_PFQF_CTL_0_HASHLUTSIZE_512);
+	reg_val |= I40E_PFQF_CTL_0_HASHLUTSIZE_512;
 	i40e_write_rx_ctl(hw, I40E_PFQF_CTL_0, reg_val);
 
-	/* Determine the RSS size of the VSI */
-	if (!vsi->rss_size)
-		vsi->rss_size = min_t(int, pf->alloc_rss_size,
-				      vsi->num_queue_pairs);
-
-	lut = kzalloc(vsi->rss_table_size, GFP_KERNEL);
-	if (!lut)
-		return -ENOMEM;
-
-	/* Use user configured lut if there is one, otherwise use default */
-	if (vsi->rss_lut_user)
-		memcpy(lut, vsi->rss_lut_user, vsi->rss_table_size);
-	else    
-		i40e_fill_rss_lut(pf, lut, vsi->rss_table_size, vsi->rss_size);
-		
-	/* Use user configured hash key if there is one, otherwise
-	 * use default.
-	 */
-	if (vsi->rss_hkey_user)
-		memcpy(seed, vsi->rss_hkey_user, I40E_HKEY_ARRAY_SIZE);
-	else    
-		netdev_rss_key_fill((void *)seed, I40E_HKEY_ARRAY_SIZE);
-	ret = i40e_config_rss(vsi, seed, lut, vsi->rss_table_size);
-	kfree(lut);
-	
-	return ret;
+	return 0;
 }
 
 static int i40e_setup_pf_switch(struct ufp_handle *ih)
@@ -374,6 +380,26 @@ static int i40e_setup_pf_switch(struct ufp_handle *ih)
 	struct switch_elem *elem;
 	struct ufp_i40e_vsi *vsi;
 	int err;
+
+	/* Switch Global Configuration */
+	if (pf->hw.pf_id == 0) {
+		uint16_t valid_flags;
+		
+		valid_flags = I40E_AQ_SET_SWITCH_CFG_PROMISC;
+		err = i40e_aq_cmd_xmit_setconf(ih, 0, valid_flags);
+		if(err < 0)
+			goto err_switch_setconf;
+	}
+
+	/* Setup static PF queue filter control settings */
+	err = i40e_set_filter_control(ih);
+	if(err < 0)
+		goto err_set_filter_ctrl;
+
+        /* enable RSS in the HW, even for only one queue, as the stack can use
+         * the hash
+         */
+        i40e_pf_config_rss(pf);
 
 	/* find out what's out there already */
 	err = i40e_switchconf_fetch(ih);
@@ -396,39 +422,13 @@ static int i40e_setup_pf_switch(struct ufp_handle *ih)
 	if(!vsi)
 		goto err_alloc_vsi;
 
-	vsi->XXX = XXX;
+	vsi->id = elem->id;
 	vsi->next = NULL;
+	vsi->type = VSI_TYPE_MAIN;
 
 	i40e_vlan_stripping_disable(vsi);
+
 	data->vsi = vsi;
-
-	/* Switch Global Configuration */
-	if (pf->hw.pf_id == 0) {
-		uint16_t valid_flags;
-		
-		valid_flags = I40E_AQ_SET_SWITCH_CFG_PROMISC;
-		err = i40e_aq_cmd_xmit_setconf(ih, 0, valid_flags);
-		if(err < 0)
-			goto err_switch_setconf;
-	}
-
-	/* Setup static PF queue filter control settings */
-	err = i40e_set_filter_control(ih);
-	if(err < 0)
-		goto err_set_filter_ctrl;
-
-	/* enable RSS in the HW, even for only one queue, as the stack can use
-	 * the hash
-	 */
-	i40e_pf_config_rss(pf);
-
-	/* fill in link information and enable LSE reporting */
-	i40e_update_link_info(&pf->hw);
-	i40e_link_event(pf);
-
-	/* Initialize user-specific link properties */
-	pf->fc_autoneg_status = ((pf->hw.phy.link_info.an_info &
-				  I40E_AQ_AN_COMPLETED) ? true : false);
 
 	return 0;
 

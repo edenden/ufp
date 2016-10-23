@@ -69,8 +69,7 @@ err_xmit:
 	return -1;
 }
 
-int i40e_aq_cmd_clean_pxeclear(struct ufp_handle *ih,
-	struct i40e_aq_cmd_clear_pxe *cmd)
+int i40e_aq_cmd_clean_pxeclear(struct ufp_handle *ih)
 {
 	struct ufp_i40e_data *data = ih->ops->data;
 
@@ -151,39 +150,152 @@ err_already:
 int i40e_aq_cmd_xmit_setconf(struct ufp_handle *ih,
 	uint16_t flags, uint16_t valid_flags)
 {
-        struct ufp_i40e_data *data = ih->ops->data;
+	struct ufp_i40e_data *data = ih->ops->data;
 	struct i40e_aqc_set_switch_config cmd;
-        int err;
+	int err;
 
 	cmd.flags = CPU_TO_LE16(flags);
-        cmd.valid_flags = CPU_TO_LE16(valid_flags);
+	cmd.valid_flags = CPU_TO_LE16(valid_flags);
 
-        err = i40e_aq_asq_xmit(ih, i40e_aqc_opc_set_switch_config, 0,
-                &cmd, sizeof(struct i40e_aqc_set_switch_config),
-                NULL, 0);
-        if(err < 0)
-                goto err_xmit;
+	err = i40e_aq_asq_xmit(ih, i40e_aqc_opc_set_switch_config, 0,
+		&cmd, sizeof(struct i40e_aqc_set_switch_config),
+		NULL, 0);
+	if(err < 0)
+		goto err_xmit;
 
-        data->aq_flag &= ~AQ_SET_CONF;
-        return 0;
+	data->aq_flag &= ~AQ_SET_CONF;
+	return 0;
 
 err_xmit:
-        return -1;
+	return -1;
 }
 
 int i40e_aq_cmd_clean_setconf(struct ufp_handle *ih,
-        struct i40e_aq_cmd_clear_pxe *cmd)
+	struct i40e_aq_cmd_clear_pxe *cmd)
 {
-        struct ufp_i40e_data *data = ih->ops->data;
+	struct ufp_i40e_data *data = ih->ops->data;
 
-        if(data->aq_flag & AQ_SET_CONF)
-                goto err_already;
+	if(data->aq_flag & AQ_SET_CONF)
+		goto err_already;
 
-        data->aq_flag |= AQ_SET_CONF;
+	data->aq_flag |= AQ_SET_CONF;
 
-        return 0;
+	return 0;
 
 err_already:
-        return -1;
+	return -1;
+}
+
+int i40e_aq_cmd_xmit_setrsskey(struct ufp_handle *ih,
+	struct ufp_i40e_vsi *vsi, uint8_t *key, uint16_t key_size)
+{
+	struct ufp_i40e_data *data = ih->ops->data;
+	struct i40e_aqc_get_set_rss_key cmd;
+	struct ufp_i40e_page *buf;
+	uint16_t flags;
+	int err;
+
+	buf = ufp_i40e_page_alloc(ih);
+	if(!buf)
+		goto err_page_alloc;
+
+	cmd.vsi_id = CPU_TO_LE16((u16)
+		((vsi->id << I40E_AQC_SET_RSS_KEY_VSI_ID_SHIFT) &
+		I40E_AQC_SET_RSS_KEY_VSI_ID_MASK));
+	cmd.vsi_id |= CPU_TO_LE16((u16)I40E_AQC_SET_RSS_KEY_VSI_VALID);
+	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
+
+	memcpy(buf->addr_virt, key, key_size);
+
+	err = i40e_aq_asq_xmit(ih, i40e_aqc_opc_set_rss_key, flags,
+		&cmd, sizeof(struct i40e_aqc_get_set_rss_key),
+		buf, key_size);
+	if(err < 0)
+		goto err_xmit;
+
+	data->aq_flag &= ~AQ_SET_RSSKEY;
+	return 0;
+
+err_xmit:
+	ufp_i40e_page_release(buf);
+err_page_alloc:
+	return -1;
+}
+
+int i40e_aq_cmd_clean_setrsskey(struct ufp_handle *ih)
+{
+	struct ufp_i40e_data *data = ih->ops->data;
+
+	if(data->aq_flag & AQ_SET_RSSKEY)
+		goto err_already;
+
+	data->aq_flag |= AQ_SET_RSSKEY;
+	return 0;
+
+err_already:
+	return -1;
+}
+
+int i40e_aq_cmd_xmit_setrsslut(struct ufp_handle *ih,
+	struct ufp_i40e_vsi *vsi, uint8_t *lut, uint16_t lut_size)
+{
+	struct ufp_i40e_data *data = ih->ops->data;
+	struct i40e_aqc_get_set_rss_lut cmd;
+	struct ufp_i40e_page *buf;
+	uint16_t flags;
+	int err;
+
+	buf = ufp_i40e_page_alloc(ih);
+	if(!buf)
+		goto err_page_alloc;
+
+	cmd.vsi_id = CPU_TO_LE16((u16)
+		((vsi->id << I40E_AQC_SET_RSS_LUT_VSI_ID_SHIFT) &
+		I40E_AQC_SET_RSS_LUT_VSI_ID_MASK));
+	cmd.vsi_id |= CPU_TO_LE16((u16)I40E_AQC_SET_RSS_LUT_VSI_VALID);
+
+	if(vsi->type == VSI_TYPE_MAIN){
+		cmd.flags |= CPU_TO_LE16((u16)
+			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_PF <<
+			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &
+			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_MASK));
+	}else{
+		cmd.flags |= CPU_TO_LE16((u16)
+			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_VSI <<
+			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &
+			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_MASK));
+	}
+
+	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
+
+	memcpy(buf->addr_virt, lut, lut_size);
+
+	err = i40e_aq_asq_xmit(ih, i40e_aqc_opc_set_rss_lut, flags,
+		&cmd, sizeof(struct i40e_aqc_get_set_rss_lut),
+		buf, lut_size);
+	if(err < 0)
+		goto err_xmit;
+
+	data->aq_flag &= ~AQ_SET_RSSLUT;
+	return 0;
+
+err_xmit:
+	ufp_i40e_page_release(buf);
+err_page_alloc:
+	return -1;
+}
+
+int i40e_aq_cmd_clean_setrsslut(struct ufp_handle *ih)
+{
+	struct ufp_i40e_data *data = ih->ops->data;
+
+	if(data->aq_flag & AQ_SET_RSSLUT)
+		goto err_already;
+
+	data->aq_flag |= AQ_SET_RSSLUT;
+	return 0;
+
+err_already:
+	return -1;
 }
 
