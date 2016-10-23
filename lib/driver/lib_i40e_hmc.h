@@ -1,38 +1,28 @@
 struct i40e_hmc_info {
         /* equals to pci func num for PF and dynamically allocated for VFs */
-        u8 hmc_fn_id;
-        u16 first_sd_index; /* index of the first available SD */
+        u8 fn_id;
 
         /* hmc objects */
-        struct i40e_hmc_obj_info *hmc_obj;
+        struct i40e_hmc_obj_info hmc_tx;
+	struct i40e_hmc_obj_info hmc_rx;
+
         struct i40e_hmc_sd_table sd_table;
 };
 
 struct i40e_hmc_obj_info {
-        u64 base;       /* base addr in FPM */
-        u32 max_cnt;    /* max count available for this hmc func */
-        u32 cnt;        /* count of objects driver actually wants to create */
-        u64 size;       /* size in bytes of one object */
+        u64 base;	/* base addr in FPM */
+        u32 count;	/* maximum count of objects */
+        u64 size;	/* size in bytes of one object */
 };
 
 struct i40e_hmc_sd_table {
-        struct i40e_virt_mem addr; /* used to track sd_entry allocations */
-        u32 sd_cnt;
-        u32 ref_cnt;
-        struct i40e_hmc_sd_entry *sd_entry; /* (sd_cnt*512) entries max */
+        uint32_t sd_count;
+        struct i40e_hmc_sd_entry *sd_entry;
 };
 
 struct i40e_hmc_sd_entry {
-        enum i40e_sd_entry_type entry_type;
-        bool valid;
-	struct i40e_hmc_bp bp;
-};
-
-struct i40e_hmc_bp {
-        enum i40e_sd_entry_type entry_type;
-        struct i40e_dma_mem addr; /* populate to be used by hw */
-        u32 sd_pd_index;
-        u32 ref_cnt;
+	struct ufp_i40e_page *pd_addrs;
+	struct ufp_i40e_page *pd[I40E_HMC_MAX_BP_COUNT];
 };
 
 #define I40E_HMC_STORE(_struct, _ele)           \
