@@ -66,12 +66,7 @@ struct ufp_buf {
 	int32_t			*slots;
 };
 
-struct ufp_handle {
- 	int			fd;
-	void			*bar;
-	unsigned long		bar_size;
-
-	struct ufp_ops		*ops;
+struct ufp_iface {
 	struct ufp_ring		*tx_ring;
 	struct ufp_ring		*rx_ring;
 
@@ -90,7 +85,20 @@ struct ufp_handle {
 	uint32_t		mtu_frame;
 	uint32_t		buf_size;
 	uint8_t			mac_addr[ETH_ALEN];
-	char			ifname[IFNAMSIZ];
+
+	struct ufp_iface	*next;
+};
+
+struct ufp_dev {
+	int			fd;
+	void			*bar;
+	unsigned long		bar_size;
+	char			name[IFNAMSIZ];
+	struct ufp_ops		*ops;
+
+	struct ufp_iface	*ifaces;
+	uint16_t		num_ifaces;
+	uint32_t		num_misc_irqs;
 };
 
 struct ufp_irq_handle {

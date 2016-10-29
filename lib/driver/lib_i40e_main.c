@@ -422,7 +422,8 @@ static int i40e_setup_pf_switch(struct ufp_handle *ih)
 	if(!vsi)
 		goto err_alloc_vsi;
 
-	vsi->id = elem->id;
+	vsi->vsi_id = elem->id;
+	vsi->port_id = 0;
 	vsi->next = NULL;
 	vsi->type = VSI_TYPE_MAIN;
 

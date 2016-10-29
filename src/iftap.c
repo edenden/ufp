@@ -235,11 +235,11 @@ struct tun_plane *tun_plane_alloc(struct ufpd *ufpd,
 	if(!plane)
 		goto err_alloc_plane;
 
-	plane->ports = malloc(sizeof(struct tun_port) * ufpd->num_ports);
+	plane->ports = malloc(sizeof(struct tun_port) * ufpd->num_devices);
 	if(!plane->ports)
 		goto err_alloc_ports;
 
-	for(i = 0; i < ufpd->num_ports; i++){
+	for(i = 0; i < ufpd->num_devices; i++){
 		plane->ports[i].fd = tunh_array[i]->queues[thread_id];
 		plane->ports[i].ifindex = tunh_array[i]->ifindex;
 		plane->ports[i].mtu_frame = tunh_array[i]->mtu_frame;
@@ -253,7 +253,7 @@ err_alloc_plane:
 	return NULL;
 }
 
-void tun_plane_release(struct tun_plane *plane, int num_ports)
+void tun_plane_release(struct tun_plane *plane)
 {
 	free(plane->ports);
 	free(plane);

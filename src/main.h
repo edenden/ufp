@@ -41,7 +41,7 @@ struct ufpd {
 	unsigned int		buf_size;
 	unsigned int		num_threads;
 	unsigned int		cores[UFP_MAX_CORES];
-	unsigned int		num_ports;
+	unsigned int		num_devices;
 	char			ifnames[UFP_MAX_IFNAMSIZ];
 	unsigned int		promisc;
 	unsigned int		mtu_frame;

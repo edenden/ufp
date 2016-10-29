@@ -439,7 +439,7 @@ static void ufp_ops_release(struct ufp_ops *ops)
 	return;
 }
 
-struct ufp_handle *ufp_open(const char *ifname,
+struct ufp_handle *ufp_open(const char *name,
 	unsigned int num_qps_req, unsigned int num_rx_desc,
 	unsigned int num_tx_desc)
 {
@@ -453,7 +453,7 @@ struct ufp_handle *ufp_open(const char *ifname,
 		goto err_alloc_ih;
 	memset(ih, 0, sizeof(struct ufp_handle));
 
-	snprintf(filename, sizeof(filename), "/dev/ufp/%s", ifname);
+	snprintf(filename, sizeof(filename), "/dev/ufp/%s", name);
 	ih->fd = open(filename, O_RDWR);
 	if (ih->fd < 0)
 		goto err_open;
@@ -493,7 +493,7 @@ struct ufp_handle *ufp_open(const char *ifname,
 	if(!ih->tx_ring)
 		goto err_alloc_tx_ring;
 
-	strncpy(ih->ifname, ifname, sizeof(ih->ifname));
+	strncpy(ih->name, name, sizeof(ih->name));
 
 	return ih;
 

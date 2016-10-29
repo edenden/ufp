@@ -56,7 +56,7 @@ int main(int argc, char **argv)
 	struct ufpd_thread	*threads;
 	int			ret, i, signal, opt;
 	int			threads_assigned = 0,
-				ports_assigned = 0,
+				devices_assigned = 0,
 				ports_up = 0,
 				tun_assigned = 0,
 				pages_assigned = 0;
@@ -67,7 +67,7 @@ int main(int argc, char **argv)
 	ufpd.numa_node		= 0;
 	ufpd.num_threads	= 0;
 	ufpd.buf_size		= 0;
-	ufpd.num_ports		= 0;
+	ufpd.num_devices	= 0;
 	ufpd.promisc		= 0;
 	ufpd.mtu_frame		= 0; /* MTU=1522 is used by default. */
 	ufpd.intr_rate		= 200; /* IXGBE_20K_ITR */
@@ -92,9 +92,9 @@ int main(int argc, char **argv)
 			}
 			break;
 		case 'p':
-			ufpd.num_ports = ufpd_parse_list(optarg, ufpd.ifnames,
+			ufpd.num_devices = ufpd_parse_list(optarg, ufpd.ifnames,
 				IFNAMSIZ, "%s", UFP_MAX_IFS);
-			if(ufpd.num_ports < 0){
+			if(ufpd.num_devices < 0){
 				printf("Invalid Interfaces to use\n");
 				ret = -1;
 				goto err_arg;
@@ -136,8 +136,8 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if(!ufpd.num_ports){
-		printf("You must specify Interfaces to use.\n");
+	if(!ufpd.num_devices){
+		printf("You must specify PCI Interfaces to use.\n");
 		ret = -1;
 		goto err_arg;
 	}
@@ -154,13 +154,13 @@ int main(int argc, char **argv)
 	if(ret < 0)
 		goto err_set_mempolicy;
 
-	ufpd.ih_array = malloc(sizeof(struct ufp_handle *) * ufpd.num_ports);
+	ufpd.ih_array = malloc(sizeof(struct ufp_handle *) * ufpd.num_devices);
 	if(!ufpd.ih_array){
 		ret = -1;
 		goto err_ih_array;
 	}
 
-	ufpd.tunh_array = malloc(sizeof(struct tun_handle *) * ufpd.num_ports);
+	ufpd.tunh_array = malloc(sizeof(struct tun_handle *) * ufpd.num_devices);
 	if(!ufpd.tunh_array){
 		ret = -1;
 		goto err_tunh_array;
@@ -172,7 +172,7 @@ int main(int argc, char **argv)
 		goto err_alloc_threads;
 	}
 
-	for(i = 0; i < ufpd.num_ports; i++, ports_assigned++){
+	for(i = 0; i < ufpd.num_devices; i++, devices_assigned++){
 		ufpd.ih_array[i] = ufp_open(&ufpd.ifnames[i * IFNAMSIZ],
 			ufpd.num_threads, 4096, 4096);
 		if(!ufpd.ih_array[i]){
@@ -184,6 +184,15 @@ int main(int argc, char **argv)
 		/* calclulate maximum buf_size we should prepare */
 		if(ufp_bufsize_get(ufpd.ih_array[i]) > ufpd.buf_size)
 			ufpd.buf_size = ufp_bufsize_get(ufpd.ih_array[i]);
+	}
+
+	for(i = 0; i < ufpd.num_devices; i++, tun_assigned++){
+		ufpd.tunh_array[i] = tun_open(&ufpd, i);
+		if(!ufpd.tunh_array[i]){
+			ufpd_log(LOG_ERR, "failed to tun_open");
+			ret = -1;
+			goto err_tun_open;
+		}
 	}
 
 	for(i = 0; i < ufpd.num_threads; i++, pages_assigned++){
@@ -213,7 +222,7 @@ err_desc_alloc:
 		goto err_assign_pages;
 	}
 
-	for(i = 0; i < ufpd.num_ports; i++, ports_up++){
+	for(i = 0; i < ufpd.num_devices; i++, devices_up++){
 		ret = ufp_up(ufpd.ih_array[i], ufpd.intr_rate,
 			ufpd.mtu_frame, ufpd.promisc,
 			UFP_RX_BUDGET, UFP_TX_BUDGET);
@@ -221,15 +230,6 @@ err_desc_alloc:
 			ufpd_log(LOG_ERR, "failed to ufp_up, idx = %d", i);
 			ret = -1;
 			goto err_up;
-		}
-	}
-
-	for(i = 0; i < ufpd.num_ports; i++, tun_assigned++){
-		ufpd.tunh_array[i] = tun_open(&ufpd, i);
-		if(!ufpd.tunh_array[i]){
-			ufpd_log(LOG_ERR, "failed to tun_open");
-			ret = -1;
-			goto err_tun_open;
 		}
 	}
 
@@ -258,8 +258,7 @@ err_desc_alloc:
 		continue;
 
 err_thread_create:
-		tun_plane_release(threads[i].tun_plane,
-			ufpd.num_ports);
+		tun_plane_release(threads[i].tun_plane);
 err_tun_plane_alloc:
 		ufp_plane_release(threads[i].plane,
 			ufpd.num_ports);
@@ -278,18 +277,13 @@ err_plane_alloc:
 err_assign_threads:
 	for(i = 0; i < threads_assigned; i++){
 		ufpd_thread_kill(&threads[i]);
-		tun_plane_release(threads[i].tun_plane,
-			ufpd.num_ports);
+		tun_plane_release(threads[i].tun_plane);
 		ufp_plane_release(threads[i].plane,
 			ufpd.num_ports);
 	}
 err_set_signal:
-err_tun_open:
-	for(i = 0; i < tun_assigned; i++){
-		tun_close(&ufpd, i);
-	}
 err_up:
-	for(i = 0; i < ports_up; i++){
+	for(i = 0; i < devices_up; i++){
 		ufp_down(ufpd.ih_array[i]);
 	}
 err_assign_pages:
@@ -299,8 +293,12 @@ err_assign_pages:
 		ufp_desc_release(ufpd.ih_array,
 			ufpd.num_ports, i, threads[i].desc);
 	}
+err_tun_open:
+	for(i = 0; i < tun_assigned; i++){
+		tun_close(&ufpd, i);
+	}
 err_open:
-	for(i = 0; i < ports_assigned; i++){
+	for(i = 0; i < devices_assigned; i++){
 		ufp_close(ufpd.ih_array[i]);
 	}
 	free(threads);
