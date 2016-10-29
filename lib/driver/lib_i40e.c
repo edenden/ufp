@@ -71,7 +71,7 @@ int ufp_i40e_open(struct ufp_handle *ih)
 		goto err_reset_hw;
 
 	/* adminQ related initialization and depending process */
-	err = i40e_init_adminq(hw);
+	err = ufp_i40e_aq_init(ih);
 	if(err < 0)
 		goto err_init_adminq;
 
@@ -102,21 +102,6 @@ int ufp_i40e_open(struct ufp_handle *ih)
 		goto err_vsis;
 	}
 
-	err = i40e_init_lan_hmc(hw, hw->func_caps.num_tx_qp,
-				hw->func_caps.num_rx_qp,
-				pf->fcoe_hmc_cntx_num, pf->fcoe_hmc_filt_num);
-	if (err) {
-		dev_info(&pdev->dev, "init_lan_hmc failed: %d\n", err);
-		goto err_init_lan_hmc;
-	}
-
-	err = i40e_configure_lan_hmc(hw, I40E_HMC_MODEL_DIRECT_ONLY);
-	if (err) {
-		dev_info(&pdev->dev, "configure_lan_hmc failed: %d\n", err);
-		err = -ENOENT;
-		goto err_configure_lan_hmc;
-	}
-
 	/* The driver only wants link up/down and module qualification
 	 * reports from firmware.  Note the negative logic.
 	 */
@@ -126,6 +111,10 @@ int ufp_i40e_open(struct ufp_handle *ih)
 		I40E_AQ_EVENT_MODULE_QUAL_FAIL), NULL);
 	if(err < 0)
 		goto err_aq_set_phy_int_mask;
+
+	err = ufp_i40e_hmc_init(ih);
+	if(err < 0)
+		goto err_hmc_init;
 
 	return 0;
 
@@ -177,5 +166,7 @@ int ufp_i40e_down(struct ufp_handle *ih)
 
 int ufp_i40e_close(struct ufp_handle *ih)
 {
+	ufp_i40e_hmc_destroy(ih);
+	ufp_i40e_aq_destroy(ih);
 	return 0;
 }

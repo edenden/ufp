@@ -1,14 +1,11 @@
-int ufp_i40e_hmc_init(struct ufp_hadle *ih, u32 txq_num, u32 rxq_num)
+int ufp_i40e_hmc_init(struct ufp_hadle *ih)
 {
 	struct ufp_i40e_data *data = ih->ops->data;
 	struct i40e_hmc_info *hmc;
-	struct i40e_hmc_obj_info *obj;
-	u64 fpm_size;
-	uint32_t sd_count;
+	uint64_t fpm_size;
 	uint32_t queue_max;
 
 	hmc = &data->hmc;
-	hmc->hmc_fn_id = hw->pf_id;
 
 	queue_max = rd32(hw, I40E_GLHMC_LANQMAX);
 
@@ -33,14 +30,22 @@ int ufp_i40e_hmc_init(struct ufp_hadle *ih, u32 txq_num, u32 rxq_num)
 	hmc->obj_rx.size = obj_size_rx;
 
 	/* allocate memory for SD entry table */
-	sd_count = (fpm_size + I40E_HMC_DIRECT_BP_SIZE - 1) / I40E_HMC_DIRECT_BP_SIZE;
-	hmc->sd_table.sd_count = sd_count;
-        hmc->sd_table.sd_entry = malloc(sizeof(struct i40e_hmc_sd_entry) * sd_count);
-        if(!hmc->sd_table.sd_entry)
-                goto err_alloc_sd_entry;
+	hmc->hmc_fn_id = hw->pf_id;
+	hmc->sd_table.sd_count =
+		(fpm_size + I40E_HMC_DIRECT_BP_SIZE - 1) / I40E_HMC_DIRECT_BP_SIZE;
+	hmc->sd_table.sd_entry =
+		malloc(sizeof(struct i40e_hmc_sd_entry) * hmc->sd_table.sd_count);
+	if(!hmc->sd_table.sd_entry)
+		goto err_alloc_sd_entry;
+
+	err = i40e_hmc_configure(ih);
+	if(err < 0)
+		goto err_hmc_configure;
 
 	return 0;
 
+err_hmc_configure:
+	free(hmc->sd_table.sd_entry);
 err_alloc_sd_entry:
 	return -1;
 }
@@ -52,7 +57,67 @@ void i40e_hmc_destroy(struct ufp_handle *ih)
 
 	hmc = &data->hmc;
 
+	i40e_hmc_shutdown(ih);
 	free(hmc->sd_table.sd_entry);
+
+	return;
+}
+
+int i40e_hmc_configure(struct ufp_hadle *ih)
+{
+	struct ufp_i40e_data *data = ih->ops->data;
+	struct i40e_hmc_info *hmc;
+	struct i40e_hmc_obj_info *obj;
+	struct i40e_hmc_sd_entry *sd_entry;
+	unsigned int sd_allocated = 0;
+	uint32_t hmc_base, hmc_count;
+	int err;
+
+	hmc = &data->hmc;
+
+	for (i = 0; i < hmc->sd_table.sd_count; i++, sd_allocated++){
+		sd_entry = hmc->sd_table.sd_entry[i];
+
+		err = i40e_hmc_sd_allocate(ih, sd_entry);
+		if(err < 0)
+			goto err_alloc_sd;
+	}
+
+	/* Configure and program the FPM registers so objects can be created */
+	hmc_base = (hmc->hmc_obj_tx.base & I40E_GLHMC_LANTXBASE_FPMLANTXBASE_MASK) / 512;
+	hmc_count = hmc->hmc_obj_tx.count;
+	wr32(hw, I40E_GLHMC_LANTXBASE(hmc->fn_id), hmc_base);
+	wr32(hw, I40E_GLHMC_LANTXCNT(hmc->fn_id), hmc_count);
+
+	hmc_base = (hmc->hmc_obj_rx.base & I40E_GLHMC_LANRXBASE_FPMLANRXBASE_MASK) / 512;
+	hmc_count = hmc->hmc_obj_rx.count;
+	wr32(hw, I40E_GLHMC_LANRXBASE(hmc->fn_id), hmc_base);
+	wr32(hw, I40E_GLHMC_LANRXCNT(hmc->fn_id), hmc_count);
+
+	return 0;
+
+err_alloc_sd:
+	for(i = 0; i < sd_allocated; i++){
+		sd_entry = &hmc->sd_table.sd_entry[i];
+		i40e_hmc_sd_release(ih, sd_entry, i);
+	}
+	return -1;
+}
+
+void i40e_hmc_shutdown(struct ufp_hadle *ih)
+{
+	struct ufp_i40e_data *data = ih->ops->data;
+	struct i40e_hmc_info *hmc;
+	struct i40e_hmc_obj_info *obj;
+	struct i40e_hmc_sd_entry *sd_entry;
+	int err;
+
+	hmc = &data->hmc;
+
+	for (i = 0; i < hmc->sd_table.sd_count; i++){
+		sd_entry = &hmc->sd_table.sd_entry[i];
+		i40e_hmc_sd_release(ih, sd_entry, i);
+	}
 
 	return;
 }
@@ -103,78 +168,17 @@ void i40e_hmc_sd_release(struct ufp_hadle *ih,
 
 	i40e_clear_pf_sd_entry(hw, sd_index, I40E_SD_TYPE_PAGED);
 
-        for(i = 0; i < I40E_HMC_MAX_BP_COUNT; i++){
-                pd = sd_entry->pd[i];
+	for(i = 0; i < I40E_HMC_MAX_BP_COUNT; i++){
+		pd = sd_entry->pd[i];
 
 		wr32(hw, I40E_PFHMC_PDINV,
 			(sd_idx << I40E_PFHMC_PDINV_PMSDIDX_SHIFT) |
 			(i << I40E_PFHMC_PDINV_PMPDIDX_SHIFT));
 
 		ufp_i40e_page_free(pd);
-        }
+	}
 
 	ufp_i40e_page_free(sd_entry->pd_addrs);
-}
-
-int i40e_configure_lan_hmc(struct ufp_hadle *ih)
-{
-	struct ufp_i40e_data *data = ih->ops->data;
-	struct i40e_hmc_info *hmc;
-	struct i40e_hmc_obj_info *obj;
-	struct i40e_hmc_sd_entry *sd_entry;
-	unsigned int sd_allocated = 0;
-	int err;
-
-	hmc = &data->hmc;
-
-	for (i = 0; i < hmc->sd_table.sd_count; i++, sd_allocated++){
-		sd_entry = hmc->sd_table.sd_entry[i];
-
-		err = i40e_hmc_sd_allocate(ih, sd_entry);
-		if(err < 0)
-			goto err_alloc_sd;
-	}
-
-	/* Configure and program the FPM registers so objects can be created */
-
-	/* Tx contexts */
-	obj = &hmc->hmc_obj[I40E_HMC_LAN_TX];
-	wr32(hw, I40E_GLHMC_LANTXBASE(hmc->fn_id),
-	     (u32)((obj->base & I40E_GLHMC_LANTXBASE_FPMLANTXBASE_MASK) / 512));
-	wr32(hw, I40E_GLHMC_LANTXCNT(hmc->fn_id), obj->count);
-
-	/* Rx contexts */
-	obj = &hmc->hmc_obj[I40E_HMC_LAN_RX];
-	wr32(hw, I40E_GLHMC_LANRXBASE(hmc->fn_id),
-	     (u32)((obj->base & I40E_GLHMC_LANRXBASE_FPMLANRXBASE_MASK) / 512));
-	wr32(hw, I40E_GLHMC_LANRXCNT(hmc->fn_id), obj->count);
-
-	return 0;
-
-err_alloc_sd:
-	for(i = 0; i < sd_allocated; i++){
-		sd_entry = &hmc->sd_table.sd_entry[i];
-		i40e_hmc_sd_release(ih, sd_entry, i);
-	}
-	return -1;
-}
-
-void i40e_shutdown_lan_hmc(struct ufp_hadle *ih)
-{
-	struct ufp_i40e_data *data = ih->ops->data;
-	struct i40e_hmc_info *hmc;
-	struct i40e_hmc_obj_info *obj;
-	struct i40e_hmc_sd_entry *sd_entry;
-	int err;
-
-	hmc = &data->hmc;
-
-	for (i = 0; i < hmc->sd_table.sd_count; i++){
-		sd_entry = &hmc->sd_table.sd_entry[i];
-		i40e_hmc_sd_release(ih, sd_entry, i);
-	}
-
-	return;
 }
 
 static void i40e_set_pf_sd_entry(struct ufp_handle *ih, unsigned long pa,

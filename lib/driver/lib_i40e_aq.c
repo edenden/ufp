@@ -1,4 +1,4 @@
-int i40e_aq_init(struct ufp_handle *ih)
+int ufp_i40e_aq_init(struct ufp_handle *ih)
 {       
 	int err;
 
@@ -190,7 +190,7 @@ err_init_ring:
 	return -1;
 }
 
-void i40e_aq_shutdown(struct ufp_handle *ih)
+void ufp_i40e_aq_destroy(struct ufp_handle *ih)
 {
 	struct ufp_i40e_data *data;
 
