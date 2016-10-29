@@ -172,6 +172,14 @@ int main(int argc, char **argv)
 		goto err_alloc_threads;
 	}
 
+	for(i = 0; i < ufpd.num_threads; i++, mnode_assigned++){
+		threads[i].mpool = ufp_mempool_init();
+		if(!threads[i].mpool){
+			ret = -1;
+			goto err_mempool_init;
+		}
+	}
+
 	for(i = 0; i < ufpd.num_devices; i++, devices_assigned++){
 		ufpd.ih_array[i] = ufp_open(&ufpd.ifnames[i * IFNAMSIZ],
 			ufpd.num_threads, 4096, 4096);
@@ -300,6 +308,10 @@ err_tun_open:
 err_open:
 	for(i = 0; i < devices_assigned; i++){
 		ufp_close(ufpd.ih_array[i]);
+	}
+err_mempool_init:
+	for(i = 0; i < mnode_assigned; i++){
+		ufp_mempool_destroy(threads[i].mpool);
 	}
 	free(threads);
 err_alloc_threads:

@@ -141,6 +141,44 @@ void ufp_plane_release(struct ufp_plane *plane, int ih_num)
 	return;
 }
 
+struct ufp_mpool *ufp_mpool_init()
+{
+	struct ufp_mpool *mpool;
+	void *addr_virt, *addr_mem;
+	unsigned long size;
+
+	mpool = malloc(sizeof(struct ufp_mpool));
+	if(!mpool)
+		goto err_alloc_mpool;
+
+	size = SIZE_1GB;
+	mpool->addr_virt = mmap(NULL, size, PROT_READ | PROT_WRITE,
+		MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, 0, 0);
+	if(mpool->addr_virt == MAP_FAILED){
+		goto err_mmap;
+	}
+
+	mpool->node = ufp_mem_init(addr_virt, size);
+	if(!mpool->node)
+		goto err_mem_init;
+
+	return mpool;
+
+err_mem_init:
+	free(mpool);
+err_alloc_mpool:
+	return NULL;
+}
+
+void ufp_mpool_destroy(struct ufp_mpool *mpool)
+{
+	ufp_mem_destroy(mpool->node);
+	munmap(mpool->addr_virt, SIZE_1GB);
+	free(mpool);
+
+	return;
+}
+
 struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
 	int thread_id)
 {

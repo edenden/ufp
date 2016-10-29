@@ -1,6 +1,7 @@
 #ifndef _UFP_H
 #define _UFP_H
 
+struct ufp_mpool;
 struct ufp_handle;
 struct ufp_irq_handle;
 struct ufp_desc;

@@ -41,6 +41,11 @@
 #define ufp_print(args...)
 #endif
 
+struct ufp_mpool {
+	struct ufp_mnode	*node;
+	void			*addr_virt;
+};
+
 struct ufp_ring {
 	void		*addr_virt;
 	unsigned long	addr_dma;
