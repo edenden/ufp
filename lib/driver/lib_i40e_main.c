@@ -317,30 +317,30 @@ int i40e_set_filter_control(struct ufp_handle *ih)
 
 int i40e_vsi_rss_config(struct ufp_handle *ih, struct ufp_i40e_vsi *vsi)
 {
-        u8 seed[I40E_HKEY_ARRAY_SIZE];
-        u8 lut[512];
+	u8 seed[I40E_HKEY_ARRAY_SIZE];
+	u8 lut[512];
 
-        /* seed configuration */
-        netdev_rss_key_fill((void *)seed, I40E_HKEY_ARRAY_SIZE);
+	/* seed configuration */
+	netdev_rss_key_fill((void *)seed, I40E_HKEY_ARRAY_SIZE);
 
-        err = i40e_aq_cmd_xmit_setrsskey(ih, vsi,
-                seed, sizeof(seed));
-        if(err < 0)
-                goto err_set_rss_key;
+	err = i40e_aq_cmd_xmit_setrsskey(ih, vsi,
+		seed, sizeof(seed));
+	if(err < 0)
+		goto err_set_rss_key;
 
-        /* lut configuration */
-        i40e_fill_rss_lut(pf, lut, sizeof(lut), ih->num_qp);
+	/* lut configuration */
+	i40e_fill_rss_lut(pf, lut, sizeof(lut), ih->num_qp);
 
-        err = i40e_aq_cmd_xmit_setrsslut(ih, vsi,
-                lut, sizeof(lut));
-        if(err < 0)
-                goto err_set_rss_lut;
+	err = i40e_aq_cmd_xmit_setrsslut(ih, vsi,
+		lut, sizeof(lut));
+	if(err < 0)
+		goto err_set_rss_lut;
 
 	return 0;
 
 err_set_rss_lut:
 err_set_rss_key:
-        return -1;
+	return -1;
 }
 
 static void i40e_pf_config_rss(struct ufp_handle *ih)
@@ -396,10 +396,10 @@ static int i40e_setup_pf_switch(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_set_filter_ctrl;
 
-        /* enable RSS in the HW, even for only one queue, as the stack can use
-         * the hash
-         */
-        i40e_pf_config_rss(pf);
+	/* enable RSS in the HW, even for only one queue, as the stack can use
+	 * the hash
+	 */
+	i40e_pf_config_rss(pf);
 
 	/* find out what's out there already */
 	err = i40e_switchconf_fetch(ih);
@@ -442,3 +442,54 @@ err_switchconf_fetch:
 	return -1;
 }
 
+static int i40e_up_complete(struct i40e_vsi *vsi)
+{       
+	struct i40e_pf *pf = vsi->back;
+	int err;
+	
+	if (pf->flags & I40E_FLAG_MSIX_ENABLED)
+		i40e_vsi_configure_msix(vsi);
+	else    
+		i40e_configure_msi_and_legacy(vsi);
+	
+	/* start rings */
+	err = i40e_vsi_control_rings(vsi, true);
+	if (err)
+		return err;
+	
+	clear_bit(__I40E_DOWN, &vsi->state);	i40e_napi_enable_all(vsi);
+	i40e_vsi_enable_irq(vsi);
+	
+	if ((pf->hw.phy.link_info.link_info & I40E_AQ_LINK_UP) &&
+	    (vsi->netdev)) {
+		i40e_print_link_message(vsi, true);
+		netif_tx_start_all_queues(vsi->netdev);
+		netif_carrier_on(vsi->netdev);
+	} else if (vsi->netdev) {
+		i40e_print_link_message(vsi, false);
+		/* need to check for qualified module here*/
+		if ((pf->hw.phy.link_info.link_info &
+			I40E_AQ_MEDIA_AVAILABLE) && 
+		    (!(pf->hw.phy.link_info.an_info &
+			I40E_AQ_QUALIFIED_MODULE)))
+			netdev_err(vsi->netdev,
+				"the driver failed to link because an unqualified module was detected.");
+	}
+
+	/* replay flow filters */
+	if (vsi->type == I40E_VSI_FDIR) {
+		/* reset fd counters */ 
+		pf->fd_add_err = pf->fd_atr_cnt = 0;
+		if (pf->fd_tcp_rule > 0) {
+			pf->flags &= ~I40E_FLAG_FD_ATR_ENABLED;
+			if (I40E_DEBUG_FD & pf->hw.debug_mask)
+				dev_info(&pf->pdev->dev, "Forcing ATR off, sideband rules for TCP/IPv4 exist\n");			     
+			pf->fd_tcp_rule = 0;
+		}       
+		i40e_fdir_filter_restore(vsi);
+		i40e_cloud_filter_restore(pf);
+	}       
+	i40e_service_event_schedule(pf);
+	
+	return 0;
+}

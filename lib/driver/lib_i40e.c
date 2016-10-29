@@ -96,11 +96,9 @@ int ufp_i40e_open(struct ufp_handle *ih)
 		i40e_aq_asq_clean(ih);
 	}
 
-	err = i40e_setup_pf_switch(pf, false);
-	if (err) {
-		dev_info(&pdev->dev, "setup_pf_switch failed: %d\n", err);
-		goto err_vsis;
-	}
+	err = i40e_setup_pf_switch(ih);
+	if (err)
+		goto err_setup_switch;
 
 	/* The driver only wants link up/down and module qualification
 	 * reports from firmware.  Note the negative logic.
@@ -141,14 +139,13 @@ int ufp_i40e_up(struct ufp_handle *ih)
 		if (err)
 			goto err_setup_rx;
 
-		err = i40e_vsi_configure(vsi);
-		if (err)
-			goto err_setup_rx;
+		err = i40e_vsi_configure_tx(vsi);
+		if(err < 0)
+			goto err_configure_tx;
 
-		snprintf(int_name, sizeof(int_name) - 1, "%s-%s:fdir",
-			dev_driver_string(&pf->pdev->dev),
-			dev_name(&pf->pdev->dev));
-		err = i40e_vsi_request_irq(vsi, int_name);
+		err = i40e_vsi_configure_rx(vsi);
+		if(err < 0)
+			goto err_configure_rx;
 
 		err = i40e_up_complete(vsi);
 		if (err)
