@@ -86,6 +86,7 @@ struct ufp_iface {
 	uint32_t		buf_size;
 	uint8_t			mac_addr[ETH_ALEN];
 
+	void			*drv_data;
 	struct ufp_iface	*next;
 };
 
@@ -99,6 +100,8 @@ struct ufp_dev {
 	struct ufp_iface	*ifaces;
 	uint16_t		num_ifaces;
 	uint32_t		num_misc_irqs;
+
+	void			*drv_data;
 };
 
 struct ufp_irq_handle {
@@ -168,7 +171,6 @@ struct ufp_ops {
 					uint64_t, struct ufp_packet *);
 	int			(*check_tx_desc)(struct ufp_ring *, uint16_t);
 
-	void			*data;
 	uint16_t		device_id;
 };
 

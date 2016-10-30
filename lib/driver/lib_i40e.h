@@ -32,7 +32,7 @@ enum i40e_mac_type {
 	I40E_MAC_GENERIC,
 };
 
-struct ufp_i40e_data {
+struct ufp_i40e_dev {
 	enum i40e_mac_type mac_type;
 
 	struct i40e_aq_ring	*aq_rx_ring;
@@ -40,7 +40,11 @@ struct ufp_i40e_data {
 	struct ufp_irq_handle	*aq_rx_irqh;
 	struct ufp_irq_handle	*aq_tx_irqh;
 	uint32_t		aq_flag;
-	struct ufp_i40e_vsi	*vsi;
+};
+
+struct ufp_i40e_iface {
+	enum i40e_vsi_type type;
+	uint16_t vsi_id;
 };
 
 #define msleep(t, n)		(t)->tv_sec = 0; \

@@ -17,11 +17,4 @@ struct switch_elem {
 	uint16_t seid_downlink;
 };
 
-struct ufp_i40e_vsi {
-	enum i40e_vsi_type type;
-	uint16_t port_id;
-	uint16_t vsi_id;
-	struct ufp_i40e_vsi *next;
-};
-
 #endif /* _I40E_MAIN_H__ */

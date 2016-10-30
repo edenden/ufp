@@ -374,12 +374,15 @@ static void i40e_pf_config_rss(struct ufp_handle *ih)
 	return 0;
 }
 
-static int i40e_setup_pf_switch(struct ufp_handle *ih)
+static int i40e_setup_pf_switch(struct ufp_dev *dev)
 {
-	struct ufp_i40e_data *data = ih->ops->data;
+	struct ufp_i40e_dev *i40e_dev;
+	struct ufp_iface *iface;
+	struct ufp_i40e_iface *i40e_iface;
 	struct switch_elem *elem;
-	struct ufp_i40e_vsi *vsi;
 	int err;
+
+	i40e_dev = dev->drv_data;
 
 	/* Switch Global Configuration */
 	if (pf->hw.pf_id == 0) {
@@ -418,26 +421,24 @@ static int i40e_setup_pf_switch(struct ufp_handle *ih)
 	/* Set up the PF VSI associated with the PF's main VSI
 	 * that is already in the HW switch
 	 */
-	vsi = malloc(sizeof(struct ufp_i40e_vsi));
-	if(!vsi)
-		goto err_alloc_vsi;
+	i40e_iface = malloc(sizeof(struct ufp_i40e_iface));
+	if(!i40e_iface)
+		goto err_alloc_iface;
 
-	vsi->vsi_id = elem->id;
-	vsi->port_id = 0;
-	vsi->next = NULL;
-	vsi->type = VSI_TYPE_MAIN;
+	i40e_iface->vsi_id = elem->id;
+	i40e_iface->type = VSI_TYPE_MAIN;
+	iface = dev->iface;
+	iface->drv_data = i40e_iface;
 
-	i40e_vlan_stripping_disable(vsi);
-	i40e_vsi_rss_config(ih, vsi);
-
-	data->vsi = vsi;
+	i40e_vlan_stripping_disable(iface);
+	i40e_vsi_rss_config(dev, iface);
 
 	return 0;
 
 err_set_filter_ctrl:
 err_switch_setconf:
-	free(vsi);
-err_alloc_vsi:
+	free(i40e_iface);
+err_alloc_iface:
 err_first_vsi:
 err_switchconf_fetch:
 	return -1;

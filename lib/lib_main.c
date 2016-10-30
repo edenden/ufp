@@ -471,8 +471,6 @@ struct ufp_dev *ufp_open(const char *name,
 	if (!dev)
 		goto err_alloc_dev;
 
-	memset(dev, 0, sizeof(struct ufp_dev));
-
 	strncpy(dev->name, name, sizeof(dev->name));
 	snprintf(filename, sizeof(filename), "/dev/ufp/%s", dev->name);
 	dev->fd = open(filename, O_RDWR);
@@ -497,11 +495,15 @@ struct ufp_dev *ufp_open(const char *name,
 	if(!dev->ops)
 		goto err_ops_alloc;
 
+	/* dev->ops setup only first iface */
+	dev->iface = malloc(sizeof(struct ufp_iface));
+	if(!dev->iface)
+		goto err_alloc_iface;
+
 	err = dev->ops->open(dev);
 	if(err < 0)
 		goto err_ops_open;
 
-	/* Allocate only first iface rings */
 	err = ufp_alloc_rings(dev, dev->iface, mpools);
 	if(err < 0)
 		goto err_alloc_rings;
@@ -511,6 +513,8 @@ struct ufp_dev *ufp_open(const char *name,
 err_alloc_rings:
 	dev->ops->close(dev);
 err_ops_open:
+	free(dev->iface);
+err_alloc_iface:
 	ufp_ops_release(dev->ops);
 err_ops_alloc:
 	munmap(dev->bar, dev->bar_size);
@@ -518,6 +522,8 @@ err_mmap:
 err_ioctl_info:
 	close(dev->fd);
 err_open:
+	free(dev->iface);
+err_alloc_iface:
 	free(dev);
 err_alloc_dev:
 	return NULL;
@@ -525,12 +531,14 @@ err_alloc_dev:
 
 void ufp_close(struct ufp_dev *dev)
 {
-	struct ufp_iface *iface;
+	struct ufp_iface *iface, *next;
 
 	iface = dev->iface;
 	while(iface){
+		next = iface->next;
 		ufp_release_rings(dev, iface);
-		iface = iface->next;
+		free(iface);
+		iface = next;
 	}
 
 	dev->ops->close(dev);
