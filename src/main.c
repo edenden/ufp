@@ -204,14 +204,6 @@ int main(int argc, char **argv)
 	}
 
 	for(i = 0; i < ufpd.num_threads; i++, pages_assigned++){
-		threads[i].desc = ufp_desc_alloc(ufpd.ih_array,
-			ufpd.num_ports, i);
-		if(!threads[i].desc){
-			ufpd_log(LOG_ERR, "failed to ufp_alloc_descring, idx = %d", i);
-			ufpd_log(LOG_ERR, "please decrease descripter or enable iommu");
-			goto err_desc_alloc;
-		}
-
 		threads[i].buf = ufp_buf_alloc(ufpd.ih_array,
 			ufpd.num_ports, ufpd.buf_count, ufpd.buf_size);
 		if(!threads[i].buf){
@@ -223,9 +215,6 @@ int main(int argc, char **argv)
 		continue;
 
 err_buf_alloc:
-		ufp_desc_release(ufpd.ih_array,
-			ufpd.num_ports, i, threads[i].desc);
-err_desc_alloc:
 		ret = -1;
 		goto err_assign_pages;
 	}
@@ -298,8 +287,6 @@ err_assign_pages:
 	for(i = 0; i < pages_assigned; i++){
 		ufp_buf_release(threads[i].buf,
 			ufpd.ih_array, ufpd.num_ports);
-		ufp_desc_release(ufpd.ih_array,
-			ufpd.num_ports, i, threads[i].desc);
 	}
 err_tun_open:
 	for(i = 0; i < tun_assigned; i++){

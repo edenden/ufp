@@ -85,13 +85,12 @@ static void _ufp_mem_destroy(struct ufp_mnode *node)
 	return;
 }
 
-void *ufp_mem_alloc(struct ufp_desc *desc,
-	unsigned int size)
+void *ufp_mem_alloc(struct ufp_mpool *mpool, unsigned int size)
 {
 	struct ufp_mnode *node;
 	unsigned long *header;
 
-	node = _ufp_mem_alloc(desc->node,
+	node = _ufp_mem_alloc(mpool->node,
 		ALIGN(size, L1_CACHE_BYTES) +
 		ALIGN(sizeof(unsigned long), L1_CACHE_BYTES));
 

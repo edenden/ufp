@@ -45,31 +45,31 @@ void *thread_process_interrupt(void *data)
 	INIT_LIST_HEAD(&ep_desc_head);
 
 	/* Prepare fib */
-	thread->fib_inet = fib_alloc(thread->desc);
+	thread->fib_inet = fib_alloc(thread->mpool);
 	if(!thread->fib_inet)
 		goto err_fib_inet_alloc;
 
-	thread->fib_inet6 = fib_alloc(thread->desc);
+	thread->fib_inet6 = fib_alloc(thread->mpool);
 	if(!thread->fib_inet6)
 		goto err_fib_inet6_alloc;
 
 	/* Prepare Neighbor table */
-	thread->neigh_inet = ufp_mem_alloc(thread->desc,
+	thread->neigh_inet = ufp_mem_alloc(thread->mpool,
 		sizeof(struct neigh *) * thread->num_ports);
 	if(!thread->neigh_inet)
 		goto err_neigh_table_inet;
 	
-	thread->neigh_inet6 = ufp_mem_alloc(thread->desc,
+	thread->neigh_inet6 = ufp_mem_alloc(thread->mpool,
 		sizeof(struct neigh *) * thread->num_ports);
 	if(!thread->neigh_inet6)
 		goto err_neigh_table_inet6;
 
 	for(i = 0; i < thread->num_ports; i++, ports_assigned++){
-		thread->neigh_inet[i] = neigh_alloc(thread->desc, AF_INET);
+		thread->neigh_inet[i] = neigh_alloc(thread->mpool, AF_INET);
 		if(!thread->neigh_inet[i])
 			goto err_neigh_inet_alloc;
 
-		thread->neigh_inet6[i] = neigh_alloc(thread->desc, AF_INET6);
+		thread->neigh_inet6[i] = neigh_alloc(thread->mpool, AF_INET6);
 		if(!thread->neigh_inet6[i])
 			goto err_neigh_inet6_alloc;
 

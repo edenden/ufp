@@ -18,10 +18,10 @@ struct neigh_entry {
 	uint32_t		dst_addr[4];
 };
 
-struct neigh_table *neigh_alloc(struct ufp_desc *desc, int family);
+struct neigh_table *neigh_alloc(struct ufp_mpool *mpool, int family);
 void neigh_release(struct neigh_table *neigh);
 int neigh_add(struct neigh_table *neigh, int family,
-	void *dst_addr, void *mac_addr, struct ufp_desc *desc);
+	void *dst_addr, void *mac_addr, struct ufp_mpool *mpool);
 int neigh_delete(struct neigh_table *neigh, int family,
 	void *dst_addr);
 struct neigh_entry *neigh_lookup(struct neigh_table *neigh,

@@ -25,11 +25,11 @@ struct fib {
 	struct lpm_table	table;
 };
 
-struct fib *fib_alloc(struct ufp_desc *desc);
+struct fib *fib_alloc(struct ufp_mpool *mpool);
 void fib_release(struct fib *fib);
 int fib_route_update(struct fib *fib, int family, enum fib_type type,
 	void *prefix, unsigned int prefix_len, void *nexthop,
-	int port_index, int id, struct ufp_desc *desc);
+	int port_index, int id, struct ufp_mpool *mpool);
 int fib_route_delete(struct fib *fib, int family,
 	void *prefix, unsigned int prefix_len,
 	int id);

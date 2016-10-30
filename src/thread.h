@@ -12,7 +12,6 @@ struct ufpd_thread {
 	struct ufp_plane	*plane;
 	struct ufp_mpool	*mpool;
 	struct ufp_buf		*buf;
-	struct ufp_desc		*desc;
 	struct neigh_table	**neigh_inet;
 	struct neigh_table	**neigh_inet6;
 	struct fib		*fib_inet;

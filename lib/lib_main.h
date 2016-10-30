@@ -47,18 +47,13 @@ struct ufp_mpool {
 };
 
 struct ufp_ring {
-	void		*addr_virt;
-	unsigned long	addr_dma;
-
-	uint8_t		*tail;
-	uint16_t	next_to_use;
-	uint16_t	next_to_clean;
-	int32_t		*slot_index;
-};
-
-struct ufp_desc {
 	void			*addr_virt;
-	struct ufp_mnode	*node;
+	unsigned long		addr_dma;
+
+	uint8_t			*tail;
+	uint16_t		next_to_use;
+	uint16_t		next_to_clean;
+	int32_t			*slot_index;
 };
 
 #define UFP_SLOT_INFLIGHT 0x1

@@ -28,10 +28,6 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
 	struct ufp_buf *buf, int ih_num, unsigned int thread_id,
 	unsigned int core_id);
 void ufp_plane_release(struct ufp_plane *plane, int ih_num);
-struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
-	int thread_id);
-void ufp_desc_release(struct ufp_handle **ih_list, int ih_num,
-	int thread_id, struct ufp_desc *desc);
 struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
 	int ih_num, uint32_t count, uint32_t buf_size);
 void ufp_buf_release(struct ufp_buf *buf,
@@ -46,11 +42,10 @@ int ufp_up(struct ufp_handle *ih, unsigned int irq_rate,
 void ufp_down(struct ufp_handle *ih);
 
 /* MEM */
-void *ufp_mem_alloc(struct ufp_desc *desc,
-	unsigned int size);
+void *ufp_mem_alloc(struct ufp_mpool *mpool, unsigned int size);
 void ufp_mem_free(void *addr_free);
 
-/* RTX */
+/* IO */
 void ufp_irq_unmask_queues(struct ufp_plane *plane,
 	unsigned int port_index, struct ufp_irq_handle *irqh);
 void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,

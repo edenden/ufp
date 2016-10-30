@@ -179,136 +179,116 @@ void ufp_mpool_destroy(struct ufp_mpool *mpool)
 	return;
 }
 
-struct ufp_desc *ufp_desc_alloc(struct ufp_handle **ih_list, int ih_num,
-	int thread_id)
+static int ufp_alloc_rings(struct ufp_dev *dev, struct ufp_iface *iface,
+	struct ufp_mpool **mpools)
 {
-	struct ufp_desc *desc;
-	unsigned long size, size_tx_desc, size_rx_desc, size_mem;
-	void *addr_virt, *addr_mem;
-	int i, ret;
-	int desc_assigned = 0;
+	int i, err;
+	unsigned int qps_assigned = 0;
 
-	desc = malloc(sizeof(struct ufp_desc));
-	if(!desc)
-		goto err_alloc_desc;
+        iface->tx_ring = malloc(sizeof(struct ufp_ring) * iface->num_qps);
+        if(!iface->rx_ring)
+                goto err_alloc_tx_ring;
 
-	size = SIZE_1GB;
-	addr_virt = mmap(NULL, size, PROT_READ | PROT_WRITE,
-		MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, 0, 0);
-	if(addr_virt == MAP_FAILED){
-		goto err_mmap;
-	}
+        iface->rx_ring = malloc(sizeof(struct ufp_ring) * iface->num_qps);
+        if(!iface->tx_ring)
+                goto err_alloc_rx_ring;
 
-	desc->addr_virt = addr_virt;
+	for(i = 0; i < iface->num_qps; i++, qps_assigned++){
+		err = ufp_alloc_ring(dev, &iface->rx_ring[i],
+			iface->size_rx_desc, iface->num_rx_desc, mpools[i]);
+		if(err < 0)
+			goto err_rx_alloc;
 
-	for(i = 0; i < ih_num; i++, desc_assigned++){
-		int *slot_index;
-		struct ufp_handle *ih;
-		unsigned long addr_dma;
-
-		ih = ih_list[i];
-
-		/* PCI-E can't cross 4K boundary */
-		size_rx_desc = ALIGN(ih->size_rx_desc, 4096);
-		size_tx_desc = ALIGN(ih->size_tx_desc, 4096);
-
-		/* Rx descripter ring allocation */
-		ret = ufp_dma_map(ih, addr_virt, &addr_dma, size_rx_desc);
-		if(ret < 0){
-			goto err_rx_dma_map;
-		}
-
-		ih->rx_ring[thread_id].addr_dma = addr_dma;
-		ih->rx_ring[thread_id].addr_virt = addr_virt;
-
-		slot_index = malloc(sizeof(int) * ih->num_rx_desc);
-		if(!slot_index){
-			goto err_rx_assign;
-		}
-
-		ih->rx_ring[thread_id].next_to_use = 0;
-		ih->rx_ring[thread_id].next_to_clean = 0;
-		ih->rx_ring[thread_id].slot_index = slot_index;
-
-		addr_virt += size_rx_desc;
-
-		/* Tx descripter ring allocation */
-		ret = ufp_dma_map(ih, addr_virt, &addr_dma, size_tx_desc);
-		if(ret < 0){
-			goto err_tx_dma_map;
-		}
-
-		ih->tx_ring[thread_id].addr_dma = addr_dma;
-		ih->tx_ring[thread_id].addr_virt = addr_virt;
-
-		slot_index = malloc(sizeof(int) * ih->num_tx_desc);
-		if(!slot_index){
-			goto err_tx_assign;
-		}
-
-		ih->tx_ring[thread_id].next_to_use = 0;
-		ih->tx_ring[thread_id].next_to_clean = 0;
-		ih->tx_ring[thread_id].slot_index = slot_index;
-
-		addr_virt += size_rx_desc;
+		err = ufp_alloc_ring(dev, &iface->tx_ring[i],
+			iface->size_tx_desc, iface->num_tx_desc, mpools[i]);
+		if(err < 0)
+			goto err_tx_alloc;
 
 		continue;
 
-err_tx_assign:
-		ufp_dma_unmap(ih, ih->tx_ring[thread_id].addr_dma);
-err_tx_dma_map:
-		free(ih->rx_ring[thread_id].slot_index);
-err_rx_assign:
-		ufp_dma_unmap(ih, ih->rx_ring[thread_id].addr_dma);
-err_rx_dma_map:
+err_tx_alloc:
+		ufp_release_ring(dev, &iface->rx_ring[i]);
+err_rx_alloc:
 		goto err_desc_assign;
 	}
 
-	addr_mem	= (void *)ALIGN((unsigned long)addr_virt, L1_CACHE_BYTES);
-	size_mem	= size - (addr_mem - desc->addr_virt);
-	desc->node	= ufp_mem_init(addr_mem, size_mem);
-	if(!desc->node)
-		goto err_mem_init;
+	return 0;
 
-	return desc;
-
-err_mem_init:
 err_desc_assign:
-	for(i = 0; i < desc_assigned; i++){
-		struct ufp_handle *ih;
-
-		ih = ih_list[i];
-		free(ih->tx_ring[thread_id].slot_index);
-		ufp_dma_unmap(ih, ih->tx_ring[thread_id].addr_dma);
-		free(ih->rx_ring[thread_id].slot_index);
-		ufp_dma_unmap(ih, ih->rx_ring[thread_id].addr_dma);
+	for(i = 0; i < qps_assigned; i++){
+		ufp_release_ring(dev, &iface->tx_ring[i]);
+		ufp_release_ring(dev, &iface->rx_ring[i]);
 	}
-	munmap(desc->addr_virt, size);
-err_mmap:
-	free(desc);
-err_alloc_desc:
-	return NULL;
+err_alloc_rx_ring:
+	free(iface->tx_ring);
+err_alloc_tx_ring:
+	return -1;
 }
 
-void ufp_desc_release(struct ufp_handle **ih_list, int ih_num,
-	int thread_id, struct ufp_desc *desc)
+static void ufp_release_rings(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	int i;
 
-	ufp_mem_destroy(desc->node);
-
-	for(i = 0; i < ih_num; i++){
-		struct ufp_handle *ih;
-
-		ih = ih_list[i];
-		free(ih->tx_ring[thread_id].slot_index);
-		ufp_dma_unmap(ih, ih->tx_ring[thread_id].addr_dma);
-		free(ih->rx_ring[thread_id].slot_index);
-		ufp_dma_unmap(ih, ih->rx_ring[thread_id].addr_dma);
+	for(i = 0; i < iface->num_qps; i++){
+		free(iface->tx_ring[i].slot_index);
+		ufp_dma_unmap(dev, iface->tx_ring[i].addr_dma);
+		ufp_mem_free(iface->tx_ring[i].addr_virt);
+		free(iface->rx_ring[i].slot_index);
+		ufp_dma_unmap(dev, iface->rx_ring[i].addr_dma);
+		ufp_mem_free(iface->rx_ring[i].addr_virt);
 	}
 
-	munmap(desc->addr_virt, SIZE_1GB);
-	free(desc);
+	free(iface->rx_ring);
+	free(iface->tx_ring);
+
+	return;
+}
+
+static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
+	unsigned long size_desc, uint32_t num_desc, struct ufp_mpool *mpool)
+{
+	unsigned long addr_dma;
+	void *addr_virt;
+	int err;
+	int *slot_index;
+
+	addr_virt = ufp_mem_alloc(mpool, size_desc);
+	if(!addr_virt)
+		goto err_alloc;
+
+	err = ufp_dma_map(dev, addr_virt, &addr_dma, size_desc);
+	if(err < 0){
+		goto err_dma_map;
+	}
+
+	ring->addr_dma = addr_dma;
+	ring->addr_virt = addr_virt;
+
+	slot_index = malloc(sizeof(int) * num_desc);
+	if(!slot_index){
+		goto err_assign;
+	}
+
+	ring->next_to_use = 0;
+	ring->next_to_clean = 0;
+	ring->slot_index = slot_index;
+	return 0;
+
+err_assign:  
+	ufp_dma_unmap(dev, ring->addr_dma);
+err_dma_map: 
+	ufp_mem_free(addr_virt);
+err_alloc:   
+	return -1;
+}
+
+
+static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring)
+{
+	free(ring->slot_index);
+	ufp_dma_unmap(dev, iface->tx_ring[i].addr_dma);
+	ufp_mem_free(ring->addr_virt);
+
 	return;
 }
 
@@ -477,91 +457,87 @@ static void ufp_ops_release(struct ufp_ops *ops)
 	return;
 }
 
-struct ufp_handle *ufp_open(const char *name,
+struct ufp_dev *ufp_open(const char *name,
 	unsigned int num_qps_req, unsigned int num_rx_desc,
 	unsigned int num_tx_desc)
 {
-	struct ufp_handle *ih;
+	struct ufp_dev *dev;
 	char filename[FILENAME_SIZE];
 	struct ufp_info_req req;
+	struct ufp_iface *iface;
 	int err;
 
-	ih = malloc(sizeof(struct ufp_handle));
-	if (!ih)
-		goto err_alloc_ih;
-	memset(ih, 0, sizeof(struct ufp_handle));
+	dev = malloc(sizeof(struct ufp_dev));
+	if (!dev)
+		goto err_alloc_dev;
 
-	snprintf(filename, sizeof(filename), "/dev/ufp/%s", name);
-	ih->fd = open(filename, O_RDWR);
-	if (ih->fd < 0)
+	memset(dev, 0, sizeof(struct ufp_dev));
+
+	strncpy(dev->name, name, sizeof(dev->name));
+	snprintf(filename, sizeof(filename), "/dev/ufp/%s", dev->name);
+	dev->fd = open(filename, O_RDWR);
+	if (dev->fd < 0)
 		goto err_open;
 
 	/* Get device information */
 	memset(&req, 0, sizeof(struct ufp_info_req));
-	err = ioctl(ih->fd, UFP_INFO, (unsigned long)&req);
+	err = ioctl(dev->fd, UFP_INFO, (unsigned long)&req);
 	if(err < 0)
 		goto err_ioctl_info;
 
-	ih->bar_size = req.mmio_size;
+	dev->bar_size = req.mmio_size;
 
 	/* Map PCI config register space */
-	ih->bar = mmap(NULL, ih->bar_size,
-		PROT_READ | PROT_WRITE, MAP_SHARED, ih->fd, 0);
+	dev->bar = mmap(NULL, dev->bar_size,
+		PROT_READ | PROT_WRITE, MAP_SHARED, dev->fd, 0);
 	if(ih->bar == MAP_FAILED)
 		goto err_mmap;
 
-	ih->ops = ufp_ops_alloc(req.device_id);
-	if(!ih->ops)
+	dev->ops = ufp_ops_alloc(req.device_id);
+	if(!dev->ops)
 		goto err_ops_alloc;
 
-	err = ih->ops->reset_hw(ih);
+	err = dev->ops->open(dev);
 	if(err < 0)
-		goto err_ops_reset_hw;
+		goto err_ops_open;
 
-	err = ih->ops->set_device_params(ih, num_qps_req,
-		num_rx_desc, num_tx_desc);
+	/* Allocate only first iface rings */
+	err = ufp_alloc_rings(dev, dev->iface, mpools);
 	if(err < 0)
-		goto err_ops_get_device_params;
+		goto err_alloc_rings;
 
-	ih->rx_ring = malloc(sizeof(struct ufp_ring) * ih->num_qps);
-	if(!ih->rx_ring)
-		goto err_alloc_rx_ring;
+	return dev;
 
-	ih->tx_ring = malloc(sizeof(struct ufp_ring) * ih->num_qps);
-	if(!ih->tx_ring)
-		goto err_alloc_tx_ring;
-
-	strncpy(ih->name, name, sizeof(ih->name));
-
-	return ih;
-
-err_alloc_tx_ring:
-	free(ih->rx_ring);
-err_alloc_rx_ring:
-
-err_ops_get_device_params:
-err_ops_reset_hw:
-	ufp_ops_release(ih->ops);
+err_alloc_rings:
+	dev->ops->close(dev);
+err_ops_open:
+	ufp_ops_release(dev->ops);
 err_ops_alloc:
-	munmap(ih->bar, ih->bar_size);
+	munmap(dev->bar, dev->bar_size);
 err_mmap:
 err_ioctl_info:
-	close(ih->fd);
+	close(dev->fd);
 err_open:
-	free(ih);
-err_alloc_ih:
+	free(dev);
+err_alloc_dev:
 	return NULL;
 }
 
-void ufp_close(struct ufp_handle *ih)
+void ufp_close(struct ufp_dev *dev)
 {
-	free(ih->tx_ring);
-	free(ih->rx_ring);
+	struct ufp_iface *iface;
 
-	ufp_ops_release(ih->ops);
-	munmap(ih->bar, ih->bar_size);
-	close(ih->fd);
-	free(ih);
+	iface = dev->iface;
+	while(iface){
+		ufp_release_rings(dev, iface);
+		iface = iface->next;
+	}
+
+	dev->ops->close(dev);
+	ufp_ops_release(dev->ops);
+	munmap(dev->bar, dev->bar_size);
+	close(dev->fd);
+	free(dev);
 
 	return;
 }

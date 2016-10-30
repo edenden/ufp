@@ -15,7 +15,7 @@ static struct hlist_head *_lpm_lookup(void *dst,
 	struct lpm_node *parent, unsigned int offset);
 static int _lpm_add(struct lpm_table *table, void *prefix,
 	unsigned int prefix_len, unsigned int id,
-	void *ptr, struct ufp_desc *desc,
+	void *ptr, struct ufp_mpool *mpool,
 	struct lpm_node *parent, unsigned int offset);
 static int _lpm_delete(struct lpm_table *table, void *prefix,
 	unsigned int prefix_len, unsigned int id,
@@ -115,7 +115,7 @@ static struct hlist_head *_lpm_lookup(void *dst,
 
 int lpm_add(struct lpm_table *table, void *prefix,
 	unsigned int prefix_len, unsigned int id,
-	void *ptr, struct ufp_desc *desc)
+	void *ptr, struct ufp_mpool *mpool)
 {
 	unsigned int index;
 	struct lpm_node *node;
@@ -128,7 +128,7 @@ int lpm_add(struct lpm_table *table, void *prefix,
 	if(prefix_len > 16){
 		node = &table->node[index];
 		ret = _lpm_add(table, prefix, prefix_len, id,
-			ptr, desc, node, 16);
+			ptr, mpool, node, 16);
 		if(ret < 0)
 			goto err_lpm_add;
 	}else{
@@ -139,7 +139,7 @@ int lpm_add(struct lpm_table *table, void *prefix,
 		for(i = 0; i < range; i++, entry_allocated++){
 			node = &table->node[index | i];
 
-			entry = ufp_mem_alloc(desc, sizeof(struct lpm_entry));
+			entry = ufp_mem_alloc(mpool, sizeof(struct lpm_entry));
 			if(!entry)
 				goto err_lpm_add_self;
 
@@ -170,7 +170,7 @@ err_lpm_add:
 
 static int _lpm_add(struct lpm_table *table, void *prefix,
 	unsigned int prefix_len, unsigned int id,
-	void *ptr, struct ufp_desc *desc,
+	void *ptr, struct ufp_mpool *mpool,
 	struct lpm_node *parent, unsigned int offset)
 {
 	struct lpm_node *node;
@@ -180,7 +180,7 @@ static int _lpm_add(struct lpm_table *table, void *prefix,
 	int i, ret, entry_allocated = 0;
 
 	if(!parent->next_table){
-		parent->next_table = ufp_mem_alloc(desc,
+		parent->next_table = ufp_mem_alloc(mpool,
 			sizeof(struct lpm_node) * TABLE_SIZE_8);
 		if(!parent->next_table)
 			goto err_table_alloc;
@@ -196,7 +196,7 @@ static int _lpm_add(struct lpm_table *table, void *prefix,
 	if(prefix_len - offset > 8){
 		node = &parent->next_table[index];
 		ret = _lpm_add(table, prefix, prefix_len, id,
-			ptr, desc, node, offset + 8);
+			ptr, mpool, node, offset + 8);
 		if(ret < 0)
 			goto err_lpm_add;
 	}else{
@@ -207,7 +207,7 @@ static int _lpm_add(struct lpm_table *table, void *prefix,
 		for(i = 0; i < range; i++){
 			node = &parent->next_table[index | i];
 
-			entry = ufp_mem_alloc(desc, sizeof(struct lpm_entry));
+			entry = ufp_mem_alloc(mpool, sizeof(struct lpm_entry));
 			if(!entry)
 				goto err_lpm_add_self;
 

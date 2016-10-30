@@ -86,11 +86,11 @@ static void neigh_delete_print(int family,
 }
 #endif
 
-struct neigh_table *neigh_alloc(struct ufp_desc *desc, int family)
+struct neigh_table *neigh_alloc(struct ufp_mpool *mpool, int family)
 {
 	struct neigh_table *neigh;
 
-	neigh = ufp_mem_alloc(desc, sizeof(struct neigh_table));
+	neigh = ufp_mem_alloc(mpool, sizeof(struct neigh_table));
 	if(!neigh)
 		goto err_neigh_alloc;
 
@@ -170,12 +170,12 @@ static int neigh_key_compare_v6(void *key_tgt, void *key_ent)
 }
 
 int neigh_add(struct neigh_table *neigh, int family,
-	void *dst_addr, void *mac_addr, struct ufp_desc *desc) 
+	void *dst_addr, void *mac_addr, struct ufp_mpool *mpool) 
 {
 	struct neigh_entry *neigh_entry;
 	int ret;
 
-	neigh_entry = ufp_mem_alloc(desc, sizeof(struct neigh_entry));
+	neigh_entry = ufp_mem_alloc(mpool, sizeof(struct neigh_entry));
 	if(!neigh_entry)
 		goto err_alloc_entry;
 

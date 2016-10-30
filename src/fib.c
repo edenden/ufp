@@ -107,11 +107,11 @@ static void fib_delete_print(int family, void *prefix,
 }
 #endif
 
-struct fib *fib_alloc(struct ufp_desc *desc)
+struct fib *fib_alloc(struct ufp_mpool *mpool)
 {
         struct fib *fib;
 
-	fib = ufp_mem_alloc(desc, sizeof(struct fib));
+	fib = ufp_mem_alloc(mpool, sizeof(struct fib));
 	if(!fib)
 		goto err_fib_alloc;
 
@@ -137,12 +137,12 @@ void fib_release(struct fib *fib)
 
 int fib_route_update(struct fib *fib, int family, enum fib_type type,
 	void *prefix, unsigned int prefix_len, void *nexthop,
-	int port_index, int id, struct ufp_desc *desc)
+	int port_index, int id, struct ufp_mpool *mpool)
 {
 	struct fib_entry *entry;
 	int ret;
 
-	entry = ufp_mem_alloc(desc, sizeof(struct fib_entry));
+	entry = ufp_mem_alloc(mpool, sizeof(struct fib_entry));
 	if(!entry)
 		goto err_alloc_entry;
 
@@ -172,7 +172,7 @@ int fib_route_update(struct fib *fib, int family, enum fib_type type,
 #endif
 
 	ret = lpm_add(&fib->table, prefix, prefix_len,
-		id, entry, desc);
+		id, entry, mpool);
 	if(ret < 0)
 		goto err_lpm_add;
 
