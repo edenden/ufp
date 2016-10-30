@@ -28,10 +28,10 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
 	struct ufp_buf *buf, int ih_num, unsigned int thread_id,
 	unsigned int core_id);
 void ufp_plane_release(struct ufp_plane *plane, int ih_num);
-struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
-	int ih_num, uint32_t count, uint32_t buf_size);
-void ufp_buf_release(struct ufp_buf *buf,
-	struct ufp_handle **ih_list, int ih_num);
+struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
+	uint32_t count, uint32_t buf_size, struct ufp_mpool *mpool);
+void ufp_release_buf(struct ufp_dev **devs, int num_devs,
+	struct ufp_buf *buf);
 struct ufp_handle *ufp_open(const char *ifname,
 	unsigned int num_qps_req, unsigned int num_rx_desc,
 	unsigned int num_tx_desc);

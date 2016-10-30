@@ -58,8 +58,7 @@ int main(int argc, char **argv)
 	int			threads_assigned = 0,
 				devices_assigned = 0,
 				ports_up = 0,
-				tun_assigned = 0,
-				pages_assigned = 0;
+				tun_assigned = 0;
 	sigset_t		sigset;
 	char			strbuf[1024];
 
@@ -105,8 +104,8 @@ int main(int argc, char **argv)
 				printf("Invalid NUMA node\n");
 				ret = -1;
 				goto err_arg;
-                        }
-                        break;
+			}
+			break;
 		case 'm':
 			if(sscanf(optarg, "%u", &ufpd.mtu_frame) < 1){
 				printf("Invalid MTU length\n");
@@ -203,22 +202,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	for(i = 0; i < ufpd.num_threads; i++, pages_assigned++){
-		threads[i].buf = ufp_buf_alloc(ufpd.ih_array,
-			ufpd.num_ports, ufpd.buf_count, ufpd.buf_size);
-		if(!threads[i].buf){
-			ufpd_log(LOG_ERR, "failed to ufp_alloc_buf, idx = %d", i);
-			ufpd_log(LOG_ERR, "please decrease buffer or enable iommu");
-			goto err_buf_alloc;
-		}
-
-		continue;
-
-err_buf_alloc:
-		ret = -1;
-		goto err_assign_pages;
-	}
-
 	for(i = 0; i < ufpd.num_devices; i++, devices_up++){
 		ret = ufp_up(ufpd.ih_array[i], ufpd.intr_rate,
 			ufpd.mtu_frame, ufpd.promisc,
@@ -236,6 +219,13 @@ err_buf_alloc:
 	}
 
 	for(i = 0; i < ufpd.num_threads; i++, threads_assigned++){
+		threads[i].buf = ufp_alloc_buf(ufpd.devs, ufpd.num_devices,
+			ufpd.buf_count, ufpd.buf_size, threads[i].mpool);
+		if(!threads[i].buf){
+			ufpd_log(LOG_ERR, "failed to ufp_alloc_buf, idx = %d", i);
+			goto err_buf_alloc;
+		}
+
 		threads[i].plane = ufp_plane_alloc(ufpd.ih_array,
 			threads[i].buf, ufpd.num_ports, i, ufpd.cores[i]);
 		if(!threads[i].plane){
@@ -260,6 +250,8 @@ err_tun_plane_alloc:
 		ufp_plane_release(threads[i].plane,
 			ufpd.num_ports);
 err_plane_alloc:
+		ufp_release_buf(ufpd.devs, ufpd.num_devices, threads[i].buf);
+err_buf_alloc:
 		ret = -1;
 		goto err_assign_threads;
 	}
@@ -275,18 +267,13 @@ err_assign_threads:
 	for(i = 0; i < threads_assigned; i++){
 		ufpd_thread_kill(&threads[i]);
 		tun_plane_release(threads[i].tun_plane);
-		ufp_plane_release(threads[i].plane,
-			ufpd.num_ports);
+		ufp_plane_release(threads[i].plane, ufpd.num_ports);
+		ufp_release_buf(ufpd.devs, ufpd.num_devices, threads[i].buf);
 	}
 err_set_signal:
 err_up:
 	for(i = 0; i < devices_up; i++){
 		ufp_down(ufpd.ih_array[i]);
-	}
-err_assign_pages:
-	for(i = 0; i < pages_assigned; i++){
-		ufp_buf_release(threads[i].buf,
-			ufpd.ih_array, ufpd.num_ports);
 	}
 err_tun_open:
 	for(i = 0; i < tun_assigned; i++){

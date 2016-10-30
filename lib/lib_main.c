@@ -185,13 +185,13 @@ static int ufp_alloc_rings(struct ufp_dev *dev, struct ufp_iface *iface,
 	int i, err;
 	unsigned int qps_assigned = 0;
 
-        iface->tx_ring = malloc(sizeof(struct ufp_ring) * iface->num_qps);
-        if(!iface->rx_ring)
-                goto err_alloc_tx_ring;
+	iface->tx_ring = malloc(sizeof(struct ufp_ring) * iface->num_qps);
+	if(!iface->rx_ring)
+		goto err_alloc_tx_ring;
 
-        iface->rx_ring = malloc(sizeof(struct ufp_ring) * iface->num_qps);
-        if(!iface->tx_ring)
-                goto err_alloc_rx_ring;
+	iface->rx_ring = malloc(sizeof(struct ufp_ring) * iface->num_qps);
+	if(!iface->tx_ring)
+		goto err_alloc_rx_ring;
 
 	for(i = 0; i < iface->num_qps; i++, qps_assigned++){
 		err = ufp_alloc_ring(dev, &iface->rx_ring[i],
@@ -292,20 +292,20 @@ static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring)
 	return;
 }
 
-struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
-	int ih_num, uint32_t count, uint32_t buf_size)
+struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
+	uint32_t count, uint32_t buf_size, struct ufp_mpool *mpool)
 {
 	struct ufp_buf *buf;
-	void	*addr_virt;
+	void *addr_virt;
 	unsigned long addr_dma, size;
 	int *slots;
-	int ret, i, mapped_ports = 0;
+	int err, i, num_bufs, mapped_devs = 0;
 
 	buf = malloc(sizeof(struct ufp_buf));
 	if(!buf)
 		goto err_alloc_buf;
 
-	buf->addr_dma = malloc(sizeof(unsigned long) * ih_num);
+	buf->addr_dma = malloc(sizeof(unsigned long) * num_devs);
 	if(!buf->addr_dma)
 		goto err_alloc_buf_addr_dma;
 
@@ -313,21 +313,23 @@ struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
 	 * XXX: Should we add buffer padding for memory interleaving?
 	 * DPDK does so in rte_mempool.c/optimize_object_size().
 	 */
-	size = buf_size * (ih_num * count);
-	addr_virt = mmap(NULL, size, PROT_READ | PROT_WRITE,
-		MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, 0, 0);
-	if(addr_virt == MAP_FAILED)
-		goto err_mmap;
+	for(i = 0, num_bufs = 0; i < num_devs; i++){
+		num_bufs += devs[i].num_ifaces * count;
+	}
+	size = buf_size * num_bufs;
+	addr_virt = ufp_mem_alloc(mpool, size);
+	if(!addr_virt)
+		goto err_mem_alloc;
 
-	for(i = 0; i < ih_num; i++, mapped_ports++){
-		ret = ufp_dma_map(ih_list[i], addr_virt, &addr_dma, size);
-		if(ret < 0)
+	for(i = 0; i < num_devs; i++, mapped_devs++){
+		err = ufp_dma_map(devs[i], addr_virt, &addr_dma, size);
+		if(err < 0)
 			goto err_ufp_dma_map;
 
 		buf->addr_dma[i] = addr_dma;
 	}
 
-	slots = malloc(sizeof(int) * (count * ih_num));
+	slots = malloc(sizeof(int) * num_bufs);
 	if(!slots)
 		goto err_alloc_slots;
 
@@ -336,7 +338,7 @@ struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
 	buf->count = count;
 	buf->slots = slots;
 
-	for(i = 0; i < buf->count * ih_num; i++){
+	for(i = 0; i < num_bufs; i++){
 		buf->slots[i] = 0;
 	}
 
@@ -344,11 +346,11 @@ struct ufp_buf *ufp_buf_alloc(struct ufp_handle **ih_list,
 
 err_alloc_slots:
 err_ufp_dma_map:
-	for(i = 0; i < mapped_ports; i++){
-		ufp_dma_unmap(ih_list[i], buf->addr_dma[i]);
+	for(i = 0; i < mapped_devs; i++){
+		ufp_dma_unmap(devs[i], buf->addr_dma[i]);
 	}
-	munmap(addr_virt, size);
-err_mmap:
+	ufp_mem_free(addr_virt);
+err_mem_alloc:
 	free(buf->addr_dma);
 err_alloc_buf_addr_dma:
 	free(buf);
@@ -356,22 +358,20 @@ err_alloc_buf:
 	return NULL;
 }
 
-void ufp_buf_release(struct ufp_buf *buf,
-	struct ufp_handle **ih_list, int ih_num)
+void ufp_release_buf(struct ufp_dev **devs, int num_devs,
+	struct ufp_buf *buf)
 {
-	int i, ret;
-	unsigned long size;
+	int i, err;
 
 	free(buf->slots);
 
-	for(i = 0; i < ih_num; i++){
-		ret = ufp_dma_unmap(ih_list[i], buf->addr_dma[i]);
-		if(ret < 0)
+	for(i = 0; i < num_devs; i++){
+		err = ufp_dma_unmap(devs[i], buf->addr_dma[i]);
+		if(err < 0)
 			perror("failed to unmap buf");
 	}
 
-	size = buf->buf_size * (ih_num * buf->count);
-	munmap(buf->addr_virt, size);
+	ufp_mem_free(buf->addr_virt);
 	free(buf->addr_dma);
 	free(buf);
 
