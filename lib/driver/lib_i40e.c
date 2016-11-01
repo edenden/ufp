@@ -130,15 +130,6 @@ int ufp_i40e_up(struct ufp_dev *dev)
 
 	iface = dev->iface;
 	while(iface){
-		/* allocate descriptors */
-		err = i40e_vsi_setup_tx_resources(iface);
-		if (err)
-			goto err_setup_tx;
-
-		err = i40e_vsi_setup_rx_resources(iface);
-		if (err)
-			goto err_setup_rx;
-
 		err = i40e_vsi_configure_tx(iface);
 		if(err < 0)
 			goto err_configure_tx;
