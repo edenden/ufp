@@ -12,15 +12,15 @@
 
 #include "lib_i40e.h"
 
-int ufp_i40e_init(struct ufp_ops *ops)
+int ufp_i40e_init(struct ufp_dev *dev, struct ufp_ops *ops)
 {
-	struct ufp_i40e_data *data;
+	struct ufp_i40e_dev *i40e_dev;
 
-	data = malloc(sizeof(struct ufp_i40e_data));
-	if(!data)
-		goto err_alloc_data;
+	i40e_dev = malloc(sizeof(struct ufp_i40e_dev));
+	if(!i40e_dev)
+		goto err_alloc_drv_data;
 
-	ops->data		= data;
+	dev->drv_data = i40e_dev;
 
 	/* Configuration related functions*/
 	ops->open		= ufp_i40e_open;
@@ -38,25 +38,25 @@ int ufp_i40e_init(struct ufp_ops *ops)
 
 	return 0;
 
-err_alloc_data:
+err_alloc_drv_data:
 	return -1;
 }
 
-void ufp_i40e_destroy(struct ufp_ops *ops)
+void ufp_i40e_destroy(struct ufp_dev *dev, struct ufp_ops *ops)
 {
-	free(ops->data);
+	free(dev->drv_data);
 	return;
 }
 
-int ufp_i40e_open(struct ufp_handle *ih)
+int ufp_i40e_open(struct ufp_dev *dev)
 {
-	struct ufp_i40e_data *data = ih->ops->data;
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_irq_handle *irqh;
 	unsigned long read_buf;
 
-	i40e_set_mac_type(ih);
+	i40e_set_mac_type(dev);
 
-	switch (data->mac_type) {
+	switch (i40e_dev->mac_type) {
 	case I40E_MAC_XL710:
 	case I40E_MAC_X722:
 		break;
@@ -64,18 +64,18 @@ int ufp_i40e_open(struct ufp_handle *ih)
 		goto err_not_supported;
 	}
 
-	i40e_clear_hw(ih);
+	i40e_clear_hw(dev);
 
-	err = i40e_reset_hw(ih);
+	err = i40e_reset_hw(dev);
 	if(err < 0)
 		goto err_reset_hw;
 
 	/* adminQ related initialization and depending process */
-	err = ufp_i40e_aq_init(ih);
+	err = ufp_i40e_aq_init(dev);
 	if(err < 0)
 		goto err_init_adminq;
 
-	err = i40e_aq_clear_pxe_mode(ih);
+	err = i40e_aq_clear_pxe_mode(dev);
 	if(err < 0)
 		goto err_clear_pxe;
 
@@ -93,10 +93,10 @@ int ufp_i40e_open(struct ufp_handle *ih)
 		if(err < 0)
 			goto err_read;
 
-		i40e_aq_asq_clean(ih);
+		i40e_aq_asq_clean(dev);
 	}
 
-	err = i40e_setup_pf_switch(ih);
+	err = i40e_setup_pf_switch(dev);
 	if (err)
 		goto err_setup_switch;
 
@@ -110,7 +110,7 @@ int ufp_i40e_open(struct ufp_handle *ih)
 	if(err < 0)
 		goto err_aq_set_phy_int_mask;
 
-	err = ufp_i40e_hmc_init(ih);
+	err = ufp_i40e_hmc_init(dev);
 	if(err < 0)
 		goto err_hmc_init;
 
@@ -124,46 +124,46 @@ err_not_supported:
 	return -1;
 }
 
-int ufp_i40e_up(struct ufp_handle *ih)
+int ufp_i40e_up(struct ufp_dev *dev)
 {
-	struct ufp_i40e_data *data = ih->ops->data;
-	struct ufp_i40e_vsi *vsi;
+	struct ufp_iface *iface;
 
-	vsi = data->vsi;
-	while(vsi){
+	iface = dev->iface;
+	while(iface){
 		/* allocate descriptors */
-		err = i40e_vsi_setup_tx_resources(vsi);
+		err = i40e_vsi_setup_tx_resources(iface);
 		if (err)
 			goto err_setup_tx;
-		err = i40e_vsi_setup_rx_resources(vsi);
+
+		err = i40e_vsi_setup_rx_resources(iface);
 		if (err)
 			goto err_setup_rx;
 
-		err = i40e_vsi_configure_tx(vsi);
+		err = i40e_vsi_configure_tx(iface);
 		if(err < 0)
 			goto err_configure_tx;
 
-		err = i40e_vsi_configure_rx(vsi);
+		err = i40e_vsi_configure_rx(iface);
 		if(err < 0)
 			goto err_configure_rx;
 
-		err = i40e_up_complete(vsi);
+		err = i40e_up_complete(iface);
 		if (err)
 			goto err_up_complete;
 
-		vsi = vsi->next;
+		iface = iface->next;
 	}
 	return 0;
 }
 
-int ufp_i40e_down(struct ufp_handle *ih)
+int ufp_i40e_down(struct ufp_dev *dev)
 {
 
 }
 
-int ufp_i40e_close(struct ufp_handle *ih)
+int ufp_i40e_close(struct ufp_dev *dev)
 {
-	ufp_i40e_hmc_destroy(ih);
-	ufp_i40e_aq_destroy(ih);
+	ufp_i40e_hmc_destroy(dev);
+	ufp_i40e_aq_destroy(dev);
 	return 0;
 }

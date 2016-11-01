@@ -1,11 +1,9 @@
-int ufp_i40e_hmc_init(struct ufp_hadle *ih)
+int ufp_i40e_hmc_init(struct ufp_dev *dev)
 {
-	struct ufp_i40e_data *data = ih->ops->data;
-	struct i40e_hmc_info *hmc;
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_hmc_info *hmc = &i40e_dev->hmc;
 	uint64_t fpm_size;
 	uint32_t queue_max;
-
-	hmc = &data->hmc;
 
 	queue_max = rd32(hw, I40E_GLHMC_LANQMAX);
 
@@ -38,7 +36,7 @@ int ufp_i40e_hmc_init(struct ufp_hadle *ih)
 	if(!hmc->sd_table.sd_entry)
 		goto err_alloc_sd_entry;
 
-	err = i40e_hmc_configure(ih);
+	err = i40e_hmc_configure(dev);
 	if(err < 0)
 		goto err_hmc_configure;
 
@@ -50,35 +48,31 @@ err_alloc_sd_entry:
 	return -1;
 }
 
-void i40e_hmc_destroy(struct ufp_handle *ih)
+void i40e_hmc_destroy(struct ufp_dev *dev)
 {
-	struct ufp_i40e_data *data = ih->ops->data;
-	struct i40e_hmc_info *hmc;
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_hmc_info *hmc = &i40e_dev->hmc;
 
-	hmc = &data->hmc;
-
-	i40e_hmc_shutdown(ih);
+	i40e_hmc_shutdown(dev);
 	free(hmc->sd_table.sd_entry);
 
 	return;
 }
 
-int i40e_hmc_configure(struct ufp_hadle *ih)
+int i40e_hmc_configure(struct ufp_dev *dev)
 {
-	struct ufp_i40e_data *data = ih->ops->data;
-	struct i40e_hmc_info *hmc;
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_hmc_info *hmc = &i40e_dev->hmc;
 	struct i40e_hmc_obj_info *obj;
 	struct i40e_hmc_sd_entry *sd_entry;
 	unsigned int sd_allocated = 0;
 	uint32_t hmc_base, hmc_count;
 	int err;
 
-	hmc = &data->hmc;
-
 	for (i = 0; i < hmc->sd_table.sd_count; i++, sd_allocated++){
 		sd_entry = hmc->sd_table.sd_entry[i];
 
-		err = i40e_hmc_sd_allocate(ih, sd_entry);
+		err = i40e_hmc_sd_allocate(dev, sd_entry);
 		if(err < 0)
 			goto err_alloc_sd;
 	}
@@ -99,30 +93,28 @@ int i40e_hmc_configure(struct ufp_hadle *ih)
 err_alloc_sd:
 	for(i = 0; i < sd_allocated; i++){
 		sd_entry = &hmc->sd_table.sd_entry[i];
-		i40e_hmc_sd_release(ih, sd_entry, i);
+		i40e_hmc_sd_release(dev, sd_entry, i);
 	}
 	return -1;
 }
 
-void i40e_hmc_shutdown(struct ufp_hadle *ih)
+void i40e_hmc_shutdown(struct ufp_dev *dev)
 {
-	struct ufp_i40e_data *data = ih->ops->data;
-	struct i40e_hmc_info *hmc;
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_hmc_info *hmc = &i40e_dev->hmc;
 	struct i40e_hmc_obj_info *obj;
 	struct i40e_hmc_sd_entry *sd_entry;
 	int err;
 
-	hmc = &data->hmc;
-
 	for (i = 0; i < hmc->sd_table.sd_count; i++){
 		sd_entry = &hmc->sd_table.sd_entry[i];
-		i40e_hmc_sd_release(ih, sd_entry, i);
+		i40e_hmc_sd_release(dev, sd_entry, i);
 	}
 
 	return;
 }
 
-int i40e_hmc_sd_allocate(struct ufp_hadle *ih,
+int i40e_hmc_sd_allocate(struct ufp_dev *dev,
 	struct i40e_hmc_sd_entry *sd_entry, uint32_t sd_index)
 {
 	unsigned int pd_allocated = 0;
@@ -130,12 +122,12 @@ int i40e_hmc_sd_allocate(struct ufp_hadle *ih,
 	uint64_t *pd_addr;
 	int i;
 
-	sd_entry->pd_addrs = ufp_i40e_page_alloc(ih);
+	sd_entry->pd_addrs = ufp_i40e_page_alloc(dev);
 	if(!sd_entry->pd_addrs)
 		goto err_alloc_pd_addrs;
 
 	for(i = 0; i < I40E_HMC_MAX_BP_COUNT; i++, pd_allocated++){
-		pd = ufp_i40e_page_alloc(ih);
+		pd = ufp_i40e_page_alloc(dev);
 		if(!pd)
 			goto err_alloc_pd;
 
@@ -160,7 +152,7 @@ err_alloc_pd_addrs:
 	return -1;
 }
 
-void i40e_hmc_sd_release(struct ufp_hadle *ih,
+void i40e_hmc_sd_release(struct ufp_dev *dev,
 	struct i40e_hmc_sd_entry *sd_entry, uint32_t sd_index)
 {
 	struct ufp_i40e_page *pd;
@@ -181,7 +173,7 @@ void i40e_hmc_sd_release(struct ufp_hadle *ih,
 	ufp_i40e_page_free(sd_entry->pd_addrs);
 }
 
-static void i40e_set_pf_sd_entry(struct ufp_handle *ih, unsigned long pa,
+static void i40e_set_pf_sd_entry(struct ufp_dev *dev, unsigned long pa,
 	uint32_t sd_index,  enum i40e_sd_entry_type type)
 {
 	u32 val1, val2, val3;
@@ -204,7 +196,7 @@ static void i40e_set_pf_sd_entry(struct ufp_handle *ih, unsigned long pa,
 	return;
 }
 
-static void i40e_clear_pf_sd_entry(struct ufp_handle *ih,
+static void i40e_clear_pf_sd_entry(struct ufp_dev *dev,
 	uint32_t sd_index, enum i40e_sd_entry_type type)
 {
 	u32 val2, val3;
