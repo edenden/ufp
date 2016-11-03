@@ -140,9 +140,11 @@ int ufp_i40e_up(struct ufp_dev *dev)
 		if(err < 0)
 			goto err_configure_rx;
 
-		err = i40e_up_complete(iface);
+		err = i40e_vsi_configure_msix(dev, iface);
 		if (err)
 			goto err_up_complete;
+
+		err = i40e_up_complete(iface);
 
 		iface = iface->next;
 	}

@@ -550,15 +550,21 @@ void ufp_close(struct ufp_dev *dev)
 	return;
 }
 
-int ufp_up(struct ufp_handle *ih, unsigned int irq_rate,
+int ufp_up(struct ufp_dev *dev, unsigned int irq_rate,
 	unsigned int mtu_frame, unsigned int promisc,
 	unsigned int rx_budget, unsigned int tx_budget)
 {
+	struct ufp_iface *iface;
 	struct ufp_start_req req;
 	int err;
 
 	memset(&req, 0, sizeof(struct ufp_start_req));
-	req.num_irqs = (ih->num_qps * 2) + ih->num_misc_irqs;
+	iface = dev->iface;
+	while(iface){
+		req.num_irqs += (iface->num_qps * 2);
+		iface = iface->next;
+	}
+	req.num_irqs += dev->num_misc_irqs
 	if(ioctl(ih->fd, UFP_START, (unsigned long)&req) < 0)
 		goto err_ioctl_start;
 

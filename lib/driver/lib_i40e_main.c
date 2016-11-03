@@ -477,8 +477,6 @@ static int i40e_up_complete(struct ufp_iface *iface)
 	struct i40e_pf *pf = iface->back;
 	int err;
 	
-	i40e_vsi_configure_msix(iface);
-	
 	/* start rings */
 	err = i40e_vsi_control_rings(iface, true);
 	if (err)
@@ -488,3 +486,61 @@ static int i40e_up_complete(struct ufp_iface *iface)
 	
 	return 0;
 }
+
+void i40e_vsi_configure_msix(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	uint16_t queue_idx, vector;
+	uint32_t val;
+	int i;
+
+	queue_idx = i40e_iface->base_queue;
+	for (i = 0; i < iface->num_qps; i++, queue_idx++){
+		vector = queue_idx + dev->num_misc_irqs;
+
+		wr32(hw, I40E_PFINT_ITRN(I40E_RX_ITR, vector),
+		     ITR_TO_REG(I40E_ITR_20K));
+
+		wr32(hw, I40E_PFINT_RATEN(vector),
+		     INTRL_USEC_TO_REG(vsi->int_rate_limit));
+
+		/* Linked list for the queuepairs assigned to this vector */
+		val = queue_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT |
+			I40E_QUEUE_TYPE_TX << I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
+		wr32(hw, I40E_PFINT_LNKLSTN(vector), val);
+
+		val = I40E_QINT_RQCTL_CAUSE_ENA_MASK |
+			(I40E_RX_ITR << I40E_QINT_RQCTL_ITR_INDX_SHIFT) |
+			(vector << I40E_QINT_RQCTL_MSIX_INDX_SHIFT) |
+			(I40E_QUEUE_END_OF_LIST << I40E_QINT_RQCTL_NEXTQ_INDX_SHIFT);
+
+		wr32(hw, I40E_QINT_RQCTL(queue_idx), val);
+	}
+
+	for (i = 0; i < iface->num_qps; i++, queue_idx++){
+		vector = queue_idx + dev->num_misc_irqs;
+
+		wr32(hw, I40E_PFINT_ITRN(I40E_TX_ITR, vector),
+		     ITR_TO_REG(I40E_ITR_20K));
+
+		wr32(hw, I40E_PFINT_RATEN(vector),
+		     INTRL_USEC_TO_REG(vsi->int_rate_limit));
+
+		/* Linked list for the queuepairs assigned to this vector */
+		val = queue_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT |
+			I40E_QUEUE_TYPE_RX << I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
+		wr32(hw, I40E_PFINT_LNKLSTN(vector), val);
+
+		val = I40E_QINT_TQCTL_CAUSE_ENA_MASK |
+			(I40E_TX_ITR << I40E_QINT_TQCTL_ITR_INDX_SHIFT) |
+			(vector << I40E_QINT_TQCTL_MSIX_INDX_SHIFT) |
+			(I40E_QUEUE_END_OF_LIST << I40E_QINT_TQCTL_NEXTQ_INDX_SHIFT);
+
+		wr32(hw, I40E_QINT_TQCTL(queue_idx), val);
+	}
+
+	i40e_flush(hw);
+	return;
+}
+

@@ -79,7 +79,6 @@ struct ufp_iface {
 	uint32_t		tx_budget;
 
 	uint32_t		num_qps;
-	uint32_t		num_misc_irqs;
 	uint32_t		irq_rate;
 	uint32_t		promisc;
 	uint32_t		mtu_frame;
