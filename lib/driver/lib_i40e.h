@@ -33,6 +33,7 @@ enum i40e_mac_type {
 };
 
 struct ufp_i40e_dev {
+	uint8_t pf_id;
 	enum i40e_mac_type mac_type;
 
 	struct i40e_aq_ring	*aq_rx_ring;
@@ -40,6 +41,8 @@ struct ufp_i40e_dev {
 	struct ufp_irq_handle	*aq_rx_irqh;
 	struct ufp_irq_handle	*aq_tx_irqh;
 	uint32_t		aq_flag;
+
+	struct i40e_hmc hmc;
 };
 
 struct ufp_i40e_iface {

@@ -1,7 +1,7 @@
 int ufp_i40e_hmc_init(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_hmc_info *hmc = &i40e_dev->hmc;
+	struct i40e_hmc *hmc = &i40e_dev->hmc;
 	uint64_t fpm_size;
 	uint32_t queue_max;
 
@@ -28,7 +28,6 @@ int ufp_i40e_hmc_init(struct ufp_dev *dev)
 	hmc->obj_rx.size = obj_size_rx;
 
 	/* allocate memory for SD entry table */
-	hmc->hmc_fn_id = hw->pf_id;
 	hmc->sd_table.sd_count =
 		(fpm_size + I40E_HMC_DIRECT_BP_SIZE - 1) / I40E_HMC_DIRECT_BP_SIZE;
 	hmc->sd_table.sd_entry =
@@ -51,7 +50,7 @@ err_alloc_sd_entry:
 void i40e_hmc_destroy(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_hmc_info *hmc = &i40e_dev->hmc;
+	struct i40e_hmc *hmc = &i40e_dev->hmc;
 
 	i40e_hmc_shutdown(dev);
 	free(hmc->sd_table.sd_entry);
@@ -62,8 +61,8 @@ void i40e_hmc_destroy(struct ufp_dev *dev)
 int i40e_hmc_configure(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_hmc_info *hmc = &i40e_dev->hmc;
-	struct i40e_hmc_obj_info *obj;
+	struct i40e_hmc *hmc = &i40e_dev->hmc;
+	struct i40e_hmc_obj *obj;
 	struct i40e_hmc_sd_entry *sd_entry;
 	unsigned int sd_allocated = 0;
 	uint32_t hmc_base, hmc_count;
@@ -80,13 +79,13 @@ int i40e_hmc_configure(struct ufp_dev *dev)
 	/* Configure and program the FPM registers so objects can be created */
 	hmc_base = (hmc->hmc_obj_tx.base & I40E_GLHMC_LANTXBASE_FPMLANTXBASE_MASK) / 512;
 	hmc_count = hmc->hmc_obj_tx.count;
-	wr32(hw, I40E_GLHMC_LANTXBASE(hmc->fn_id), hmc_base);
-	wr32(hw, I40E_GLHMC_LANTXCNT(hmc->fn_id), hmc_count);
+	wr32(hw, I40E_GLHMC_LANTXBASE(i40e_dev->pf_id), hmc_base);
+	wr32(hw, I40E_GLHMC_LANTXCNT(i40e_dev->pf_id), hmc_count);
 
 	hmc_base = (hmc->hmc_obj_rx.base & I40E_GLHMC_LANRXBASE_FPMLANRXBASE_MASK) / 512;
 	hmc_count = hmc->hmc_obj_rx.count;
-	wr32(hw, I40E_GLHMC_LANRXBASE(hmc->fn_id), hmc_base);
-	wr32(hw, I40E_GLHMC_LANRXCNT(hmc->fn_id), hmc_count);
+	wr32(hw, I40E_GLHMC_LANRXBASE(i40e_dev->pf_id), hmc_base);
+	wr32(hw, I40E_GLHMC_LANRXCNT(i40e_dev->pf_id), hmc_count);
 
 	return 0;
 
@@ -101,8 +100,8 @@ err_alloc_sd:
 void i40e_hmc_shutdown(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_hmc_info *hmc = &i40e_dev->hmc;
-	struct i40e_hmc_obj_info *obj;
+	struct i40e_hmc *hmc = &i40e_dev->hmc;
+	struct i40e_hmc_obj *obj;
 	struct i40e_hmc_sd_entry *sd_entry;
 	int err;
 
@@ -216,7 +215,7 @@ static void i40e_clear_pf_sd_entry(struct ufp_dev *dev,
 }
 
 void i40e_hmc_write(uint8_t *hmc_bits,
-	struct i40e_context_ele *ce_info, uint8_t *host_buf)
+	struct i40e_hmc_ce *ce, uint8_t *host_buf)
 {
 	uint8_t data[8], mask[8];
 	uint8_t *src, *dst;
@@ -225,28 +224,28 @@ void i40e_hmc_write(uint8_t *hmc_bits,
 	int i;
 
 	/* copy from the next struct field */
-	src = host_buf + ce_info->offset;
+	src = host_buf + ce->offset;
 
-	for(i = 0; i < ce_info->size_of; i++){
+	for(i = 0; i < ce->size_of; i++){
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		data[i] = src[i];
 #elif __BYTE_ORDER == __BIG_ENDIAN
-		data[i] = src[ce_info->size_of - (i + 1)];
+		data[i] = src[ce->size_of - (i + 1)];
 #endif
 
-		width_remain = ce_info->width - (i * 8);
+		width_remain = ce->width - (i * 8);
 		mask[i] = (1 << min(width_remain, (uint16_t)8)) - 1;
 	}
 
 	/* prepare the bits and mask */
-	shift_width = ce_info->lsb % 8;
+	shift_width = ce->lsb % 8;
 
 	/* get the current bits from the target bit string */
-	dst = hmc_bits + (ce_info->lsb / 8);
+	dst = hmc_bits + (ce->lsb / 8);
 
 	prev_data = 0;
 	prev_mask = 0;
-	for(i = 0; i < ce_info->size_of; i++){
+	for(i = 0; i < ce->size_of; i++){
 		byte_data = data[i] << shift_width;
 		byte_data |= prev_data;
 
@@ -263,7 +262,7 @@ void i40e_hmc_write(uint8_t *hmc_bits,
 }
 
 void i40e_hmc_read(uint8_t *hmc_bits,
-	struct i40e_context_ele *ce_info, uint8_t *host_buf)
+	struct i40e_hmc_ce *ce, uint8_t *host_buf)
 {
 	uint8_t data[8], mask[8];
 	uint8_t *src, *dst;
@@ -272,18 +271,18 @@ void i40e_hmc_read(uint8_t *hmc_bits,
 	int i;
 
 	/* prepare the bits and mask */
-	shift_width = ce_info->lsb % 8;
+	shift_width = ce->lsb % 8;
 
 	/* get the current bits from the src bit string */
-	src = hmc_bits + (ce_info->lsb / 8);
+	src = hmc_bits + (ce->lsb / 8);
 
-	for(i = 0; i < ce_info->size_of; i++){
-		width_remain = ce_info->width - (i * 8);
+	for(i = 0; i < ce->size_of; i++){
+		width_remain = ce->width - (i * 8);
 		mask[i] = (1 << min(width_remain, (uint16_t)8)) - 1;
 	}
 
 	next_data = 0;
-	for(i = ce_info->size_of - 1; i >= 0; i--){
+	for(i = ce->size_of - 1; i >= 0; i--){
 		byte_data = src[i] >> shift_width;
 		byte_data |= next_data;
 
@@ -293,13 +292,13 @@ void i40e_hmc_read(uint8_t *hmc_bits,
 	}
 
 	/* get the address from the struct field */
-	dst = host_buf + ce_info->offset;
+	dst = host_buf + ce->offset;
 
-	for(i = 0; i < ce_info->size_of; i++){
+	for(i = 0; i < ce->size_of; i++){
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		dst[i] = data[i];
 #elif __BYTE_ORDER == __BIG_ENDIAN
-		dst[i] = data[ce_info->size_of - (i + 1)];
+		dst[i] = data[ce->size_of - (i + 1)];
 #endif
 	}
 

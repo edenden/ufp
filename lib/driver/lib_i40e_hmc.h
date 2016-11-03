@@ -1,7 +1,4 @@
-struct i40e_hmc_info {
-        /* equals to pci func num for PF and dynamically allocated for VFs */
-        u8 fn_id;
-
+struct i40e_hmc {
         /* hmc objects */
         struct i40e_hmc_obj_info hmc_tx;
 	struct i40e_hmc_obj_info hmc_rx;
@@ -9,7 +6,7 @@ struct i40e_hmc_info {
         struct i40e_hmc_sd_table sd_table;
 };
 
-struct i40e_hmc_obj_info {
+struct i40e_hmc_obj {
         u64 base;	/* base addr in FPM */
         u32 count;	/* maximum count of objects */
         u64 size;	/* size in bytes of one object */
@@ -29,7 +26,7 @@ struct i40e_hmc_sd_entry {
         offsetof(struct _struct, _ele),         \
         FIELD_SIZEOF(struct _struct, _ele)
 
-struct i40e_context_ele {
+struct i40e_hmc_ce {
         u16 offset;
         u16 size_of;
         u16 width;
@@ -37,7 +34,7 @@ struct i40e_context_ele {
 };
 
 /* LAN Tx Queue Context */
-static struct i40e_context_ele i40e_hmc_txq_ce_info[] = {
+static struct i40e_hmc_ce i40e_hmc_ce_txq[] = {
                                              /* Field      Width    LSB */
         {I40E_HMC_STORE(i40e_hmc_obj_txq, head),           13,      0 },
         {I40E_HMC_STORE(i40e_hmc_obj_txq, new_context),     1,     30 },
@@ -63,7 +60,7 @@ static struct i40e_context_ele i40e_hmc_txq_ce_info[] = {
 };
 
 /* LAN Rx Queue Context */
-static struct i40e_context_ele i40e_hmc_rxq_ce_info[] = {
+static struct i40e_hmc_ce i40e_hmc_ce_rxq[] = {
                                          /* Field      Width    LSB */
         { I40E_HMC_STORE(i40e_hmc_obj_rxq, head),       13,     0   },
         { I40E_HMC_STORE(i40e_hmc_obj_rxq, cpuid),      8,      13  },

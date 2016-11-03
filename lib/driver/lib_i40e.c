@@ -64,6 +64,8 @@ int ufp_i40e_open(struct ufp_dev *dev)
 		goto err_not_supported;
 	}
 
+	i40e_set_pf_id(dev);
+
 	i40e_clear_hw(dev);
 
 	err = i40e_reset_hw(dev);

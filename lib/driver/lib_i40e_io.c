@@ -35,6 +35,7 @@ err_configure_rx_ring:
 static int i40e_configure_tx_ring(struct ufp_dev *dev,
 	struct ufp_iface *iface, int ring_idx)
 {
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
 	struct ufp_ring *ring = &iface->tx_ring[ring_idx];
 	struct i40e_hmc_obj_txq tx_ctx;
@@ -82,7 +83,7 @@ static int i40e_configure_tx_ring(struct ufp_dev *dev,
 
 	/* Now associate this queue with this PCI function */
 	qtx_ctl = I40E_QTX_CTL_PF_QUEUE;
-	qtx_ctl |= ((hw->pf_id << I40E_QTX_CTL_PF_INDX_SHIFT) &
+	qtx_ctl |= ((i40e_dev->pf_id << I40E_QTX_CTL_PF_INDX_SHIFT) &
 		    I40E_QTX_CTL_PF_INDX_MASK);
 	queue_idx = i40e_iface->base_queue + ring_idx;
 	wr32(hw, I40E_QTX_CTL(queue_idx), qtx_ctl);
@@ -97,6 +98,7 @@ static int i40e_configure_tx_ring(struct ufp_dev *dev,
 static int i40e_configure_rx_ring(struct ufp_dev *dev,
 	struct ufp_iface *iface, int ring_idx)
 {
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
 	struct ufp_ring *ring = &iface->rx_ring[ring_idx];
 	struct i40e_hmc_obj_rxq rx_ctx;

@@ -249,6 +249,24 @@ void i40e_set_mac_type(struct ufp_dev *dev)
 	return;
 }
 
+void i40e_set_pf_id(struct ufp_dev *dev)
+{
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	uint32_t pci_cap, pci_cap_ari, func_rid;
+
+	pci_cap = rd32(hw, I40E_GLPCI_CAPSUP);
+	pci_cap_ari = (pci_cap & I40E_GLPCI_CAPSUP_ARI_EN_MASK) >>
+		I40E_GLPCI_CAPSUP_ARI_EN_SHIFT;
+	func_rid = rd32(hw, I40E_PF_FUNC_RID);
+
+	if (pci_cap_ari)
+		i40e_dev->pf_id = (u8)(func_rid & 0xff);
+	else
+		i40e_dev->pf_id = (u8)(func_rid & 0x7);
+
+	return;
+}
+
 int i40e_switchconf_fetch(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
@@ -383,7 +401,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	int err;
 
 	/* Switch Global Configuration */
-	if (pf->hw.pf_id == 0) {
+	if (i40e_dev->pf_id == 0) {
 		uint16_t valid_flags;
 		
 		valid_flags = I40E_AQ_SET_SWITCH_CFG_PROMISC;
