@@ -214,9 +214,42 @@ static void i40e_clear_pf_sd_entry(struct ufp_dev *dev,
 	return;
 }
 
-void i40e_set_lan_tx_queue_context()
+static void *i40e_hmc_va(struct ufp_dev *dev, struct i40e_hmc_obj *obj,
+	uint16_t queue_idx)
 {
-	/* LAN Tx Queue Context */
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct ufp_i40e_hmc *hmc = &i40e_dev->hmc;
+	struct i40e_hmc_sd_entry *sd_entry;
+	struct ufp_i40e_page *pd;
+	uint32_t page_idx, sd_idx, pd_idx;
+	uint64_t addr_fpm, offset;
+	void *hmc_va;
+
+	addr_fpm = (queue_idx * obj->size) + obj->base;
+	page_idx = addr_fpm / I40E_HMC_PAGED_BP_SIZE;
+	sd_idx = page_idx / I40E_HMC_MAX_BP_COUNT;
+	pd_idx = page_idx % I40E_HMC_MAX_BP_COUNT;
+	offset = addr_fpm % I40E_HMC_PAGED_BP_SIZE;
+
+	if(sd_idx >= hmc->sd_table.sd_count)
+		goto err_sd_idx;
+
+	sd_entry = &hmc->sd_table.sd_entry[sd_idx];
+	pd = sd_entry->pd[pd_idx];
+	hmc_va = pd->addr_virt + offset;
+
+	return hmc_va;
+
+err_sd_idx:
+	return NULL;
+}
+
+int i40e_hmc_ctx_tx_set(struct ufp_dev *dev, struct i40e_hmc_ctx_tx *ctx,
+	uint16_t queue_idx)
+{
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct ufp_i40e_hmc *hmc = &i40e_dev->hmc;
+	void *hmc_va;
 	struct i40e_hmc_ce ce[] = {
 		/* Field					Width	LSB */
 		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, head),	13,	0 },
@@ -241,11 +274,27 @@ void i40e_set_lan_tx_queue_context()
 		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, rdylist_act),	1,	94 + (7 * 128) },
 		{ 0 }
 	};
+	
+	hmc_va = i40e_hmc_va(dev, &hmc->hmc_tx, queue_idx);
+	if(!hmc_va)
+		goto err_hmc_va;
+
+	for(i = 0; ce[i].width != 0; i++){
+		i40e_hmc_write(hmc_va, &ce[i], ctx);
+	}
+
+	return 0;
+
+err_hmc_va:
+	return -1;
 }
 
-void i40e_set_lan_rx_queue_context()
+int i40e_hmc_ctx_rx_set(struct ufp_dev *dev, struct i40e_hmc_ctx_rx *ctx,
+	uint16_t queue_idx)
 {
-	/* LAN Rx Queue Context */
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct ufp_i40e_hmc *hmc = &i40e_dev->hmc;
+	void *hmc_va;
 	struct i40e_hmc_ce ce[] = {
 		/* Field					Width	LSB */
 		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, head),	13,	0 },
@@ -271,6 +320,19 @@ void i40e_set_lan_rx_queue_context()
 		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, en_pref),	1,	201 },
 		{ 0 }
 	};
+
+	hmc_va = i40e_hmc_va(dev, &hmc->hmc_rx, queue_idx);
+	if(!hmc_va)
+		goto err_hmc_va;
+
+	for(i = 0; ce[i].width != 0; i++){
+		i40e_hmc_write(hmc_va, &ce[i], ctx);
+	}
+
+	return 0;
+
+err_hmc_va:
+	return -1;
 }
 
 void i40e_hmc_write(uint8_t *hmc_bits,
