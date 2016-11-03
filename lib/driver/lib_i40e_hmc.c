@@ -214,6 +214,65 @@ static void i40e_clear_pf_sd_entry(struct ufp_dev *dev,
 	return;
 }
 
+void i40e_set_lan_tx_queue_context()
+{
+	/* LAN Tx Queue Context */
+	struct i40e_hmc_ce ce[] = {
+		/* Field					Width	LSB */
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, head),	13,	0 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, new_ctx),	1,	30 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, base),	57,	32 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, en_fc),	1,	89 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, en_tsync),	1,	90 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, en_fd),	1,	91 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, en_altvlan),	1,	92 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, cpuid),	8,	96 },
+		/* line 1 */
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, thead_wb),	13,	0 + 128 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, en_headwb),	1,	32 + 128 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, qlen),	13,	33 + 128 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, en_tphrdesc),	1,	46 + 128 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, en_tphrpkt),	1,	47 + 128 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, en_tphwdesc),	1,	48 + 128 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, addr_headwb),	64,	64 + 128 },
+		/* line 7 */
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, crc),		32,	0 + (7 * 128) },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, rdylist),	10,	84 + (7 * 128) },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, rdylist_act),	1,	94 + (7 * 128) },
+		{ 0 }
+	};
+}
+
+void i40e_set_lan_rx_queue_context()
+{
+	/* LAN Rx Queue Context */
+	struct i40e_hmc_ce ce[] = {
+		/* Field					Width	LSB */
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, head),	13,	0 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, cpuid),	8,	13 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, base),	57,	32 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, qlen),	13,	89 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, dbuff),	7,	102 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, hbuff),	5,	109 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, dtype),	2,	114 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, dsize),	1,	116 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, crcstrip),	1,	117 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, en_fc),	1,	118 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, l2tsel),	1,	119 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, hsplit_0),	4,	120 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, hsplit_1),	2,	124 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, showiv),	1,	127 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, rxmax),	14,	174 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, en_tphrdesc),	1,	193 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, en_tphwdesc),	1,	194 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, en_tphdata),	1,	195 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, en_tphhead),	1,	196 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, lrxqthresh),	3,	198 },
+		{ I40E_HMC_FIELD(i40e_hmc_ctx_rx, en_pref),	1,	201 },
+		{ 0 }
+	};
+}
+
 void i40e_hmc_write(uint8_t *hmc_bits,
 	struct i40e_hmc_ce *ce, uint8_t *host_buf)
 {
