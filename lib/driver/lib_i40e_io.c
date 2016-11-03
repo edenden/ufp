@@ -44,7 +44,7 @@ static int i40e_configure_tx_ring(struct ufp_dev *dev,
 	int err;
 
 	/* clear the context structure first */
-	memset(&tx_ctx, 0, sizeof(tx_ctx));
+	memset(&ctx, 0, sizeof(struct i40e_hmc_ctx_tx));
 	queue_idx = i40e_iface->base_queue + ring_idx;
 
 	/*
@@ -71,15 +71,10 @@ static int i40e_configure_tx_ring(struct ufp_dev *dev,
 	ctx.rdylist = le16_to_cpu(i40e_iface->qs_handle[0]);
 	ctx.rdylist_act = 0;
 
-	/* clear the context in the HMC */
-	err = i40e_clear_lan_tx_queue_context(hw, pf_q);
-	if(err < 0)
-		goto err_clear_lan_tx_queue_ctx;
-
 	/* set the context in the HMC */
-	err = i40e_hmc_ctx_tx_set(dev, &ctx, queue_idx);
+	err = i40e_hmc_set_ctx_tx(dev, &ctx, queue_idx);
 	if(err < 0)
-		goto err_set_lan_tx_queue_ctx;
+		goto err_set_ctx;
 
 	/* Now associate this queue with this PCI function */
 	qtx_ctl = I40E_QTX_CTL_PF_QUEUE;
@@ -92,6 +87,9 @@ static int i40e_configure_tx_ring(struct ufp_dev *dev,
 	ring->tail = dev->bar + I40E_QTX_TAIL(queue_idx);
 
 	return 0;
+
+err_set_ctx:
+	return -1;
 }
 
 static int i40e_configure_rx_ring(struct ufp_dev *dev,
@@ -106,7 +104,7 @@ static int i40e_configure_rx_ring(struct ufp_dev *dev,
 	int err;
 
 	/* clear the context structure first */
-	memset(&rx_ctx, 0, sizeof(rx_ctx));
+	memset(&ctx, 0, sizeof(struct i40e_hmc_ctx_rx));
 	queue_idx = i40e_iface->base_queue + ring_idx;
 
 	/*
@@ -129,19 +127,17 @@ static int i40e_configure_rx_ring(struct ufp_dev *dev,
 	/* set the prefena field to 1 because the manual says to */
 	ctx.prefena = 1;
 
-	/* clear the context in the HMC */
-	err = i40e_clear_lan_rx_queue_context(hw, pf_q);
-	if(err < 0)
-		goto err_clear_lan_rx_queue_ctx;
-
 	/* set the context in the HMC */
-	err = i40e_hmc_ctx_rx_set(dev, &ctx, queue_idx);
+	err = i40e_hmc_set_ctx_rx(dev, &ctx, queue_idx);
 	if(err < 0)
-		goto err_set_lan_rx_queue_ctx;
+		goto err_set_ctx;
 
 	/* cache tail for quicker writes, and clear the reg before use */
 	ring->tail = dev->bar + I40E_QRX_TAIL(queue_idx);
 	writel(0, ring->tail);
 
 	return 0;
+
+err_set_ctx:
+	return -1;
 }

@@ -244,7 +244,7 @@ err_sd_idx:
 	return NULL;
 }
 
-int i40e_hmc_ctx_tx_set(struct ufp_dev *dev, struct i40e_hmc_ctx_tx *ctx,
+int i40e_hmc_set_ctx_tx(struct ufp_dev *dev, struct i40e_hmc_ctx_tx *ctx,
 	uint16_t queue_idx)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
@@ -279,6 +279,7 @@ int i40e_hmc_ctx_tx_set(struct ufp_dev *dev, struct i40e_hmc_ctx_tx *ctx,
 	if(!hmc_va)
 		goto err_hmc_va;
 
+	memset(hmc_va, 0, hmc->hmc_tx.size);
 	for(i = 0; ce[i].width != 0; i++){
 		i40e_hmc_write(hmc_va, &ce[i], ctx);
 	}
@@ -289,7 +290,7 @@ err_hmc_va:
 	return -1;
 }
 
-int i40e_hmc_ctx_rx_set(struct ufp_dev *dev, struct i40e_hmc_ctx_rx *ctx,
+int i40e_hmc_set_ctx_rx(struct ufp_dev *dev, struct i40e_hmc_ctx_rx *ctx,
 	uint16_t queue_idx)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
@@ -325,6 +326,7 @@ int i40e_hmc_ctx_rx_set(struct ufp_dev *dev, struct i40e_hmc_ctx_rx *ctx,
 	if(!hmc_va)
 		goto err_hmc_va;
 
+	memset(hmc_va, 0, hmc->hmc_rx.size);
 	for(i = 0; ce[i].width != 0; i++){
 		i40e_hmc_write(hmc_va, &ce[i], ctx);
 	}
