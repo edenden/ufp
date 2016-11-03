@@ -477,49 +477,14 @@ static int i40e_up_complete(struct ufp_iface *iface)
 	struct i40e_pf *pf = iface->back;
 	int err;
 	
-	if (pf->flags & I40E_FLAG_MSIX_ENABLED)
-		i40e_vsi_configure_msix(iface);
-	else    
-		i40e_configure_msi_and_legacy(iface);
+	i40e_vsi_configure_msix(iface);
 	
 	/* start rings */
 	err = i40e_vsi_control_rings(iface, true);
 	if (err)
 		return err;
 	
-	clear_bit(__I40E_DOWN, &iface->state);	i40e_napi_enable_all(iface);
 	i40e_vsi_enable_irq(iface);
-	
-	if ((pf->hw.phy.link_info.link_info & I40E_AQ_LINK_UP) &&
-	    (iface->netdev)) {
-		i40e_print_link_message(iface, true);
-		netif_tx_start_all_queues(iface->netdev);
-		netif_carrier_on(iface->netdev);
-	} else if (iface->netdev) {
-		i40e_print_link_message(iface, false);
-		/* need to check for qualified module here*/
-		if ((pf->hw.phy.link_info.link_info &
-			I40E_AQ_MEDIA_AVAILABLE) && 
-		    (!(pf->hw.phy.link_info.an_info &
-			I40E_AQ_QUALIFIED_MODULE)))
-			netdev_err(iface->netdev,
-				"the driver failed to link because an unqualified module was detected.");
-	}
-
-	/* replay flow filters */
-	if (iface->type == I40E_VSI_FDIR) {
-		/* reset fd counters */ 
-		pf->fd_add_err = pf->fd_atr_cnt = 0;
-		if (pf->fd_tcp_rule > 0) {
-			pf->flags &= ~I40E_FLAG_FD_ATR_ENABLED;
-			if (I40E_DEBUG_FD & pf->hw.debug_mask)
-				dev_info(&pf->pdev->dev, "Forcing ATR off, sideband rules for TCP/IPv4 exist\n");			     
-			pf->fd_tcp_rule = 0;
-		}       
-		i40e_fdir_filter_restore(iface);
-		i40e_cloud_filter_restore(pf);
-	}       
-	i40e_service_event_schedule(pf);
 	
 	return 0;
 }
