@@ -39,13 +39,13 @@ static int i40e_configure_tx_ring(struct ufp_dev *dev,
 	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
 	struct ufp_ring *ring = &iface->tx_ring[ring_idx];
 	struct i40e_hmc_ctx_tx ctx;
-	uint16_t queue_idx;
+	uint16_t qp_idx;
 	uint32_t qtx_ctl;
 	int err;
 
 	/* clear the context structure first */
 	memset(&ctx, 0, sizeof(struct i40e_hmc_ctx_tx));
-	queue_idx = i40e_iface->base_queue + ring_idx;
+	qp_idx = i40e_iface->base_qp + ring_idx;
 
 	/*
 	 * See 8.4.3.4.2 - Transmit Queue Context in FPM
@@ -72,7 +72,7 @@ static int i40e_configure_tx_ring(struct ufp_dev *dev,
 	ctx.rdylist_act = 0;
 
 	/* set the context in the HMC */
-	err = i40e_hmc_set_ctx_tx(dev, &ctx, queue_idx);
+	err = i40e_hmc_set_ctx_tx(dev, &ctx, qp_idx);
 	if(err < 0)
 		goto err_set_ctx;
 
@@ -80,11 +80,11 @@ static int i40e_configure_tx_ring(struct ufp_dev *dev,
 	qtx_ctl = I40E_QTX_CTL_PF_QUEUE;
 	qtx_ctl |= ((i40e_dev->pf_id << I40E_QTX_CTL_PF_INDX_SHIFT) &
 		    I40E_QTX_CTL_PF_INDX_MASK);
-	wr32(hw, I40E_QTX_CTL(queue_idx), qtx_ctl);
+	wr32(hw, I40E_QTX_CTL(qp_idx), qtx_ctl);
 	i40e_flush(dev);
 
 	/* cache tail off for easier writes later */
-	ring->tail = dev->bar + I40E_QTX_TAIL(queue_idx);
+	ring->tail = dev->bar + I40E_QTX_TAIL(qp_idx);
 
 	return 0;
 
@@ -99,13 +99,13 @@ static int i40e_configure_rx_ring(struct ufp_dev *dev,
 	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
 	struct ufp_ring *ring = &iface->rx_ring[ring_idx];
 	struct i40e_hmc_ctx_rx ctx;
-	uint16_t queue_idx;
+	uint16_t qp_idx;
 	uint32_t qtx_ctl;
 	int err;
 
 	/* clear the context structure first */
 	memset(&ctx, 0, sizeof(struct i40e_hmc_ctx_rx));
-	queue_idx = i40e_iface->base_queue + ring_idx;
+	qp_idx = i40e_iface->base_qp + ring_idx;
 
 	/*
 	 * See 8.3.3.2.2 - Receive Queue Context in FPM
@@ -128,12 +128,12 @@ static int i40e_configure_rx_ring(struct ufp_dev *dev,
 	ctx.prefena = 1;
 
 	/* set the context in the HMC */
-	err = i40e_hmc_set_ctx_rx(dev, &ctx, queue_idx);
+	err = i40e_hmc_set_ctx_rx(dev, &ctx, qp_idx);
 	if(err < 0)
 		goto err_set_ctx;
 
 	/* cache tail for quicker writes, and clear the reg before use */
-	ring->tail = dev->bar + I40E_QRX_TAIL(queue_idx);
+	ring->tail = dev->bar + I40E_QRX_TAIL(qp_idx);
 	writel(0, ring->tail);
 
 	return 0;
@@ -141,3 +141,4 @@ static int i40e_configure_rx_ring(struct ufp_dev *dev,
 err_set_ctx:
 	return -1;
 }
+

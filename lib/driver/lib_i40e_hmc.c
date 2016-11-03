@@ -215,7 +215,7 @@ static void i40e_clear_pf_sd_entry(struct ufp_dev *dev,
 }
 
 static void *i40e_hmc_va(struct ufp_dev *dev, struct i40e_hmc_obj *obj,
-	uint16_t queue_idx)
+	uint16_t qp_idx)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_hmc *hmc = &i40e_dev->hmc;
@@ -225,7 +225,7 @@ static void *i40e_hmc_va(struct ufp_dev *dev, struct i40e_hmc_obj *obj,
 	uint64_t addr_fpm, offset;
 	void *hmc_va;
 
-	addr_fpm = (queue_idx * obj->size) + obj->base;
+	addr_fpm = (qp_idx * obj->size) + obj->base;
 	page_idx = addr_fpm / I40E_HMC_PAGED_BP_SIZE;
 	sd_idx = page_idx / I40E_HMC_MAX_BP_COUNT;
 	pd_idx = page_idx % I40E_HMC_MAX_BP_COUNT;
@@ -245,7 +245,7 @@ err_sd_idx:
 }
 
 int i40e_hmc_set_ctx_tx(struct ufp_dev *dev, struct i40e_hmc_ctx_tx *ctx,
-	uint16_t queue_idx)
+	uint16_t qp_idx)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_hmc *hmc = &i40e_dev->hmc;
@@ -275,7 +275,7 @@ int i40e_hmc_set_ctx_tx(struct ufp_dev *dev, struct i40e_hmc_ctx_tx *ctx,
 		{ 0 }
 	};
 	
-	hmc_va = i40e_hmc_va(dev, &hmc->hmc_tx, queue_idx);
+	hmc_va = i40e_hmc_va(dev, &hmc->hmc_tx, qp_idx);
 	if(!hmc_va)
 		goto err_hmc_va;
 
@@ -291,7 +291,7 @@ err_hmc_va:
 }
 
 int i40e_hmc_set_ctx_rx(struct ufp_dev *dev, struct i40e_hmc_ctx_rx *ctx,
-	uint16_t queue_idx)
+	uint16_t qp_idx)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_hmc *hmc = &i40e_dev->hmc;
@@ -322,7 +322,7 @@ int i40e_hmc_set_ctx_rx(struct ufp_dev *dev, struct i40e_hmc_ctx_rx *ctx,
 		{ 0 }
 	};
 
-	hmc_va = i40e_hmc_va(dev, &hmc->hmc_rx, queue_idx);
+	hmc_va = i40e_hmc_va(dev, &hmc->hmc_rx, qp_idx);
 	if(!hmc_va)
 		goto err_hmc_va;
 

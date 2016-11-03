@@ -48,7 +48,7 @@ struct ufp_i40e_dev {
 struct ufp_i40e_iface {
 	enum i40e_vsi_type type;
 	uint16_t vsi_id;
-	uint16_t base_queue;
+	uint16_t base_qp;
 	uint16_t qs_handles[8];
 };
 
