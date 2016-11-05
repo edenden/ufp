@@ -154,6 +154,8 @@ int ufp_i40e_down(struct ufp_dev *dev)
 {
 	struct ufp_iface *iface;
 
+	ufp_irq_close(dev->irqh);
+
 	iface = dev->iface;
 	while(iface){
 		err = i40e_vsi_stop_irq(dev, iface);
@@ -175,7 +177,6 @@ int ufp_i40e_down(struct ufp_dev *dev)
 		iface = iface->next;
 	}
 
-	ufp_irq_close(dev->irqh);
 	return 0;
 }
 
