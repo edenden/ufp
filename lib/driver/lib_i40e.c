@@ -132,19 +132,25 @@ int ufp_i40e_up(struct ufp_dev *dev)
 
 	iface = dev->iface;
 	while(iface){
-		err = i40e_vsi_configure_tx(iface);
-		if(err < 0)
-			goto err_configure_tx;
-
 		err = i40e_vsi_configure_rx(iface);
 		if(err < 0)
 			goto err_configure_rx;
 
-		err = i40e_vsi_configure_msix(dev, iface);
-		if (err)
-			goto err_up_complete;
+		err = i40e_vsi_configure_tx(iface);
+		if(err < 0)
+			goto err_configure_tx;
 
-		err = i40e_up_complete(iface);
+		err = i40e_vsi_start_irq(dev, iface);
+		if (err)
+			goto err_configure_irq;
+
+		err = i40e_vsi_start_rx(dev, iface);
+		if(err < 0)
+			goto err_start_rx;
+
+		err = i40e_vsi_start_tx(dev, iface);
+		if(err < 0)
+			goto err_start_tx;
 
 		iface = iface->next;
 	}
@@ -153,12 +159,32 @@ int ufp_i40e_up(struct ufp_dev *dev)
 
 int ufp_i40e_down(struct ufp_dev *dev)
 {
+	struct ufp_iface *iface;
 
+	iface = dev->iface;
+	while(iface){
+		err = i40e_vsi_stop_tx(dev, iface);
+		if(err < 0)
+			goto err_stop_tx;
+
+		err = i40e_vsi_stop_rx(dev, iface);
+		if(err < 0)
+			goto err_stop_rx;
+
+		err = i40e_vsi_stop_irq(dev, iface);
+		if(err < 0)
+			goto err_stop_irq;
+
+		iface = iface->next;
+	}
+
+	return 0;
 }
 
 int ufp_i40e_close(struct ufp_dev *dev)
 {
 	ufp_i40e_hmc_destroy(dev);
 	ufp_i40e_aq_destroy(dev);
+
 	return 0;
 }
