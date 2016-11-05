@@ -54,18 +54,11 @@ int ufp_i40e_open(struct ufp_dev *dev)
 	struct ufp_irq_handle *irqh;
 	unsigned long read_buf;
 
-	i40e_set_mac_type(dev);
-
-	switch (i40e_dev->mac_type) {
-	case I40E_MAC_XL710:
-	case I40E_MAC_X722:
-		break;
-	default:
-		goto err_not_supported;
-	}
+	err = i40e_set_mac_type(dev);
+	if(err < 0)
+		goto err_mac_unknown;
 
 	i40e_set_pf_id(dev);
-
 	i40e_clear_hw(dev);
 
 	err = i40e_reset_hw(dev);
@@ -119,10 +112,13 @@ int ufp_i40e_open(struct ufp_dev *dev)
 	return 0;
 
 err_read:
+
 err_clear_pxe:
+
+	ufp_i40e_aq_destroy(dev);
 err_init_adminq:
-err_reset_hw;
-err_not_supported:
+err_reset_hw:
+err_mac_unknown:
 	return -1;
 }
 
@@ -140,10 +136,6 @@ int ufp_i40e_up(struct ufp_dev *dev)
 		if(err < 0)
 			goto err_configure_tx;
 
-		err = i40e_vsi_start_irq(dev, iface);
-		if (err)
-			goto err_configure_irq;
-
 		err = i40e_vsi_start_rx(dev, iface);
 		if(err < 0)
 			goto err_start_rx;
@@ -151,6 +143,10 @@ int ufp_i40e_up(struct ufp_dev *dev)
 		err = i40e_vsi_start_tx(dev, iface);
 		if(err < 0)
 			goto err_start_tx;
+
+		err = i40e_vsi_start_irq(dev, iface);
+		if(err < 0)
+			goto err_configure_irq;
 
 		iface = iface->next;
 	}
@@ -163,6 +159,10 @@ int ufp_i40e_down(struct ufp_dev *dev)
 
 	iface = dev->iface;
 	while(iface){
+		err = i40e_vsi_stop_irq(dev, iface);
+		if(err < 0)
+			goto err_stop_irq;
+
 		err = i40e_vsi_stop_tx(dev, iface);
 		if(err < 0)
 			goto err_stop_tx;
