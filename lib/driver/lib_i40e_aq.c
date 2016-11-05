@@ -35,7 +35,6 @@ int i40e_aq_asq_init(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_ring *ring;
-	struct ufp_irq_handle *irqh;
 	int err;
 
 	ring = malloc(sizeof(struct i40e_aq_ring));
@@ -58,17 +57,8 @@ int i40e_aq_asq_init(struct ufp_dev *dev)
 		goto err_regs_config;
 
 	i40e_dev->aq_tx_ring = ring;
-
-	irqh = ufp_irq_open(dev, UFP_IRQ_MISC, 0, 0);
-	if(!irqh)
-		goto err_open_irq;
-
-	i40e_dev->aq_tx_irqh = irqh;
-
 	return 0;
 
-err_open_irq:
-	ufp_irq_close(irqh);
 err_regs_config:
 	i40e_aq_ring_release(dev, ring);
 err_init_ring:
@@ -104,19 +94,9 @@ int i40e_aq_arq_init(struct ufp_dev *dev)
 		goto err_regs_config;
 
 	i40e_dev->aq_rx_ring = ring;
-
-	irqh = ufp_irq_open(dev, UFP_IRQ_MISC, 1, 0);
-	if(!irqh)
-		goto err_open_irq;
-
-	i40e_dev->aq_rx_irqh = irqh;
-
 	i40e_fill_arq();
-
 	return 0;
 
-err_open_irq:
-	ufp_irq_close(irqh);
 err_regs_config:
 	i40e_aq_ring_release(dev, ring);
 err_init_ring:
@@ -201,8 +181,6 @@ void i40e_aq_asq_shutdown(ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 
-	ufp_irq_close(i40e_dev->aq_tx_irqh);
-
 	/* Stop firmware AdminQ processing */
 	ufp_write_reg(hw, ring->head, 0);
 	ufp_write_reg(hw, ring->tail, 0);
@@ -220,8 +198,6 @@ void i40e_aq_asq_shutdown(ufp_dev *dev)
 void i40e_aq_arq_shutdown(ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-
-	ufp_irq_close(i40e_dev->aq_rx_irqh);
 
 	/* Stop firmware AdminQ processing */
 	ufp_write_reg(hw, ring->head, 0);

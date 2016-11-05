@@ -82,12 +82,7 @@ int ufp_i40e_open(struct ufp_dev *dev)
 
 	i40e_get_mac_addr(hw, hw->mac.addr);
 
-	irqh = data->aq_tx_irqh;
 	while(!(data & AQ_MAC_ADDR) | !(data & AQ_CLEAR_PXE)){
-		err = read(irqh->fd, &read_buf, sizeof(unsigned long));
-		if(err < 0)
-			goto err_read;
-
 		i40e_aq_asq_clean(dev);
 	}
 
@@ -111,10 +106,7 @@ int ufp_i40e_open(struct ufp_dev *dev)
 
 	return 0;
 
-err_read:
-
 err_clear_pxe:
-
 	ufp_i40e_aq_destroy(dev);
 err_init_adminq:
 err_reset_hw:
@@ -150,6 +142,11 @@ int ufp_i40e_up(struct ufp_dev *dev)
 
 		iface = iface->next;
 	}
+
+	dev->irqh = ufp_irq_open(dev, UFP_IRQ_MISC, 0, 0);
+	if(!dev->irqh)
+		goto err_open_irq;
+
 	return 0;
 }
 
@@ -178,6 +175,7 @@ int ufp_i40e_down(struct ufp_dev *dev)
 		iface = iface->next;
 	}
 
+	ufp_irq_close(dev->irqh);
 	return 0;
 }
 

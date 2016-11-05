@@ -38,8 +38,6 @@ struct ufp_i40e_dev {
 
 	struct i40e_aq_ring	*aq_rx_ring;
 	struct i40e_aq_ring	*aq_tx_ring;
-	struct ufp_irq_handle	*aq_rx_irqh;
-	struct ufp_irq_handle	*aq_tx_irqh;
 	uint32_t		aq_flag;
 
 	struct i40e_hmc hmc;

@@ -99,6 +99,7 @@ struct ufp_dev {
 	struct ufp_iface	*ifaces;
 	uint16_t		num_ifaces;
 	uint32_t		num_misc_irqs;
+	struct ufp_irq_handle	*misc_irqh;
 
 	void			*drv_data;
 };
