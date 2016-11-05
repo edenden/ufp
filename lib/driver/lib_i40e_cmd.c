@@ -12,7 +12,7 @@ int i40e_aq_cmd_xmit_macaddr(struct ufp_dev *dev)
 
 	flags = I40E_AQ_FLAG_BUF;
 
-	err = i40e_aq_asq_xmit(dev, i40e_aqc_opc_mac_address_read, flags
+	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_mac_address_read, flags
 		&cmd, sizeof(struct i40e_aq_cmd_macaddr),
 		buf, sizeof(struct i40e_aq_buf_macaddr));
 	if(err < 0)
@@ -56,7 +56,7 @@ int i40e_aq_cmd_xmit_pxeclear(struct ufp_dev *dev)
 
 	cmd->rx_cnt = 0x2;
 
-	err = i40e_aq_asq_xmit(dev, i40e_aqc_opc_clear_pxe_mode, 0, 
+	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_clear_pxe_mode, 0, 
 		&cmd, sizeof(struct i40e_aq_cmd_clear_pxe),
 		NULL, 0);
 	if(err < 0)
@@ -100,7 +100,7 @@ int i40e_aq_cmd_xmit_getconf(struct ufp_dev *dev)
 	cmd.seid_offset = CPU_TO_LE16(i40e_dev->aq_seid_offset);
 	flags = I40E_AQ_FLAG_BUF;
 
-	err = i40e_aq_asq_xmit(dev, i40e_aqc_opc_get_switch_config, flags,
+	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_get_switch_config, flags,
 		&cmd, sizeof(struct i40e_aq_cmd_getconf),
 		buf, I40E_AQ_LARGE_BUF);
 	if(err < 0)
@@ -157,7 +157,7 @@ int i40e_aq_cmd_xmit_setconf(struct ufp_dev *dev,
 	cmd.flags = CPU_TO_LE16(flags);
 	cmd.valid_flags = CPU_TO_LE16(valid_flags);
 
-	err = i40e_aq_asq_xmit(dev, i40e_aqc_opc_set_switch_config, 0,
+	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_switch_config, 0,
 		&cmd, sizeof(struct i40e_aqc_set_switch_config),
 		NULL, 0);
 	if(err < 0)
@@ -207,7 +207,7 @@ int i40e_aq_cmd_xmit_setrsskey(struct ufp_dev *dev,
 
 	memcpy(buf->addr_virt, key, key_size);
 
-	err = i40e_aq_asq_xmit(dev, i40e_aqc_opc_set_rss_key, flags,
+	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_rss_key, flags,
 		&cmd, sizeof(struct i40e_aqc_get_set_rss_key),
 		buf, key_size);
 	if(err < 0)
@@ -270,7 +270,7 @@ int i40e_aq_cmd_xmit_setrsslut(struct ufp_dev *dev,
 
 	memcpy(buf->addr_virt, lut, lut_size);
 
-	err = i40e_aq_asq_xmit(dev, i40e_aqc_opc_set_rss_lut, flags,
+	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_rss_lut, flags,
 		&cmd, sizeof(struct i40e_aqc_get_set_rss_lut),
 		buf, lut_size);
 	if(err < 0)

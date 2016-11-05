@@ -87,7 +87,7 @@ int i40e_aq_arq_init(struct ufp_dev *dev)
 		goto err_regs_config;
 
 	i40e_dev->aq.rx_ring = ring;
-	i40e_fill_arq();
+	i40e_aq_arq_assign(dev);
 	return 0;
 
 err_regs_config:
@@ -252,7 +252,7 @@ void i40e_aq_asq_clean(struct ufp_dev *dev)
 	return;
 }
 
-int i40e_aq_asq_xmit(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
+void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 	void *cmd, uint16_t cmd_size, struct ufp_i40e_page *buf, uint16_t buf_size)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data; 
@@ -263,7 +263,7 @@ int i40e_aq_asq_xmit(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 
 	unused_count = i40e_aq_desc_unused(ring, ring->num_desc);
 	if(!unused_count)
-		goto err_asq_full;
+		return;
 
 	desc = &((struct ufp_aq_desc *)
 		ring->desc->addr_virt)[ring->next_to_use];
@@ -289,32 +289,35 @@ int i40e_aq_asq_xmit(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 		(next_to_use < ring->num_desc) ? next_to_use : 0;
 
 	ufp_write_reg(dev, ring->tail, ring->next_to_use);
-	return 0;
-
-err_asq_full:
-	return -1;
+	return;
 }
 
-int i40e_aq_arq_fill(struct ufp_dev *dev)
+void i40e_aq_arq_assign(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aq_ring *ring;
-	unsigned int desc_filled = 0;
+	struct i40e_aq_ring *ring = i40e_dev->aq.rx_ring;
 	struct i40e_aq_desc *desc;
 	struct ufp_i40e_page *buf;
+	unsigned int total_allocated;
+	uint16_t max_allocation;
 
-	ring = i40e_dev->aq.rx_ring;
+	max_allocation = i40e_aq_desc_unused(ring, ring->num_desc);
+	if (!max_allocation)
+		return;
 
-	/* allocate the mapped buffers */
-	for (i = 0; i < ring->num_entries; i++, desc_filled++) {
+	total_allocated = 0;
+	while(total_allocated < max_allocation){
+		uint16_t next_to_use;
+
 		buf = ufp_i40e_page_alloc(dev);
 		if(!buf)
-			goto err_page_alloc;
+			break;
 
 		ring->bufs[i] = buf;
 
 		/* now configure the descriptors for use */
-		desc = I40E_ADMINQ_DESC(hw->aq.arq, i);
+		desc = &((struct ufp_aq_desc *)
+			ring->desc->addr_virt)[ring->next_to_use];
 
 		desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_LB);
 		desc->opcode = 0;
@@ -331,18 +334,18 @@ int i40e_aq_arq_fill(struct ufp_dev *dev)
 			CPU_TO_LE32(lower_32_bits(buf->addr_dma));
 		desc->params.external.param0 = 0;
 		desc->params.external.param1 = 0;
+
+		next_to_use = ring->next_to_use + 1;
+		ring->next_to_use =
+			(next_to_use < ring->num_desc) ? next_to_use : 0;
+	
+		total_allocated++;
 	}
 
-	/* Update tail in the HW to post pre-allocated buffers */
-	ufp_write_reg(hw, ring->tail, ring->num_entries - 1);
-
-	return 0;
-
-err_page_alloc:
-	for(i = 0; i < desc_filled; i++){
-		ufp_i40e_page_release(ring->bufs[i]);
+	if(total_allocated){
+		ufp_write_reg(dev, ring->tail, ring->next_to_use);
 	}
-	return -1;
+	return;
 }
 
 int i40e_aq_arq_clean(struct ufp_dev *dev)
