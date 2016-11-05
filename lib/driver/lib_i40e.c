@@ -51,8 +51,6 @@ void ufp_i40e_destroy(struct ufp_dev *dev, struct ufp_ops *ops)
 int ufp_i40e_open(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_irq_handle *irqh;
-	unsigned long read_buf;
 
 	err = i40e_set_mac_type(dev);
 	if(err < 0)
