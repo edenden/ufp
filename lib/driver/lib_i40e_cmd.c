@@ -18,7 +18,7 @@ int i40e_aq_cmd_xmit_macaddr(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_xmit;
 
-	i40e_dev->aq_flag &= ~AQ_MAC_ADDR;
+	i40e_dev->aq.flag &= ~AQ_MAC_ADDR;
 	return 0;
 
 err_xmit:
@@ -32,14 +32,14 @@ int i40e_aq_cmd_clean_macaddr(struct ufp_dev *dev,
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 
-	if(i40e_dev->aq_flag & AQ_MAC_ADDR)
+	if(i40e_dev->aq.flag & AQ_MAC_ADDR)
 		goto err_already;
 
 	if(!(cmd->command_flags & I40E_AQC_PORT_ADDR_VALID))
 		goto err_invalid;
 
 	memcpy(dev->mac_addr, result->port_mac, ETH_ALEN);
-	i40e_dev->aq_flag |= AQ_MAC_ADDR;
+	i40e_dev->aq.flag |= AQ_MAC_ADDR;
 
 	return 0;
 
@@ -62,7 +62,7 @@ int i40e_aq_cmd_xmit_pxeclear(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_xmit;
 
-	i40e_dev->aq_flag &= ~AQ_CLEAR_PXE;
+	i40e_dev->aq.flag &= ~AQ_CLEAR_PXE;
 	return 0;
 
 err_xmit:
@@ -73,11 +73,11 @@ int i40e_aq_cmd_clean_pxeclear(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 
-	if(i40e_dev->aq_flag & AQ_CLEAR_PXE)
+	if(i40e_dev->aq.flag & AQ_CLEAR_PXE)
 		goto err_already;
 
 	wr32(hw, I40E_GLLAN_RCTL_0, 0x1);
-	i40e_dev->aq_flag |= AQ_CLEAR_PXE;
+	i40e_dev->aq.flag |= AQ_CLEAR_PXE;
 
 	return 0;
 
@@ -106,7 +106,7 @@ int i40e_aq_cmd_xmit_getconf(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_xmit;
 
-	i40e_dev->aq_flag &= ~AQ_GET_CONF;
+	i40e_dev->aq.flag &= ~AQ_GET_CONF;
 	return 0;
 
 err_xmit:
@@ -121,7 +121,7 @@ int i40e_aq_cmd_clean_getconf(struct ufp_dev *dev,
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aqc_switch_config_element_resp *elem_resp;
 
-	if(i40e_dev->aq_flag & AQ_GET_CONF)
+	if(i40e_dev->aq.flag & AQ_GET_CONF)
 		goto err_already;
 
 	num_reported = le16_to_cpu(buf->header.num_reported);
@@ -138,7 +138,7 @@ int i40e_aq_cmd_clean_getconf(struct ufp_dev *dev,
 		add_conf_to_list(i40e_dev->switch_elem, elem);
 	}
 
-	i40e_dev->aq_flag |= AQ_GET_CONF;
+	i40e_dev->aq.flag |= AQ_GET_CONF;
 	i40e_dev->aq_seid_offset = cmd->seid_offset;
 
 	return 0;
@@ -163,7 +163,7 @@ int i40e_aq_cmd_xmit_setconf(struct ufp_dev *dev,
 	if(err < 0)
 		goto err_xmit;
 
-	i40e_dev->aq_flag &= ~AQ_SET_CONF;
+	i40e_dev->aq.flag &= ~AQ_SET_CONF;
 	return 0;
 
 err_xmit:
@@ -175,10 +175,10 @@ int i40e_aq_cmd_clean_setconf(struct ufp_dev *dev,
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 
-	if(i40e_dev->aq_flag & AQ_SET_CONF)
+	if(i40e_dev->aq.flag & AQ_SET_CONF)
 		goto err_already;
 
-	i40e_dev->aq_flag |= AQ_SET_CONF;
+	i40e_dev->aq.flag |= AQ_SET_CONF;
 
 	return 0;
 
@@ -213,7 +213,7 @@ int i40e_aq_cmd_xmit_setrsskey(struct ufp_dev *dev,
 	if(err < 0)
 		goto err_xmit;
 
-	i40e_dev->aq_flag &= ~AQ_SET_RSSKEY;
+	i40e_dev->aq.flag &= ~AQ_SET_RSSKEY;
 	return 0;
 
 err_xmit:
@@ -226,10 +226,10 @@ int i40e_aq_cmd_clean_setrsskey(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 
-	if(i40e_dev->aq_flag & AQ_SET_RSSKEY)
+	if(i40e_dev->aq.flag & AQ_SET_RSSKEY)
 		goto err_already;
 
-	i40e_dev->aq_flag |= AQ_SET_RSSKEY;
+	i40e_dev->aq.flag |= AQ_SET_RSSKEY;
 	return 0;
 
 err_already:
@@ -276,7 +276,7 @@ int i40e_aq_cmd_xmit_setrsslut(struct ufp_dev *dev,
 	if(err < 0)
 		goto err_xmit;
 
-	i40e_dev->aq_flag &= ~AQ_SET_RSSLUT;
+	i40e_dev->aq.flag &= ~AQ_SET_RSSLUT;
 	return 0;
 
 err_xmit:
@@ -289,10 +289,10 @@ int i40e_aq_cmd_clean_setrsslut(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 
-	if(i40e_dev->aq_flag & AQ_SET_RSSLUT)
+	if(i40e_dev->aq.flag & AQ_SET_RSSLUT)
 		goto err_already;
 
-	i40e_dev->aq_flag |= AQ_SET_RSSLUT;
+	i40e_dev->aq.flag |= AQ_SET_RSSLUT;
 	return 0;
 
 err_already:

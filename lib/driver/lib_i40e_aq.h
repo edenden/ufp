@@ -29,13 +29,10 @@ struct i40e_aq_desc {
 struct i40e_aq_ring {
 	struct ufp_i40e_page *desc; /* descriptor ring memory */
 	struct ufp_i40e_page **bufs;
+	uint16_t num_desc;
 
-	u16 count;		/* Number of descriptors */
-	u16 rx_buf_len;		/* Admin Receive Queue buffer length */
-
-	/* used for interrupt processing */
-	u16 next_to_use;
-	u16 next_to_clean;
+	uint16_t next_to_use;
+	uint16_t next_to_clean;
 
 	/* used for queue tracking */
 	u32 head;
@@ -43,9 +40,12 @@ struct i40e_aq_ring {
 	u32 len;
 	u32 bah;
 	u32 bal;
+};
 
-	uint16_t num_entries;
-	uint16_t buf_size;
+struct i40e_aq {
+	struct i40e_aq_ring *tx_ring;
+	struct i40e_aq_ring *rx_ring;
+	uint32_t flag;
 };
 
 enum i40e_admin_queue_opc {
