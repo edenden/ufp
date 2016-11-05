@@ -136,9 +136,17 @@ int ufp_i40e_up(struct ufp_dev *dev)
 
 		err = i40e_vsi_start_irq(dev, iface);
 		if(err < 0)
-			goto err_configure_irq;
+			goto err_start_irq;
 
 		iface = iface->next;
+		continue;
+
+err_start_irq:
+err_start_tx:
+err_start_rx:
+err_configure_tx:
+err_configure_rx:
+		goto err_up;
 	}
 
 	dev->irqh = ufp_irq_open(dev, UFP_IRQ_MISC, 0, 0);
@@ -146,6 +154,10 @@ int ufp_i40e_up(struct ufp_dev *dev)
 		goto err_open_irq;
 
 	return 0;
+
+err_open_irq:
+err_up:
+	return -1;
 }
 
 int ufp_i40e_down(struct ufp_dev *dev)
@@ -168,14 +180,19 @@ int ufp_i40e_down(struct ufp_dev *dev)
 		if(err < 0)
 			goto err_stop_rx;
 
-		err = i40e_vsi_stop_irq(dev, iface);
-		if(err < 0)
-			goto err_stop_irq;
-
 		iface = iface->next;
+		continue;
+
+err_stop_rx:
+err_stop_tx:
+err_stop_irq:
+		goto err_down;
 	}
 
 	return 0;
+
+err_down:
+	return -1;
 }
 
 int ufp_i40e_close(struct ufp_dev *dev)
