@@ -2,19 +2,14 @@ int i40e_aq_cmd_xmit_macaddr(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_cmd_macaddr cmd;
-	struct ufp_i40e_page *buf;
 	uint16_t flags;
 	int err;
-
-	buf = ufp_i40e_page_alloc(dev);
-	if(!buf)
-		goto err_page_alloc;
 
 	flags = I40E_AQ_FLAG_BUF;
 
 	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_mac_address_read, flags
 		&cmd, sizeof(struct i40e_aq_cmd_macaddr),
-		buf, sizeof(struct i40e_aq_buf_macaddr));
+		NULL, 0);
 	if(err < 0)
 		goto err_xmit;
 
@@ -22,8 +17,6 @@ int i40e_aq_cmd_xmit_macaddr(struct ufp_dev *dev)
 	return 0;
 
 err_xmit:
-	ufp_i40e_page_release(buf);
-err_page_alloc:
 	return -1;
 }
 
@@ -89,20 +82,15 @@ int i40e_aq_cmd_xmit_getconf(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_cmd_getconf cmd;
-	struct ufp_i40e_page *buf;
 	uint16_t flags;
 	int err;
-
-	buf = ufp_i40e_page_alloc(dev);
-	if(!buf)
-		goto err_page_alloc;
 
 	cmd.seid_offset = CPU_TO_LE16(i40e_dev->aq_seid_offset);
 	flags = I40E_AQ_FLAG_BUF;
 
 	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_get_switch_config, flags,
 		&cmd, sizeof(struct i40e_aq_cmd_getconf),
-		buf, I40E_AQ_LARGE_BUF);
+		NULL, 0);
 	if(err < 0)
 		goto err_xmit;
 
@@ -110,8 +98,6 @@ int i40e_aq_cmd_xmit_getconf(struct ufp_dev *dev)
 	return 0;
 
 err_xmit:
-	ufp_i40e_page_release(buf);
-err_page_alloc:
 	return -1;
 }
 
@@ -191,13 +177,8 @@ int i40e_aq_cmd_xmit_setrsskey(struct ufp_dev *dev,
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aqc_get_set_rss_key cmd;
-	struct ufp_i40e_page *buf;
 	uint16_t flags;
 	int err;
-
-	buf = ufp_i40e_page_alloc(dev);
-	if(!buf)
-		goto err_page_alloc;
 
 	cmd.vsi_id = CPU_TO_LE16((u16)
 		((vsi->id << I40E_AQC_SET_RSS_KEY_VSI_ID_SHIFT) &
@@ -205,11 +186,9 @@ int i40e_aq_cmd_xmit_setrsskey(struct ufp_dev *dev,
 	cmd.vsi_id |= CPU_TO_LE16((u16)I40E_AQC_SET_RSS_KEY_VSI_VALID);
 	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
 
-	memcpy(buf->addr_virt, key, key_size);
-
 	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_rss_key, flags,
 		&cmd, sizeof(struct i40e_aqc_get_set_rss_key),
-		buf, key_size);
+		key, key_size);
 	if(err < 0)
 		goto err_xmit;
 
@@ -217,8 +196,6 @@ int i40e_aq_cmd_xmit_setrsskey(struct ufp_dev *dev,
 	return 0;
 
 err_xmit:
-	ufp_i40e_page_release(buf);
-err_page_alloc:
 	return -1;
 }
 
@@ -241,13 +218,8 @@ int i40e_aq_cmd_xmit_setrsslut(struct ufp_dev *dev,
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aqc_get_set_rss_lut cmd;
-	struct ufp_i40e_page *buf;
 	uint16_t flags;
 	int err;
-
-	buf = ufp_i40e_page_alloc(dev);
-	if(!buf)
-		goto err_page_alloc;
 
 	cmd.vsi_id = CPU_TO_LE16((u16)
 		((vsi->id << I40E_AQC_SET_RSS_LUT_VSI_ID_SHIFT) &
@@ -268,11 +240,9 @@ int i40e_aq_cmd_xmit_setrsslut(struct ufp_dev *dev,
 
 	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
 
-	memcpy(buf->addr_virt, lut, lut_size);
-
 	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_rss_lut, flags,
 		&cmd, sizeof(struct i40e_aqc_get_set_rss_lut),
-		buf, lut_size);
+		lut, lut_size);
 	if(err < 0)
 		goto err_xmit;
 
@@ -280,8 +250,6 @@ int i40e_aq_cmd_xmit_setrsslut(struct ufp_dev *dev,
 	return 0;
 
 err_xmit:
-	ufp_i40e_page_release(buf);
-err_page_alloc:
 	return -1;
 }
 
