@@ -1,3 +1,31 @@
+int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	u8 seed[I40E_HKEY_ARRAY_SIZE];
+	u8 lut[512];
+
+	/* seed configuration */
+	netdev_rss_key_fill((void *)seed, I40E_HKEY_ARRAY_SIZE);
+
+	err = i40e_aq_cmd_xmit_setrsskey(dev, iface,
+		seed, sizeof(seed));
+	if(err < 0)
+		goto err_set_rss_key;
+
+	/* lut configuration */
+	i40e_fill_rss_lut(pf, lut, sizeof(lut), dev->num_qp);
+
+	err = i40e_aq_cmd_xmit_setrsslut(dev, iface,
+		lut, sizeof(lut));
+	if(err < 0)
+		goto err_set_rss_lut;
+
+	return 0;
+
+err_set_rss_lut:
+err_set_rss_key:
+	return -1;
+}
+
 int i40e_vsi_configure_tx(struct ufp_dev *dev,
 	struct ufp_iface *iface)
 {

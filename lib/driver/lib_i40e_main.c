@@ -285,7 +285,7 @@ err_cmd_xmit_getconf:
 	return -1;
 }
 
-int i40e_set_filter_control(struct ufp_dev *dev)
+int i40e_configure_filter(struct ufp_dev *dev)
 {
 	uint32_t val;
 
@@ -327,35 +327,7 @@ int i40e_set_filter_control(struct ufp_dev *dev)
 	return 0;
 }
 
-int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface)
-{
-	u8 seed[I40E_HKEY_ARRAY_SIZE];
-	u8 lut[512];
-
-	/* seed configuration */
-	netdev_rss_key_fill((void *)seed, I40E_HKEY_ARRAY_SIZE);
-
-	err = i40e_aq_cmd_xmit_setrsskey(dev, iface,
-		seed, sizeof(seed));
-	if(err < 0)
-		goto err_set_rss_key;
-
-	/* lut configuration */
-	i40e_fill_rss_lut(pf, lut, sizeof(lut), dev->num_qp);
-
-	err = i40e_aq_cmd_xmit_setrsslut(dev, iface,
-		lut, sizeof(lut));
-	if(err < 0)
-		goto err_set_rss_lut;
-
-	return 0;
-
-err_set_rss_lut:
-err_set_rss_key:
-	return -1;
-}
-
-static void i40e_pf_config_rss(struct ufp_dev *dev)
+static int i40e_configure_rss(struct ufp_dev *dev)
 {
 	u32 reg_val;
 	u64 hena;
@@ -405,14 +377,16 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	}
 
 	/* Setup static PF queue filter control settings */
-	err = i40e_set_filter_control(dev);
+	err = i40e_configure_filter(dev);
 	if(err < 0)
 		goto err_set_filter_ctrl;
 
 	/* enable RSS in the HW, even for only one queue, as the stack can use
 	 * the hash
 	 */
-	i40e_pf_config_rss(pf);
+	err = i40e_configure_rss(dev);
+	if(err < 0)
+		goto err_configure_rss;
 
 	/* find out what's out there already */
 	err = i40e_switchconf_fetch(dev);
