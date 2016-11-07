@@ -80,14 +80,6 @@ int ufp_i40e_open(struct ufp_dev *dev)
 
 	i40e_get_mac_addr(hw, hw->mac.addr);
 
-	while(!(data & AQ_MAC_ADDR) | !(data & AQ_CLEAR_PXE)){
-		i40e_aq_asq_clean(dev);
-	}
-
-	err = i40e_setup_pf_switch(dev);
-	if (err)
-		goto err_setup_switch;
-
 	/* The driver only wants link up/down and module qualification
 	 * reports from firmware.  Note the negative logic.
 	 */
@@ -97,6 +89,18 @@ int ufp_i40e_open(struct ufp_dev *dev)
 		I40E_AQ_EVENT_MODULE_QUAL_FAIL), NULL);
 	if(err < 0)
 		goto err_aq_set_phy_int_mask;
+
+	err = i40e_switchconf_fetch(dev);
+	if(err < 0)
+		goto err_switchconf_fetch;
+
+	while(!(data & AQ_MAC_ADDR) | !(data & AQ_CLEAR_PXE)){
+		i40e_aq_asq_clean(dev);
+	}
+
+	err = i40e_setup_pf_switch(dev);
+	if (err)
+		goto err_setup_switch;
 
 	err = ufp_i40e_hmc_init(dev);
 	if(err < 0)

@@ -388,11 +388,6 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_configure_rss;
 
-	/* find out what's out there already */
-	err = i40e_switchconf_fetch(dev);
-	if(err < 0)
-		goto err_switchconf_fetch;
-
 	foreach(data->switch_elem){
 		if(elem->type == I40E_SWITCH_ELEMENT_TYPE_VSI){
 			elem = current;
