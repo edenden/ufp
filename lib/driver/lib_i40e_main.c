@@ -58,11 +58,33 @@ void ufp_i40e_page_release(struct ufp_dev *dev, struct ufp_i40e_page *page)
 	return;
 }
 
+int ufp_i40e_wait_cmd(struct ufp_dev *dev)
+{
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct timespec ts;
+	unsigned int timeout;
+
+	timeout = I40E_ASQ_CMD_TIMEOUT;
+	do{
+		usleep(&ts, 1000);
+		i40e_aq_asq_clean(dev);
+		if(!i40e_dev->aq.flag)
+			break;
+	}while(--timeout);
+	if(!timeout)
+		goto err_timeout;
+
+	return 0;
+
+err_timeout:
+	return -1;
+}
+
 int i40e_reset_hw(struct ufp_dev *dev)
 {
 	struct timespec ts;
 	uint32_t grst_del, reg;
-	int i;
+	unsigned int timeout;
 
 	/* Poll for Global Reset steady state in case of recent GRST.
 	 * The grst delay value is in 100ms units, and we'll wait a
@@ -70,38 +92,40 @@ int i40e_reset_hw(struct ufp_dev *dev)
 	 */
 	grst_del = (ufp_read_reg(dev, I40E_GLGEN_RSTCTL) &
 		I40E_GLGEN_RSTCTL_GRSTDEL_MASK) >> I40E_GLGEN_RSTCTL_GRSTDEL_SHIFT;
-	grst_del = grst_del * 20;
-	for (i = 0; i < grst_del; i++) {
-		reg = ufp_read_reg(dev, I40E_GLGEN_RSTAT);
-		if (!(reg & I40E_GLGEN_RSTAT_DEVSTATE_MASK))
-			break;
+	timeout = grst_del * 20;
+	do{
 		msleep(&ts, 100);
-	}
-	if(i >= grst_del)
+		reg = ufp_read_reg(dev, I40E_GLGEN_RSTAT);
+		if(!(reg & I40E_GLGEN_RSTAT_DEVSTATE_MASK))
+			break;
+	}while(--timeout);
+	if(!timeout)
 		goto err_grst_in_progress;
 
 	/* Now Wait for the FW to be ready */
-	for (i = 0; i < I40E_PF_RESET_WAIT_COUNT; i++) {
-		reg = ufp_read_reg(dev, I40E_GLNVM_ULD);
-		reg &= (I40E_GLNVM_ULD_CONF_CORE_DONE_MASK |
-			I40E_GLNVM_ULD_CONF_GLOBAL_DONE_MASK);
-		if (reg == (I40E_GLNVM_ULD_CONF_CORE_DONE_MASK |
-			    I40E_GLNVM_ULD_CONF_GLOBAL_DONE_MASK))
-			break;
+	timeout = I40E_PF_RESET_WAIT_COUNT;
+	do{
 		usleep(&ts, 10000);
-	}
-	if(i >= I40E_PF_RESET_WAIT_COUNT)
+		reg = ufp_read_reg(dev, I40E_GLNVM_ULD);
+		if((reg & I40E_GLNVM_ULD_CONF_CORE_DONE_MASK) &&
+		(reg & I40E_GLNVM_ULD_CONF_GLOBAL_DONE_MASK))
+			break;
+	}while(--timeout);
+	if(!timeout)
 		goto err_firmware_not_ready;
 
 	reg = ufp_read_reg(dev, I40E_PFGEN_CTRL);
-	ufp_write_reg(dev, I40E_PFGEN_CTRL, (reg | I40E_PFGEN_CTRL_PFSWR_MASK));
-	for (i = 0; i < I40E_PF_RESET_WAIT_COUNT; i++) {
+	reg |= I40E_PFGEN_CTRL_PFSWR_MASK;
+	ufp_write_reg(dev, I40E_PFGEN_CTRL, reg);
+
+	timeout = I40E_PF_RESET_WAIT_COUNT;
+	do{
+		usleep(&ts, 1000);
 		reg = ufp_read_reg(dev, I40E_PFGEN_CTRL);
-		if (!(reg & I40E_PFGEN_CTRL_PFSWR_MASK))
+		if(!(reg & I40E_PFGEN_CTRL_PFSWR_MASK))
 			break;
-		usleep(&ts, 2000);
-	}
-	if(i >= I40E_PF_RESET_WAIT_COUNT)
+	}while(--timeout);
+	if(!timeout)
 		goto err_pf_reset;
 
 	return 0;

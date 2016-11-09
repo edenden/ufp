@@ -382,12 +382,12 @@ void i40e_aq_arq_clean(struct ufp_dev *dev)
 	return;
 }
 
-void i40e_aq_asq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
+int i40e_aq_asq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
 	struct ufp_i40e_page *buf)
 {
 	uint16_t retval;
 	uint16_t opcode;
-	int err;
+	int err = -1;
 
 	retval = LE16_TO_CPU(desc->retval);
 	opcode = LE16_TO_CPU(desc->opcode);
@@ -399,36 +399,30 @@ void i40e_aq_asq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
 	case i40e_aqc_opc_mac_addr:
 		err = i40e_aq_cmd_clean_macaddr(dev,
 			&desc->params, buf->addr_virt);
-		if(err < 0)
-			goto err_clean;
 		break;
 	case i40e_aqc_opc_clear_pxe:
 		err = i40e_aq_cmd_clean_clearpxe(dev,
 			&desc->params);
-		if(err < 0)
-			goto err_clean;
 		break;
 	case i40e_aqc_opc_add_vsi:
 		err = i40e_aq_cmd_clean_addvsi(dev,
 			&desc->params);
-		if(err < 0)
-			goto err_clean;
 		break;
 	default:
 		break;
 	}
 
-err_clean:
 err_retval:
-	return;
+	return err;
 }
 
-void i40e_aq_arq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
+int i40e_aq_arq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
 	struct ufp_i40e_page *buf)
 {
 	uint16_t len;
 	uint16_t flags;
 	uint16_t opcode;
+	int err = -1;
 
 	len = LE16_TO_CPU(desc->datalen);
 	flags = LE16_TO_CPU(desc->flags);
@@ -440,9 +434,12 @@ void i40e_aq_arq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
 
 	switch(opcode){
 	case :
+		err = ;
+		break;
 	default:
+		break;
 	}
 
 err_flag:
-	return;
+	return err;
 }

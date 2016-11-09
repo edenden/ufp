@@ -94,9 +94,9 @@ int ufp_i40e_open(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_switchconf_fetch;
 
-	while(!(data & AQ_MAC_ADDR) | !(data & AQ_CLEAR_PXE)){
-		i40e_aq_asq_clean(dev);
-	}
+	err = ufp_i40e_wait_cmd(dev);
+	if(err < 0)
+		goto err_wait_cmd;
 
 	err = i40e_setup_pf_switch(dev);
 	if (err)
