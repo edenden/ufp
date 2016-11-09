@@ -1,3 +1,22 @@
+void i40e_vlan_stripping_disable(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	struct i40e_aqc_vsi_properties_data data;
+	i40e_status ret;
+
+	data.valid_sections = cpu_to_le16(I40E_AQ_VSI_PROP_VLAN_VALID);
+	data.port_vlan_flags = I40E_AQ_VSI_PVLAN_MODE_ALL |
+				    I40E_AQ_VSI_PVLAN_EMOD_NOTHING;
+
+	err = i40e_aqc_req_update_vsi(dev, iface, &data);
+	if(err < 0)
+		goto err_req_update;
+
+	return 0;
+
+err_req_update:
+	return -1;
+}
+
 int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	u8 seed[I40E_HKEY_ARRAY_SIZE];

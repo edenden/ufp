@@ -76,17 +76,21 @@ int ufp_i40e_open(struct ufp_dev *dev)
 	 * Ignore error return codes because if it was already disabled via
 	 * hardware settings this will fail
 	 */
-	i40e_aq_stop_lldp(hw, true, NULL);
+	err = i40e_aqc_req_stop_lldp(dev);
+	if(err < 0)
+		goto err_stop_lldp;
 
-	i40e_get_mac_addr(hw, hw->mac.addr);
+	err = i40e_aqc_req_get_macaddr(dev);
+	if(err < 0)
+		goto err_get_macaddr;
 
 	/* The driver only wants link up/down and module qualification
 	 * reports from firmware.  Note the negative logic.
 	 */
-	err = i40e_aq_set_phy_int_mask(&pf->hw,
+	err = i40e_aqc_req_set_phyintmask(dev,
 		~(I40E_AQ_EVENT_LINK_UPDOWN |
 		I40E_AQ_EVENT_MEDIA_NA |
-		I40E_AQ_EVENT_MODULE_QUAL_FAIL), NULL);
+		I40E_AQ_EVENT_MODULE_QUAL_FAIL));
 	if(err < 0)
 		goto err_aq_set_phy_int_mask;
 

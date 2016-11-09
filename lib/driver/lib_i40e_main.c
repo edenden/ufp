@@ -445,7 +445,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	vsi->rx_buf_len = ALIGN(vsi->rx_buf_len,
 		BIT_ULL(I40E_RXQ_CTX_DBUFF_SHIFT));
 
-	i40e_vlan_stripping_disable(iface);
+	i40e_vlan_stripping_disable(dev, iface);
 	i40e_vsi_rss_config(dev, iface);
 
 	return 0;
