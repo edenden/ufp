@@ -222,7 +222,7 @@ int i40e_aqc_req_set_rsskey(struct ufp_dev *dev,
 	int err;
 
 	cmd.vsi_id = CPU_TO_LE16((u16)
-		((i40e_iface->vsi_number << I40E_AQC_SET_RSS_KEY_VSI_ID_SHIFT) &
+		((i40e_iface->id << I40E_AQC_SET_RSS_KEY_VSI_ID_SHIFT) &
 		I40E_AQC_SET_RSS_KEY_VSI_ID_MASK));
 	cmd.vsi_id |= CPU_TO_LE16((u16)I40E_AQC_SET_RSS_KEY_VSI_VALID);
 	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
@@ -258,7 +258,7 @@ int i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
 	int err;
 
 	cmd.vsi_id = CPU_TO_LE16((u16)
-		((i40e_iface->vsi_number << I40E_AQC_SET_RSS_LUT_VSI_ID_SHIFT) &
+		((i40e_iface->id << I40E_AQC_SET_RSS_LUT_VSI_ID_SHIFT) &
 		I40E_AQC_SET_RSS_LUT_VSI_ID_MASK));
 	cmd.vsi_id |= CPU_TO_LE16((u16)I40E_AQC_SET_RSS_LUT_VSI_VALID);
 
