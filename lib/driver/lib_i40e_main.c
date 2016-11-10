@@ -428,7 +428,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	if(!i40e_iface)
 		goto err_alloc_iface;
 
-	i40e_iface->vsi_id = elem->id;
+	i40e_iface->seid = elem->seid;
 	i40e_iface->type = VSI_TYPE_MAIN;
 	iface = dev->iface;
 	iface->drv_data = i40e_iface;

@@ -183,7 +183,6 @@ int i40e_aqc_req_update_vsi(struct ufp_dev *dev, struct ufp_iface *iface,
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
 	struct i40e_aqc_add_get_update_vsi cmd;
-	struct i40e_aqc_vsi_properties_data
 	uint16_t flags;
 	int err;
 
@@ -212,23 +211,25 @@ int i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
 
 	/* XXX: Find VSI instance */
 
-	i40e_iface->vsis_allocated = LE16_TO_CPU(resp->vsi_used);
-	i40e_iface->vsis_unallocated = LE16_TO_CPU(resp->vsi_free);
+	i40e_iface->vsi_number = LE16_TO_CPU(resp->vsi_number);
+	i40e_iface->vsi_used = LE16_TO_CPU(resp->vsi_used);
+	i40e_iface->vsi_free = LE16_TO_CPU(resp->vsi_free);
 
 	i40e_dev->aq.flag &= ~AQ_UPDATE_VSI;
 	return 0;
 }
 
 int i40e_aqc_req_set_rsskey(struct ufp_dev *dev,
-	struct ufp_i40e_vsi *vsi, uint8_t *key, uint16_t key_size)
+	struct ufp_iface *iface, uint8_t *key, uint16_t key_size)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
 	struct i40e_aqc_get_set_rss_key cmd;
 	uint16_t flags;
 	int err;
 
 	cmd.vsi_id = CPU_TO_LE16((u16)
-		((vsi->id << I40E_AQC_SET_RSS_KEY_VSI_ID_SHIFT) &
+		((i40e_iface->vsi_number << I40E_AQC_SET_RSS_KEY_VSI_ID_SHIFT) &
 		I40E_AQC_SET_RSS_KEY_VSI_ID_MASK));
 	cmd.vsi_id |= CPU_TO_LE16((u16)I40E_AQC_SET_RSS_KEY_VSI_VALID);
 	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
@@ -255,15 +256,16 @@ int i40e_aqc_resp_set_rsskey(struct ufp_dev *dev)
 }
 
 int i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
-	struct ufp_i40e_vsi *vsi, uint8_t *lut, uint16_t lut_size)
+	struct ufp_iface *iface, uint8_t *lut, uint16_t lut_size)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
 	struct i40e_aqc_get_set_rss_lut cmd;
 	uint16_t flags;
 	int err;
 
 	cmd.vsi_id = CPU_TO_LE16((u16)
-		((vsi->id << I40E_AQC_SET_RSS_LUT_VSI_ID_SHIFT) &
+		((i40e_iface->vsi_number << I40E_AQC_SET_RSS_LUT_VSI_ID_SHIFT) &
 		I40E_AQC_SET_RSS_LUT_VSI_ID_MASK));
 	cmd.vsi_id |= CPU_TO_LE16((u16)I40E_AQC_SET_RSS_LUT_VSI_VALID);
 

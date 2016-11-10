@@ -30,6 +30,40 @@ struct i40e_aq_cmd_getconf {
 	__le32  addr_low;
 };
 
+struct i40e_aqc_switch_config_element_resp {
+	u8      element_type;
+#define I40E_AQ_SW_ELEM_TYPE_MAC	1
+#define I40E_AQ_SW_ELEM_TYPE_PF	 2
+#define I40E_AQ_SW_ELEM_TYPE_VF	 3
+#define I40E_AQ_SW_ELEM_TYPE_EMP	4
+#define I40E_AQ_SW_ELEM_TYPE_BMC	5
+#define I40E_AQ_SW_ELEM_TYPE_PV	 16
+#define I40E_AQ_SW_ELEM_TYPE_VEB	17
+#define I40E_AQ_SW_ELEM_TYPE_PA	 18
+#define I40E_AQ_SW_ELEM_TYPE_VSI	19
+	u8      revision;
+#define I40E_AQ_SW_ELEM_REV_1	   1
+	__le16  seid;
+	__le16  uplink_seid;
+	__le16  downlink_seid;
+	u8      reserved[3];
+	u8      connection_type;
+#define I40E_AQ_CONN_TYPE_REGULAR       0x1
+#define I40E_AQ_CONN_TYPE_DEFAULT       0x2
+#define I40E_AQ_CONN_TYPE_CASCADED      0x3
+	__le16  scheduler_id;
+	__le16  element_info;
+};
+
+struct i40e_aqc_add_get_update_vsi_completion {
+	__le16 seid;
+	__le16 vsi_number;
+	__le16 vsi_used;
+	__le16 vsi_free;
+	__le32 addr_high;
+	__le32 addr_low;
+};
+
 struct i40e_aqc_vsi_properties_data {
 	/* first 96 byte are written by SW */
 	__le16  valid_sections;
