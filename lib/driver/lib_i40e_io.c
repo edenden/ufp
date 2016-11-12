@@ -133,8 +133,8 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev,
 		ctx.dbuff = iface->buf_size >> I40E_RXQ_CTX_DBUFF_SHIFT;
 		ctx.base = (ring->addr_dma / 128);
 		ctx.qlen = iface->num_rx_desc;
-		/* use 32 byte descriptors */
-		ctx.dsize = 1;
+		/* use 16 byte descriptors */
+		ctx.dsize = 0;
 		/* descriptor type is always zero */
 		ctx.dtype = 0;
 		ctx.hsplit_0 = 0;
@@ -476,3 +476,48 @@ err_vsi_stop:
 	return -1;
 }
 
+int i40e_rx_desc_check(struct ufp_ring *rx_ring, uint16_t index)
+{
+	union ufp_i40e_rx_desc *rx_desc;
+	uint64_t qword;
+	uint32_t rx_status;
+
+	rx_desc = I40E_RX_DESC(rx_ring, index);
+
+	qword = le64_to_cpu(rx_desc->wb.qword1.status_error_len);
+	rx_status = (qword & I40E_RXD_QW1_STATUS_MASK) >>
+		    I40E_RXD_QW1_STATUS_SHIFT;
+
+	if (!(rx_status & BIT(I40E_RX_DESC_STATUS_DD_SHIFT)))
+		goto not_received;
+
+	return 0;
+
+not_received:
+	return -1;
+}
+
+static void i40e_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index,
+	struct ufp_packet *packet)
+{
+	union ufp_i40e_rx_desc *rx_desc;
+
+	rx_desc = I40E_RX_DESC(rx_ring, index);
+
+	qword = le64_to_cpu(rx_desc->wb.qword1.status_error_len);
+	rx_error = (qword & I40E_RXD_QW1_ERROR_MASK) >>
+		I40E_RXD_QW1_ERROR_SHIFT;
+
+	packet->flag = 0;
+
+	if (unlikely(!i40e_test_staterr(rx_desc, BIT(I40E_RX_DESC_STATUS_EOF_SHIFT))))
+		packet->flag |= UFP_PACKET_NOTEOP;
+
+	if(unlikely(rx_error))
+		packet->flag |= UFP_PACKET_ERROR;
+
+	packet->slot_size = (qword & I40E_RXD_QW1_LENGTH_PBUF_MASK) >>
+		I40E_RXD_QW1_LENGTH_PBUF_SHIFT;
+
+	return;
+}
