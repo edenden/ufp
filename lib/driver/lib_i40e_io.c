@@ -476,7 +476,8 @@ err_vsi_stop:
 	return -1;
 }
 
-int i40e_rx_desc_check(struct ufp_ring *rx_ring, uint16_t index)
+int i40e_rx_desc_fetch(struct ufp_ring *rx_ring, uint16_t index,
+	struct ufp_packet *packet)
 {
 	union ufp_i40e_rx_desc *rx_desc;
 	uint64_t qword1;
@@ -487,20 +488,12 @@ int i40e_rx_desc_check(struct ufp_ring *rx_ring, uint16_t index)
 	if (!(qword1 & BIT(I40E_RX_DESC_STATUS_DD_SHIFT)))
 		goto not_received;
 
-	return 0;
-
-not_received:
-	return -1;
-}
-
-static void i40e_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index,
-	struct ufp_packet *packet)
-{
-	union ufp_i40e_rx_desc *rx_desc;
-	uint64_t qword1;
-
-	rx_desc = I40E_RX_DESC(rx_ring, index);
-	qword1 = le64_to_cpu(rx_desc->wb.qword1.status_error_len);
+	/*
+	 * This memory barrier is needed to keep us from reading
+	 * any other fields out of the rx_desc until we know the
+	 * RXD_STAT_DD bit is set
+	 */
+	rmb();
 
 	packet->slot_size = (qword1 & I40E_RXD_QW1_LENGTH_PBUF_MASK) >>
 		I40E_RXD_QW1_LENGTH_PBUF_SHIFT;
@@ -512,5 +505,23 @@ static void i40e_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index,
 	if(unlikely(qword1 & I40E_RXD_QW1_ERROR_MASK))
 		packet->flag |= UFP_PACKET_ERROR;
 
-	return;
+	return 0;
+
+not_received:
+	return -1;
+}
+
+int i40e_tx_desc_fetch(struct ufp_ring *tx_ring, uint16_t index)
+{
+	union ufp_i40e_tx_desc *tx_desc;
+
+	tx_desc = IXGBE_TX_DESC(tx_ring, index);
+
+	if (!(tx_desc->wb.status & htole32(IXGBE_TXD_STAT_DD)))
+		goto not_sent;
+
+	return 0;
+
+not_sent:
+	return -1;
 }

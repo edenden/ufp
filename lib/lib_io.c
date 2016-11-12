@@ -88,7 +88,7 @@ void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,
 		}
 
 		addr_dma = (uint64_t)ufp_slot_addr_dma(buf, slot_index, port_index);
-		port->ops->set_rx_desc(rx_ring, rx_ring->next_to_use, addr_dma);
+		port->ops->fill_rx_desc(rx_ring, rx_ring->next_to_use, addr_dma);
 		ufp_slot_attach(rx_ring, rx_ring->next_to_use, slot_index);
 
 		next_to_use = rx_ring->next_to_use + 1;
@@ -131,7 +131,7 @@ void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
 	}
 
 	addr_dma = (uint64_t)ufp_slot_addr_dma(buf, packet->slot_index, port_index);
-	port->ops->set_tx_desc(tx_ring, tx_ring->next_to_use,
+	port->ops->fill_tx_desc(tx_ring, tx_ring->next_to_use,
 		addr_dma, packet);
 	ufp_slot_attach(tx_ring, tx_ring->next_to_use, packet->slot_index);
 	ufp_print("Tx: packet sending DMAaddr = %p size = %d\n",
@@ -190,19 +190,10 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 			break;
 		}
 
-		err = port->ops->check_rx_desc(rx_ring, rx_ring->next_to_clean);
+		err = port->ops->fetch_rx_desc(rx_ring, rx_ring->next_to_clean,
+			&packet[total_rx_packets]);
 		if(unlikely(err < 0))
 			break;
-
-		/*
-		 * This memory barrier is needed to keep us from reading
-		 * any other fields out of the rx_desc until we know the
-		 * RXD_STAT_DD bit is set
-		 */
-		rmb();
-
-		port->ops->get_rx_desc(rx_ring, rx_ring->next_to_clean,
-			&packet[total_rx_packets]);
 		ufp_print("Rx: packet received size = %d\n", slot_size);
 
 		/* retrieve a buffer address from the ring */
@@ -242,7 +233,7 @@ void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
 			break;
 		}
 
-		err = port->ops->check_tx_desc(tx_ring, tx_ring->next_to_clean);
+		err = port->ops->fetch_tx_desc(tx_ring, tx_ring->next_to_clean);
 		if(unlikely(err < 0))
 			break;
 

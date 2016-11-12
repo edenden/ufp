@@ -30,11 +30,10 @@ int ufp_i40e_init(struct ufp_dev *dev, struct ufp_ops *ops)
 
 	/* RxTx related functions */
 	ops->unmask_queues	= ufp_i40e_unmask_queues;
-	ops->set_rx_desc	= ufp_i40e_rx_desc_set;
-	ops->check_rx_desc	= ufp_i40e_rx_desc_check;
-	ops->get_rx_desc	= ufp_i40e_rx_desc_get;
-	ops->set_tx_desc	= ufp_i40e_tx_desc_set;
-	ops->check_tx_desc	= ufp_i40e_tx_desc_check;
+	ops->fill_rx_desc	= ufp_i40e_rx_desc_fill;
+	ops->fetch_rx_desc	= ufp_i40e_rx_desc_fetch;
+	ops->fill_tx_desc	= ufp_i40e_tx_desc_fill;
+	ops->fetch_tx_desc	= ufp_i40e_tx_desc_fetch;
 
 	return 0;
 

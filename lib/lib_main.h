@@ -162,14 +162,13 @@ struct ufp_ops {
 
 	/* For forwarding */
 	void			(*unmask_queues)(void *, uint64_t);
-	void			(*set_rx_desc)(struct ufp_ring *, uint16_t,
+	void			(*fill_rx_desc)(struct ufp_ring *, uint16_t,
 					uint64_t);
-	int			(*check_rx_desc)(struct ufp_ring *, uint16_t);
-	void			(*get_rx_desc)(struct ufp_ring *, uint16_t,
+	int			(*fetch_rx_desc)(struct ufp_ring *, uint16_t,
 					struct ufp_packet *);
-	void			(*set_tx_desc)(struct ufp_ring *, uint16_t,
+	void			(*fill_tx_desc)(struct ufp_ring *, uint16_t,
 					uint64_t, struct ufp_packet *);
-	int			(*check_tx_desc)(struct ufp_ring *, uint16_t);
+	int			(*fetch_tx_desc)(struct ufp_ring *, uint16_t);
 
 	uint16_t		device_id;
 };
