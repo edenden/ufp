@@ -31,6 +31,14 @@ union i40e_16byte_rx_desc {
 	} wb;  /* writeback */
 };
 
+/*
+ * See 8.4.2.1 - General Descriptors
+ */
+struct i40e_tx_desc {
+	__le64 buffer_addr; /* Address of descriptor's data buf */
+	__le64 cmd_type_offset_bsz;
+};
+
 #define I40E_RX_DESC(R, i)                      \
 	(&(((union i40e_rx_desc *)((R)->addr_virt))[i]))
 #define I40E_TX_DESC(R, i)                      \

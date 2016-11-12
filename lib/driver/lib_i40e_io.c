@@ -514,10 +514,13 @@ not_received:
 int i40e_tx_desc_fetch(struct ufp_ring *tx_ring, uint16_t index)
 {
 	union ufp_i40e_tx_desc *tx_desc;
+	uint64_t qword1;
 
 	tx_desc = IXGBE_TX_DESC(tx_ring, index);
+	qword1 = le64_to_cpu(tx_desc->cmd_type_offset_bsz);
 
-	if (!(tx_desc->wb.status & htole32(IXGBE_TXD_STAT_DD)))
+	if ((qword1 & I40E_TXD_QW1_DTYPE_MASK) !=
+		I40E_TX_DESC_DTYPE_DESC_DONE)
 		goto not_sent;
 
 	return 0;
