@@ -479,16 +479,12 @@ err_vsi_stop:
 int i40e_rx_desc_check(struct ufp_ring *rx_ring, uint16_t index)
 {
 	union ufp_i40e_rx_desc *rx_desc;
-	uint64_t qword;
-	uint32_t rx_status;
+	uint64_t qword1;
 
 	rx_desc = I40E_RX_DESC(rx_ring, index);
+	qword1 = le64_to_cpu(rx_desc->wb.qword1.status_error_len);
 
-	qword = le64_to_cpu(rx_desc->wb.qword1.status_error_len);
-	rx_status = (qword & I40E_RXD_QW1_STATUS_MASK) >>
-		    I40E_RXD_QW1_STATUS_SHIFT;
-
-	if (!(rx_status & BIT(I40E_RX_DESC_STATUS_DD_SHIFT)))
+	if (!(qword1 & BIT(I40E_RX_DESC_STATUS_DD_SHIFT)))
 		goto not_received;
 
 	return 0;
@@ -501,23 +497,20 @@ static void i40e_rx_desc_get(struct ufp_ring *rx_ring, uint16_t index,
 	struct ufp_packet *packet)
 {
 	union ufp_i40e_rx_desc *rx_desc;
+	uint64_t qword1;
 
 	rx_desc = I40E_RX_DESC(rx_ring, index);
+	qword1 = le64_to_cpu(rx_desc->wb.qword1.status_error_len);
 
-	qword = le64_to_cpu(rx_desc->wb.qword1.status_error_len);
-	rx_error = (qword & I40E_RXD_QW1_ERROR_MASK) >>
-		I40E_RXD_QW1_ERROR_SHIFT;
-
+	packet->slot_size = (qword1 & I40E_RXD_QW1_LENGTH_PBUF_MASK) >>
+		I40E_RXD_QW1_LENGTH_PBUF_SHIFT;
 	packet->flag = 0;
 
-	if (unlikely(!i40e_test_staterr(rx_desc, BIT(I40E_RX_DESC_STATUS_EOF_SHIFT))))
+	if(unlikely(!(qword1 & BIT(I40E_RX_DESC_STATUS_EOF_SHIFT))))
 		packet->flag |= UFP_PACKET_NOTEOP;
 
-	if(unlikely(rx_error))
+	if(unlikely(qword1 & I40E_RXD_QW1_ERROR_MASK))
 		packet->flag |= UFP_PACKET_ERROR;
-
-	packet->slot_size = (qword & I40E_RXD_QW1_LENGTH_PBUF_MASK) >>
-		I40E_RXD_QW1_LENGTH_PBUF_SHIFT;
 
 	return;
 }

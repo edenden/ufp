@@ -1,6 +1,9 @@
 #ifndef _I40E_IO_H__
 #define _I40E_IO_H__
 
+/*
+ * See 8.3.2.1 - Receive Descriptor - Read Format
+ */
 union i40e_16byte_rx_desc {
 	struct {
 		__le64 pkt_addr; /* Packet buffer address */
