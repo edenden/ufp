@@ -146,7 +146,7 @@ struct ufp_packet {
 };
 
 #define UFP_PACKET_ERROR	0x00000001
-#define UFP_PACKET_NOTEOP	0x00000002
+#define UFP_PACKET_EOP		0x00000002
 
 struct ufp_ops {
 	/* For configuration */

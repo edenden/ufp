@@ -516,7 +516,7 @@ int i40e_tx_desc_fetch(struct ufp_ring *tx_ring, uint16_t index)
 	union ufp_i40e_tx_desc *tx_desc;
 	uint64_t qword1;
 
-	tx_desc = IXGBE_TX_DESC(tx_ring, index);
+	tx_desc = I40E_TX_DESC(tx_ring, index);
 	qword1 = le64_to_cpu(tx_desc->cmd_type_offset_bsz);
 
 	if ((qword1 & I40E_TXD_QW1_DTYPE_MASK) !=
@@ -527,4 +527,49 @@ int i40e_tx_desc_fetch(struct ufp_ring *tx_ring, uint16_t index)
 
 not_sent:
 	return -1;
+}
+
+void i40e_rx_desc_fill(struct ufp_ring *rx_ring, uint16_t index,
+	uint64_t addr_dma)
+{
+	union ufp_i40e_rx_desc *rx_desc;
+
+	rx_desc = I40E_RX_DESC(rx_ring, index);
+
+	rx_desc->read.pkt_addr = htole64(addr_dma);
+	rx_desc->read.hdr_addr = 0;
+
+	/* clear the status bits for the next_to_use descriptor */
+	rx_desc->wb.qword1.status_error_len = 0;
+
+	return;
+}
+
+void i40e_tx_desc_fill(struct ufp_ring *tx_ring, uint16_t index,
+	uint64_t addr_dma, struct ufp_packet *packet)
+{
+	union ufp_i40e_tx_desc *tx_desc;
+	uint32_t tx_cmd = 0;
+	uint32_t tx_offset = 0;
+	uint32_t tx_tag = 0;
+
+	tx_desc = IXGBE_TX_DESC(tx_ring, index);
+
+	tx_cmd |= I40E_TX_DESC_CMD_ICRC;
+	if(likely(packet->flag & UFP_PACKET_EOP)){
+		tx_cmd |= I40E_TX_DESC_CMD_EOP | I40E_TX_DESC_CMD_RS;
+	}
+
+	/* XXX: The size limit for a transmit buffer in a descriptor is (16K - 1).
+	 * In order to align with the read requests we will align the value to
+	 * the nearest 4K which represents our maximum read request size.
+	 */
+	tx_desc->buffer_addr = htole64(addr_dma);
+	tx_desc->cmd_type_offset_bsz = htole64(I40E_TX_DESC_DTYPE_DATA |
+		((u64)tx_cmd << I40E_TXD_QW1_CMD_SHIFT) |
+		((u64)tx_offset << I40E_TXD_QW1_OFFSET_SHIFT) |
+		((u64)packet->slot_size << I40E_TXD_QW1_TX_BUF_SZ_SHIFT) |
+		((u64)tx_tag << I40E_TXD_QW1_L2TAG1_SHIFT));
+
+	return;
 }
