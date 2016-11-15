@@ -499,8 +499,8 @@ int i40e_rx_desc_fetch(struct ufp_ring *rx_ring, uint16_t index,
 		I40E_RXD_QW1_LENGTH_PBUF_SHIFT;
 	packet->flag = 0;
 
-	if(unlikely(!(qword1 & BIT(I40E_RX_DESC_STATUS_EOF_SHIFT))))
-		packet->flag |= UFP_PACKET_NOTEOP;
+	if(likely(qword1 & BIT(I40E_RX_DESC_STATUS_EOF_SHIFT)))
+		packet->flag |= UFP_PACKET_EOP;
 
 	if(unlikely(qword1 & I40E_RXD_QW1_ERROR_MASK))
 		packet->flag |= UFP_PACKET_ERROR;
@@ -555,9 +555,9 @@ void i40e_tx_desc_fill(struct ufp_ring *tx_ring, uint16_t index,
 
 	tx_desc = IXGBE_TX_DESC(tx_ring, index);
 
-	tx_cmd |= I40E_TX_DESC_CMD_ICRC;
+	tx_cmd |= I40E_TX_DESC_CMD_ICRC | I40E_TX_DESC_CMD_RS;
 	if(likely(packet->flag & UFP_PACKET_EOP)){
-		tx_cmd |= I40E_TX_DESC_CMD_EOP | I40E_TX_DESC_CMD_RS;
+		tx_cmd |= I40E_TX_DESC_CMD_EOP;
 	}
 
 	/* XXX: The size limit for a transmit buffer in a descriptor is (16K - 1).
