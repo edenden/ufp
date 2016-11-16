@@ -209,7 +209,7 @@ int i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
 	struct ufp_iface *iface = dev->iface;
 	struct ufp_i40e_iface *i40e_iface;
 
-	while(!iface){
+	while(iface){
 		i40e_iface = iface->drv_data;
 		if(i40e_iface->seid == cmd->seid)
 			break;
