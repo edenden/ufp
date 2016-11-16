@@ -9,11 +9,6 @@
 #include "lib_main.h"
 #include "lib_api.h"
 
-unsigned int ufp_bufsize_get(struct ufp_handle *ih)
-{
-	return ih->buf_size;
-}
-
 void *ufp_macaddr_default(struct ufp_handle *ih)
 {
 	return ih->mac_addr;

@@ -82,7 +82,6 @@ struct ufp_iface {
 	uint32_t		irq_rate;
 	uint32_t		promisc;
 	uint32_t		mtu_frame;
-	uint32_t		buf_size;
 	uint8_t			mac_addr[ETH_ALEN];
 
 	void			*drv_data;
@@ -117,6 +116,7 @@ struct ufp_port {
 	struct ufp_ops		*ops;
 	struct ufp_irq_handle	*rx_irq;
 	struct ufp_irq_handle	*tx_irq;
+
 	uint32_t		rx_slot_next;
 	uint32_t		rx_slot_offset;
 	uint32_t		tx_suspended;

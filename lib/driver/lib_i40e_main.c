@@ -435,17 +435,17 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	iface->drv_data = i40e_iface;
 
 	if (vsi->netdev && (vsi->netdev->mtu > ETH_DATA_LEN))
-		vsi->max_frame = vsi->netdev->mtu + ETH_HLEN
+		iface->mtu_frame = vsi->netdev->mtu + ETH_HLEN
 			+ ETH_FCS_LEN + VLAN_HLEN;
 	else
-		vsi->max_frame = I40E_RXBUFFER_2048;
+		iface->mtu_frame = I40E_RXBUFFER_2048;
 
-	vsi->rx_buf_len = I40E_RXBUFFER_2048;
-
-	/* round up for the chip's needs */
-	vsi->rx_buf_len = ALIGN(vsi->rx_buf_len,
-		BIT_ULL(I40E_RXQ_CTX_DBUFF_SHIFT));
-
+	iface->num_rx_desc = I40E_MAX_NUM_DESCRIPTORS;
+	iface->size_rx_desc = 
+		iface->num_rx_desc * sizeof(union i40e_16byte_rx_desc);
+	iface->num_tx_desc = I40E_MAX_NUM_DESCRIPTORS;
+	iface->size_tx_desc =
+		iface->num_tx_desc * sizeof(union i40e_tx_desc);
 	i40e_vlan_stripping_disable(dev, iface);
 	i40e_vsi_rss_config(dev, iface);
 

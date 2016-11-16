@@ -293,7 +293,7 @@ static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring)
 }
 
 struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
-	uint32_t count, uint32_t buf_size, struct ufp_mpool *mpool)
+	uint32_t buf_size, uint32_t buf_count, struct ufp_mpool *mpool)
 {
 	struct ufp_buf *buf;
 	void *addr_virt;
@@ -313,30 +313,27 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 	 * XXX: Should we add buffer padding for memory interleaving?
 	 * DPDK does so in rte_mempool.c/optimize_object_size().
 	 */
+	buf->buf_size = buf_size;
+	buf->count = buf_count;
 	for(i = 0, num_bufs = 0; i < num_devs; i++){
-		num_bufs += devs[i].num_ifaces * count;
+		num_bufs += devs[i].num_ifaces * buf->count;
 	}
-	size = buf_size * num_bufs;
-	addr_virt = ufp_mem_alloc(mpool, size);
-	if(!addr_virt)
+	size = buf->buf_size * num_bufs;
+	buf->addr_virt = ufp_mem_alloc(mpool, size);
+	if(!buf->addr_virt)
 		goto err_mem_alloc;
 
 	for(i = 0; i < num_devs; i++, mapped_devs++){
-		err = ufp_dma_map(devs[i], addr_virt, &addr_dma, size);
+		err = ufp_dma_map(devs[i], buf->addr_virt, &addr_dma, size);
 		if(err < 0)
 			goto err_ufp_dma_map;
 
 		buf->addr_dma[i] = addr_dma;
 	}
 
-	slots = malloc(sizeof(int) * num_bufs);
-	if(!slots)
+	buf->slots = malloc(sizeof(int) * num_bufs);
+	if(!buf->slots)
 		goto err_alloc_slots;
-
-	buf->addr_virt = addr_virt;
-	buf->buf_size = buf_size;
-	buf->count = count;
-	buf->slots = slots;
 
 	for(i = 0; i < num_bufs; i++){
 		buf->slots[i] = 0;
@@ -349,7 +346,7 @@ err_ufp_dma_map:
 	for(i = 0; i < mapped_devs; i++){
 		ufp_dma_unmap(devs[i], buf->addr_dma[i]);
 	}
-	ufp_mem_free(addr_virt);
+	ufp_mem_free(buf->addr_virt);
 err_mem_alloc:
 	free(buf->addr_dma);
 err_alloc_buf_addr_dma:
@@ -457,9 +454,7 @@ static void ufp_ops_release(struct ufp_ops *ops)
 	return;
 }
 
-struct ufp_dev *ufp_open(const char *name,
-	unsigned int num_qps_req, unsigned int num_rx_desc,
-	unsigned int num_tx_desc)
+struct ufp_dev *ufp_open(const char *name, unsigned int num_qps_req)
 {
 	struct ufp_dev *dev;
 	char filename[FILENAME_SIZE];
@@ -500,11 +495,13 @@ struct ufp_dev *ufp_open(const char *name,
 	if(!dev->iface)
 		goto err_alloc_iface;
 
+	iface = dev->iface;
+
 	err = dev->ops->open(dev);
 	if(err < 0)
 		goto err_ops_open;
 
-	err = ufp_alloc_rings(dev, dev->iface, mpools);
+	err = ufp_alloc_rings(dev, iface, mpools);
 	if(err < 0)
 		goto err_alloc_rings;
 

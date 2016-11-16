@@ -65,12 +65,12 @@ int main(int argc, char **argv)
 	/* set default values */
 	ufpd.numa_node		= 0;
 	ufpd.num_threads	= 0;
-	ufpd.buf_size		= 0;
 	ufpd.num_devices	= 0;
 	ufpd.promisc		= 0;
 	ufpd.mtu_frame		= 0; /* MTU=1522 is used by default. */
 	ufpd.intr_rate		= 200; /* IXGBE_20K_ITR */
 	ufpd.buf_count		= 8192; /* number of per port packet buffer */
+	ufpd.buf_size		= 2048; /* must be larger than 2048 */
 
 	while ((opt = getopt(argc, argv, "c:p:n:m:b:ah")) != -1) {
 		switch(opt){
@@ -181,16 +181,12 @@ int main(int argc, char **argv)
 
 	for(i = 0; i < ufpd.num_devices; i++, devices_assigned++){
 		ufpd.ih_array[i] = ufp_open(&ufpd.ifnames[i * IFNAMSIZ],
-			ufpd.num_threads, 4096, 4096);
+			ufpd.num_threads);
 		if(!ufpd.ih_array[i]){
 			ufpd_log(LOG_ERR, "failed to ufp_open, idx = %d", i);
 			ret = -1;
 			goto err_open;
 		}
-
-		/* calclulate maximum buf_size we should prepare */
-		if(ufp_bufsize_get(ufpd.ih_array[i]) > ufpd.buf_size)
-			ufpd.buf_size = ufp_bufsize_get(ufpd.ih_array[i]);
 	}
 
 	for(i = 0; i < ufpd.num_devices; i++, tun_assigned++){
@@ -220,7 +216,7 @@ int main(int argc, char **argv)
 
 	for(i = 0; i < ufpd.num_threads; i++, threads_assigned++){
 		threads[i].buf = ufp_alloc_buf(ufpd.devs, ufpd.num_devices,
-			ufpd.buf_count, ufpd.buf_size, threads[i].mpool);
+			ufpd.buf_size, ufpd.buf_count, threads[i].mpool);
 		if(!threads[i].buf){
 			ufpd_log(LOG_ERR, "failed to ufp_alloc_buf, idx = %d", i);
 			goto err_buf_alloc;

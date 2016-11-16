@@ -137,7 +137,7 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev,
 		/*
 		 * See 8.3.3.2.2 - Receive Queue Context in FPM
 		 */
-		ctx.dbuff = iface->buf_size >> I40E_RXQ_CTX_DBUFF_SHIFT;
+		ctx.dbuff = I40E_RXBUFFER_2048 >> I40E_RXQ_CTX_DBUFF_SHIFT;
 		ctx.base = (ring->addr_dma / 128);
 		ctx.qlen = iface->num_rx_desc;
 		/* use 16 byte descriptors */
