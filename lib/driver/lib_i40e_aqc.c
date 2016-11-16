@@ -30,7 +30,6 @@ int i40e_aqc_resp_get_macaddr(struct ufp_dev *dev,
 
 	memcpy(dev->mac_addr, result->port_mac, ETH_ALEN);
 	i40e_dev->aq.flag &= ~AQ_MAC_ADDR;
-
 	return 0;
 
 err_invalid:
@@ -207,9 +206,26 @@ int i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
 	struct i40e_aqc_add_get_update_vsi_completion *cmd)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct ufp_iface *iface = dev->iface;
+	struct ufp_i40e_iface *i40e_iface;
+
+	while(!iface){
+		i40e_iface = iface->drv_data;
+		if(i40e_iface->seid == cmd->seid)
+			break;
+		iface = iface->next;
+	}
+	if(!iface)
+		goto err_notfound;
+
+	for(i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++)
+		i40e_iface->qs_handles[i] = cmd->qs_handle[i];
 
 	i40e_dev->aq.flag &= ~AQ_UPDATE_VSI;
 	return 0;
+
+err_notfound:
+	return -1;
 }
 
 int i40e_aqc_req_set_rsskey(struct ufp_dev *dev,
