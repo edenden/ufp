@@ -70,6 +70,13 @@ int i40e_vsi_configure_tx(struct ufp_dev *dev,
 		ctx.base = (ring->addr_dma / 128);
 		ctx.qlen = iface->num_tx_desc;
 
+		/* XXX: Does it work? Is ctx.cpuid set by hardware correctly
+		 * when socket id is not equeal 0?
+		 */
+		ctx.tphrdesc_ena = 1;
+		ctx.tphwdesc_ena = 1;
+		ctx.tphrpacket_ena = 1;
+
 		/*
 		 * This flag selects between Head WB and transmit descriptor WB:
 		 * 0b - Descriptor Write Back
@@ -139,6 +146,15 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev,
 		ctx.dtype = 0;
 		ctx.hsplit_0 = 0;
 		ctx.rxmax = iface->mtu_frame;
+
+		/* XXX: Does it work? Is ctx.cpuid set by hardware correctly
+		 * when socket id is not equeal 0?
+		 */
+		ctx.tphrdesc_ena = 1;
+		ctx.tphwdesc_ena = 1;
+		ctx.tphdata_ena = 1;
+		ctx.tphhead_ena = 0;
+
 		ctx.lrxqthresh = 2;
 		ctx.crcstrip = 1;
 		ctx.l2tsel = 1;
