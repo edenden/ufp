@@ -496,6 +496,7 @@ struct ufp_dev *ufp_open(const char *name, unsigned int num_qps_req)
 		goto err_alloc_iface;
 
 	iface = dev->iface;
+	iface->num_qps = num_qps_req;
 
 	err = dev->ops->open(dev);
 	if(err < 0)

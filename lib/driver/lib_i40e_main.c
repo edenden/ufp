@@ -440,6 +440,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	else
 		iface->mtu_frame = I40E_RXBUFFER_2048;
 
+	memcpy(iface->mac_addr, i40e_dev->pf_lan_mac, ETH_ALEN);
 	iface->num_rx_desc = I40E_MAX_NUM_DESCRIPTORS;
 	iface->size_rx_desc = 
 		iface->num_rx_desc * sizeof(union i40e_16byte_rx_desc);

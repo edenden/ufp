@@ -28,7 +28,7 @@ int i40e_aqc_resp_get_macaddr(struct ufp_dev *dev,
 	if(!(cmd->command_flags & I40E_AQC_PORT_ADDR_VALID))
 		goto err_invalid;
 
-	memcpy(dev->mac_addr, result->port_mac, ETH_ALEN);
+	memcpy(i40e_dev->pf_lan_mac, result->pf_lan_mac, ETH_ALEN);
 	i40e_dev->aq.flag &= ~AQ_MAC_ADDR;
 	return 0;
 

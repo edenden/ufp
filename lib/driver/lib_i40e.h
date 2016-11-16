@@ -36,6 +36,7 @@ struct ufp_i40e_dev {
 	uint8_t pf_id;
 	enum i40e_mac_type mac_type;
 
+	uint8_t pf_lan_mac[6];
 	struct i40e_aq aq;
 	struct i40e_hmc hmc;
 };
