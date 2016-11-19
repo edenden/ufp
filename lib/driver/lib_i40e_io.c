@@ -45,6 +45,28 @@ err_set_rss_key:
 	return -1;
 }
 
+int i40e_vsi_configure_filter(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	if(iface->promisc){
+		aq_ret = i40e_aq_set_vsi_unicast_promiscuous(
+			&vsi->back->hw,
+			vsi->seid,
+			cur_promisc, NULL,
+			true);
+	}
+
+	aq_ret = i40e_aq_set_vsi_multicast_promiscuous(&vsi->back->hw,
+		vsi->seid,
+		cur_multipromisc,
+		NULL);
+
+	aq_ret = i40e_aq_set_vsi_broadcast(&vsi->back->hw,
+		vsi->seid,
+		cur_promisc, NULL);
+
+	return 0;
+}
+
 int i40e_vsi_configure_tx(struct ufp_dev *dev,
 	struct ufp_iface *iface)
 {

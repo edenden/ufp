@@ -38,15 +38,14 @@
 struct ufpd {
 	struct ufp_handle	**ih_array;
 	struct tun_handle	**tunh_array;
-	unsigned int		buf_size;
 	unsigned int		num_threads;
 	unsigned int		cores[UFP_MAX_CORES];
 	unsigned int		num_devices;
 	char			ifnames[UFP_MAX_IFNAMSIZ];
 	unsigned int		promisc;
 	unsigned int		mtu_frame;
+	unsigned int		buf_size;
 	unsigned int		buf_count;
-	unsigned int		intr_rate;
 	unsigned int		numa_node;
 };
 

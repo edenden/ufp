@@ -392,10 +392,12 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 
 	/* Switch Global Configuration */
 	if (i40e_dev->pf_id == 0) {
-		uint16_t valid_flags;
-		
-		valid_flags = I40E_AQ_SET_SWITCH_CFG_PROMISC;
-		err = i40e_aq_cmd_xmit_setconf(dev, 0, valid_flags);
+		/* See 7.4.9.5.4 - Set switch configuration command
+		 * Packets are forwarded according to promiscuous filter
+		 * even if matching an exact match filter.
+		 */
+		err = i40e_aq_cmd_xmit_setconf(dev,
+			0, I40E_AQ_SET_SWITCH_CFG_PROMISC);
 		if(err < 0)
 			goto err_switch_setconf;
 	}
@@ -433,12 +435,6 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	i40e_iface->type = VSI_TYPE_MAIN;
 	iface = dev->iface;
 	iface->drv_data = i40e_iface;
-
-	if (vsi->netdev && (vsi->netdev->mtu > ETH_DATA_LEN))
-		iface->mtu_frame = vsi->netdev->mtu + ETH_HLEN
-			+ ETH_FCS_LEN + VLAN_HLEN;
-	else
-		iface->mtu_frame = I40E_RXBUFFER_2048;
 
 	memcpy(iface->mac_addr, i40e_dev->pf_lan_mac, ETH_ALEN);
 	iface->num_rx_desc = I40E_MAX_NUM_DESCRIPTORS;

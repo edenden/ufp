@@ -68,7 +68,6 @@ int main(int argc, char **argv)
 	ufpd.num_devices	= 0;
 	ufpd.promisc		= 0;
 	ufpd.mtu_frame		= 0; /* MTU=1522 is used by default. */
-	ufpd.intr_rate		= 200; /* IXGBE_20K_ITR */
 	ufpd.buf_count		= 8192; /* number of per port packet buffer */
 	ufpd.buf_size		= 2048; /* must be larger than 2048 */
 
@@ -180,8 +179,7 @@ int main(int argc, char **argv)
 	}
 
 	for(i = 0; i < ufpd.num_devices; i++, devices_assigned++){
-		ufpd.ih_array[i] = ufp_open(&ufpd.ifnames[i * IFNAMSIZ],
-			ufpd.num_threads);
+		ufpd.ih_array[i] = ufp_open(&ufpd.ifnames[i * IFNAMSIZ]);
 		if(!ufpd.ih_array[i]){
 			ufpd_log(LOG_ERR, "failed to ufp_open, idx = %d", i);
 			ret = -1;
@@ -199,7 +197,7 @@ int main(int argc, char **argv)
 	}
 
 	for(i = 0; i < ufpd.num_devices; i++, devices_up++){
-		ret = ufp_up(ufpd.ih_array[i], ufpd.intr_rate,
+		ret = ufp_up(ufpd.ih_array[i], ufpd.num_threads,
 			ufpd.mtu_frame, ufpd.promisc,
 			UFP_RX_BUDGET, UFP_TX_BUDGET);
 		if(ret < 0){

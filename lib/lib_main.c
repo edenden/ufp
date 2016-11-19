@@ -454,12 +454,11 @@ static void ufp_ops_release(struct ufp_ops *ops)
 	return;
 }
 
-struct ufp_dev *ufp_open(const char *name, unsigned int num_qps_req)
+struct ufp_dev *ufp_open(const char *name)
 {
 	struct ufp_dev *dev;
 	char filename[FILENAME_SIZE];
 	struct ufp_info_req req;
-	struct ufp_iface *iface;
 	int err;
 
 	dev = malloc(sizeof(struct ufp_dev));
@@ -495,14 +494,11 @@ struct ufp_dev *ufp_open(const char *name, unsigned int num_qps_req)
 	if(!dev->iface)
 		goto err_alloc_iface;
 
-	iface = dev->iface;
-	iface->num_qps = num_qps_req;
-
 	err = dev->ops->open(dev);
 	if(err < 0)
 		goto err_ops_open;
 
-	err = ufp_alloc_rings(dev, iface, mpools);
+	err = ufp_alloc_rings(dev, dev->iface, mpools);
 	if(err < 0)
 		goto err_alloc_rings;
 
@@ -548,7 +544,7 @@ void ufp_close(struct ufp_dev *dev)
 	return;
 }
 
-int ufp_up(struct ufp_dev *dev, unsigned int irq_rate,
+int ufp_up(struct ufp_dev *dev, unsigned int num_qps,
 	unsigned int mtu_frame, unsigned int promisc,
 	unsigned int rx_budget, unsigned int tx_budget)
 {
@@ -559,46 +555,40 @@ int ufp_up(struct ufp_dev *dev, unsigned int irq_rate,
 	memset(&req, 0, sizeof(struct ufp_start_req));
 	iface = dev->iface;
 	while(iface){
+		iface->mtu_frame = mtu_frame;
+		iface->promisc = promisc;
+		iface->rx_budget = rx_budget;
+		iface->tx_budget = tx_budget;
+		iface->num_qps = num_qps;
 		req.num_irqs += (iface->num_qps * 2);
+
 		iface = iface->next;
 	}
 	req.num_irqs += dev->num_misc_irqs
-	if(ioctl(ih->fd, UFP_START, (unsigned long)&req) < 0)
+	if(ioctl(dev->fd, UFP_START, (unsigned long)&req) < 0)
 		goto err_ioctl_start;
 
-	err = ih->ops->configure_irq(ih, irq_rate);
+	err = dev->ops->up(dev);
 	if(err < 0)
-		goto err_ops_configure_irq;
+		goto err_ops_up;
 
-	err = ih->ops->configure_tx(ih);
-	if(err < 0)
-		goto err_configure_tx;
+	return 0;
 
-	err = ih->ops->configure_rx(ih, mtu_frame, !!promisc);
-	if(err < 0)
-		goto err_configure_rx;
-
-	ih->rx_budget = rx_budget;
-	ih->tx_budget = tx_budget;
-
-	return err;
-
-err_configure_rx:
-err_configure_tx:
-err_ops_configure_irq:
+err_ops_up:
+	ioctl(dev->fd, UFP_STOP, 0);
 err_ioctl_start:
 	return -1;
 }
 
-void ufp_down(struct ufp_handle *ih)
+void ufp_down(struct ufp_dev *dev)
 {
 	int err;
 
-	err = ih->ops->stop_adapter(ih);
+	err = dev->ops->down(dev);
 	if(err < 0)
-		goto err_stop_adapter;
+		goto err_ops_down;
 
-	if(ioctl(ih->fd, UFP_STOP, 0) < 0)
+	if(ioctl(dev->fd, UFP_STOP, 0) < 0)
 		goto err_ioctl_stop;
 
 err_ioctl_stop:

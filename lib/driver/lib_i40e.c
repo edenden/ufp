@@ -125,6 +125,10 @@ int ufp_i40e_up(struct ufp_dev *dev)
 
 	iface = dev->iface;
 	while(iface){
+		err = i40e_vsi_configure_filter(dev, iface);
+		if(err < 0)
+			goto err_configure_filter;
+
 		err = i40e_vsi_configure_rx(iface);
 		if(err < 0)
 			goto err_configure_rx;
@@ -153,6 +157,7 @@ err_start_tx:
 err_start_rx:
 err_configure_tx:
 err_configure_rx:
+err_configure_filter:
 		goto err_up;
 	}
 
