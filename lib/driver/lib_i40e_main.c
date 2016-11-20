@@ -224,7 +224,7 @@ void i40e_clear_hw(struct ufp_dev *dev)
 	return;
 }
 
-void i40e_setup_misc_vector(struct ufp_dev *dev)
+int i40e_setup_misc_irq(struct ufp_dev *dev)
 {
 	u32 val;
 
@@ -245,16 +245,26 @@ void i40e_setup_misc_vector(struct ufp_dev *dev)
 	/* OTHER_ITR_IDX = 0 */
 	wr32(hw, I40E_PFINT_STAT_CTL0, 0);
 
-	/* associate no queues to the misc vector */
+	/* associate no queues to the misc IRQ */
 	wr32(hw, I40E_PFINT_LNKLST0, I40E_QUEUE_END_OF_LIST);
 	wr32(hw, I40E_PFINT_ITR0(I40E_IDX_ITR0), I40E_ITR_8K);
 
 	i40e_flush(hw);
-	return;
+
+	dev->irqh = ufp_irq_open(dev, 0);
+	if(!dev->irqh)
+		goto err_open_irq;
+
+	return 0;
+
+err_open_irq:
+
+	return -1;
 }
 
-void i40e_shutdown_misc_vector(struct ufp_dev *dev)
+void i40e_shutdown_misc_irq(struct ufp_dev *dev)
 {
+	ufp_irq_close(dev->irqh);
 	/* Disable ICR 0 */
 	wr32(&pf->hw, I40E_PFINT_ICR0_ENA, 0);
 
@@ -262,7 +272,7 @@ void i40e_shutdown_misc_vector(struct ufp_dev *dev)
 	return;
 }
 
-void i40e_start_misc_vector(struct ufp_dev *dev)
+void i40e_start_misc_irq(struct ufp_dev *dev)
 {
 	/* originally in i40e_irq_dynamic_enable_icr0() */
 	val = I40E_PFINT_DYN_CTL0_INTENA_MASK |
@@ -275,7 +285,7 @@ void i40e_start_misc_vector(struct ufp_dev *dev)
 	return;
 }
 
-void i40e_stop_misc_vector(struct ufp_dev *dev)
+void i40e_stop_misc_irq(struct ufp_dev *dev)
 {
 	wr32(hw, I40E_PFINT_DYN_CTL0,
 		I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);

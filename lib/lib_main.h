@@ -70,6 +70,9 @@ struct ufp_iface {
 	struct ufp_ring		*tx_ring;
 	struct ufp_ring		*rx_ring;
 
+	struct ufp_irq_handle   **rx_irq;
+	struct ufp_irq_handle   **tx_irq;
+
 	uint32_t		num_tx_desc;
 	unsigned long		size_tx_desc;
 	uint32_t		num_rx_desc;
@@ -105,7 +108,7 @@ struct ufp_dev {
 
 struct ufp_irq_handle {
 	int			fd;
-	uint64_t		qmask;
+	uint16_t		entry_idx;
 	uint32_t		vector;
 };
 

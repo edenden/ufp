@@ -166,18 +166,13 @@ err_configure_filter:
 		goto err_up;
 	}
 
-	i40e_setup_misc_vector(dev);
-	i40e_start_misc_vector(dev);
-
-	dev->irqh = ufp_irq_open(dev, UFP_IRQ_MISC, 0, 0);
-	if(!dev->irqh)
-		goto err_open_irq;
-
+	err = i40e_setup_misc_irq(dev);
+	if(err < 0)
+		goto err_setup_misc_irq;
+	i40e_start_misc_irq(dev);
 	return 0;
 
-err_open_irq:
-	i40e_stop_misc_vector(dev);
-	i40e_shutdown_misc_vector(dev);
+err_setup_misc_irq:
 err_up:
 	return -1;
 }
@@ -186,9 +181,8 @@ int ufp_i40e_down(struct ufp_dev *dev)
 {
 	struct ufp_iface *iface;
 
-	ufp_irq_close(dev->irqh);
-	i40e_stop_misc_vector(dev);
-	i40e_shutdown_misc_vector(dev);
+	i40e_stop_misc_irq(dev);
+	i40e_shutdown_misc_irq(dev);
 
 	iface = dev->iface;
 	while(iface){

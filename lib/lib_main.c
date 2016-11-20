@@ -61,7 +61,7 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
 	unsigned int core_id)
 {
 	struct ufp_plane *plane;
-	int i, ports_assigned = 0;
+	int i, err;
 
 	plane = malloc(sizeof(struct ufp_plane));
 	if(!plane)
@@ -73,7 +73,7 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
 		goto err_alloc_ports;
 	}
 
-	for(i = 0; i < ih_num; i++, ports_assigned++){
+	for(i = 0; i < ih_num; i++){
 		plane->ports[i].bar = ih_list[i]->bar;
 		plane->ports[i].rx_ring = &(ih_list[i]->rx_ring[thread_id]);
 		plane->ports[i].tx_ring = &(ih_list[i]->tx_ring[thread_id]);
@@ -91,34 +91,24 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
 		plane->ports[i].count_rx_clean_total = 0;
 		plane->ports[i].count_tx_xmit_failed = 0;
 		plane->ports[i].count_tx_clean_total = 0;
-
 		memcpy(plane->ports[i].mac_addr, ih_list[i]->mac_addr, ETH_ALEN);
 
-		plane->ports[i].rx_irq = ufp_irq_open(ih_list[i],
-						UFP_IRQ_RX, thread_id, core_id);
-		if(!plane->ports[i].rx_irq)
-			goto err_alloc_irq_rx;
+		plane->ports[i].rx_irq = ih_list[i]->iface->rx_irq[thread_id];
+		plane->ports[i].tx_irq = ih_list[i]->iface->tx_irq[thread_id];
 
-		plane->ports[i].tx_irq = ufp_irq_open(ih_list[i],
-						UFP_IRQ_TX, thread_id, core_id);
-		if(!plane->ports[i].tx_irq)
-			goto err_alloc_irq_tx;
+		err = ufp_irq_setaffinity(plane->ports[i].rx_irq, core_id);
+		if(err < 0){
+			goto err_alloc_plane;
+		}
 
-		continue;
-
-err_alloc_irq_tx:
-		ufp_irq_close(plane->ports[i].rx_irq);
-err_alloc_irq_rx:
-		goto err_alloc_plane;
+		err = ufp_irq_setaffinity(plane->ports[i].tx_irq, core_id);
+		if(err < 0){
+			goto err_alloc_plane;
+		}
 	}
-
 	return plane;
 
 err_alloc_plane:
-	for(i = 0; i < ports_assigned; i++){
-		ufp_irq_close(plane->ports[i].rx_irq);
-		ufp_irq_close(plane->ports[i].tx_irq);
-	}
 	free(plane->ports);
 err_alloc_ports:
 	free(plane);
@@ -126,15 +116,8 @@ err_plane_alloc:
 	return NULL;
 }
 
-void ufp_plane_release(struct ufp_plane *plane, int ih_num)
+void ufp_plane_release(struct ufp_plane *plane)
 {
-	int i;
-
-	for(i = 0; i < ih_num; i++){
-		ufp_irq_close(plane->ports[i].rx_irq);
-		ufp_irq_close(plane->ports[i].tx_irq);
-	}
-
 	free(plane->ports);
 	free(plane);
 
@@ -596,12 +579,11 @@ err_stop_adapter:
 	return;
 }
 
-static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
-	enum ufp_irq_type type, unsigned int irq_idx, unsigned int core_id)
+struct ufp_irq_handle *ufp_irq_open(struct ufp_dev *dev,
+	unsigned int entry_idx)
 {
 	struct ufp_irq_handle *irqh;
-	uint64_t qmask;
-	int efd, ret;
+	int efd, err;
 	struct ufp_irqbind_req req;
 
 	efd = eventfd(0, 0);
@@ -609,42 +591,12 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 		goto err_open_efd;
 
 	req.event_fd	= efd;
+	req.entry_idx	= entry_idx;
 
-	switch(type){
-	case UFP_IRQ_RX:
-		req.entry_idx = irq_idx;
-		break;
-	case UFP_IRQ_TX:
-		req.entry_idx = irq_idx + ih->num_qps;
-		break;
-	case UFP_IRQ_MISC:
-		req.entry_idx = irq_idx + (ih->num_qps * 2);
-		break;
-	default:
-		goto err_invalid_type;
-	}
-
-	ret = ioctl(ih->fd, UFP_IRQBIND, (unsigned long)&req);
-	if(ret < 0){
+	err = ioctl(dev->fd, UFP_IRQBIND, (unsigned long)&req);
+	if(err < 0){
 		printf("failed to UFP_IRQ\n");
 		goto err_irq_bind;
-	}
-
-	ret = ufp_irq_setaffinity(req.vector, core_id);
-	if(ret < 0){
-		printf("failed to set afinity\n");
-		goto err_irq_setaffinity;
-	}
-
-	switch(type){
-	case UFP_IRQ_RX:
-		qmask = 1 << irq_idx;
-		break;
-	case UFP_IRQ_TX:
-		qmask = 1 << (irq_idx + ih->num_qps);
-		break;
-	default:
-		goto err_undefined_type;
 	}
 
 	irqh = malloc(sizeof(struct ufp_irq_handle));
@@ -652,16 +604,12 @@ static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 		goto err_alloc_handle;
 
 	irqh->fd		= efd;
-	irqh->qmask		= qmask;
 	irqh->vector		= req.vector;
-
+	irqh->entry_idx		= entry_idx;
 	return irqh;
 
 err_alloc_handle:
-err_undefined_type:
-err_irq_setaffinity:
 err_irq_bind:
-err_invalid_type:
 	close(efd);
 err_open_efd:
 	return NULL;
@@ -675,7 +623,7 @@ static void ufp_irq_close(struct ufp_irq_handle *irqh)
 	return;
 }
 
-static int ufp_irq_setaffinity(unsigned int vector, unsigned int core_id)
+static int ufp_irq_setaffinity(struct ufp_irq_handle *irqh, unsigned int core_id)
 {
 	FILE *file;
 	char filename[FILENAME_SIZE];
@@ -686,7 +634,7 @@ static int ufp_irq_setaffinity(unsigned int vector, unsigned int core_id)
 	mask_high = core_id <= 31 ? 0 : 1 << (core_id - 31);
 
 	snprintf(filename, sizeof(filename),
-		"/proc/irq/%d/smp_affinity", vector);
+		"/proc/irq/%d/smp_affinity", irqh->vector);
 	file = fopen(filename, "w");
 	if(!file){
 		printf("failed to open smp_affinity\n");

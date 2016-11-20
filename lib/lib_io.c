@@ -54,7 +54,7 @@ void ufp_irq_unmask_queues(struct ufp_plane *plane,
 	struct ufp_port *port;
 
 	port = &plane->ports[port_index];
-	port->ops->unmask_queues(port->bar, irqh->qmask);
+	port->ops->unmask_queues(port->bar, irqh->entry_idx);
 
 	return;
 }
