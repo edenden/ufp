@@ -125,7 +125,7 @@ int ufp_i40e_up(struct ufp_dev *dev)
 
 	iface = dev->iface;
 	while(iface){
-		err = i40e_vsi_configure_filter(dev, iface);
+		err = i40e_vsi_promisc_mode(dev, iface);
 		if(err < 0)
 			goto err_configure_filter;
 

@@ -45,26 +45,26 @@ err_set_rss_key:
 	return -1;
 }
 
-int i40e_vsi_configure_filter(struct ufp_dev *dev, struct ufp_iface *iface)
+int i40e_vsi_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface)
 {
+	uint16_t promisc_flags;
+	int err;
+
+	promisc_flags = I40E_AQC_SET_VSI_PROMISC_MULTICAST |
+		I40E_AQC_SET_VSI_PROMISC_BROADCAST;
+
 	if(iface->promisc){
-		aq_ret = i40e_aq_set_vsi_unicast_promiscuous(
-			&vsi->back->hw,
-			vsi->seid,
-			cur_promisc, NULL,
-			true);
+		promisc_flags |= I40E_AQC_SET_VSI_PROMISC_UNICAST;
 	}
 
-	aq_ret = i40e_aq_set_vsi_multicast_promiscuous(&vsi->back->hw,
-		vsi->seid,
-		cur_multipromisc,
-		NULL);
-
-	aq_ret = i40e_aq_set_vsi_broadcast(&vsi->back->hw,
-		vsi->seid,
-		cur_promisc, NULL);
+	err = i40e_aqc_req_promisc_mode(dev, iface, promisc_flags);
+	if(err < 0)
+		goto err_set_promisc_mode;
 
 	return 0;
+
+err_set_promisc_mode:
+	return -1;
 }
 
 int i40e_vsi_configure_tx(struct ufp_dev *dev,

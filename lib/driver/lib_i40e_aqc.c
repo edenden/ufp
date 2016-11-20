@@ -341,3 +341,40 @@ int i40e_aqc_resp_set_phyintmask(struct ufp_dev *dev)
 	i40e_dev->aq.flag &= ~AQ_SET_PHYINTMASK;
 	return 0;
 }
+
+int i40e_aqc_req_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface,
+	uint16_t promisc_flags)
+{
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_aqc_set_vsi_promiscuous_modes cmd;
+	int err;
+
+	cmd.promiscuous_flags = CPU_TO_LE16(promisc_flags);
+	cmd.valid_flags = CPU_TO_LE16(
+		I40E_AQC_SET_VSI_PROMISC_UNICAST |
+		I40E_AQC_SET_VSI_PROMISC_MULTICAST |
+		I40E_AQC_SET_VSI_PROMISC_BROADCAST);
+	cmd.seid = CPU_TO_LE16(i40e_iface->seid);
+
+	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_vsi_promiscuous_modes, 0,
+		&cmd, sizeof(struct i40e_aqc_set_vsi_promiscuous_modes),
+		NULL, 0);
+	if(err < 0)
+		goto err_xmit;
+
+	i40e_dev->aq.flag |= AQ_PROMISC_MODE;
+	return 0;
+
+err_xmit:
+	return -1;
+}
+
+int i40e_aqc_resp_promisc_mode(struct ufp_dev *dev)
+{
+	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+
+	i40e_dev->aq.flag &= ~AQ_PROMISC_MODE;
+	return 0;
+}
+
