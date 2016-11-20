@@ -201,7 +201,7 @@ err_set_ctx:
 	return -1;
 }
 
-void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
+void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
@@ -209,38 +209,15 @@ void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	uint32_t val;
 	int i;
 
-	vector = i40e_iface->base_qp * 2 + dev->num_misc_irqs;
+	vector = i40e_iface->base_qp * 2;
 	for (i = 0; i < iface->num_qps; i++, vector++){
 		qp_idx = i40e_iface->base_qp + i;
 
-		wr32(hw, I40E_PFINT_ITRN(I40E_RX_ITR, vector),
-		     ITR_TO_REG(I40E_ITR_20K));
-
-		wr32(hw, I40E_PFINT_RATEN(vector),
-		     INTRL_USEC_TO_REG(vsi->int_rate_limit));
-
-		/* Linked list for the queuepairs assigned to this vector */
-		val = qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT |
-			I40E_QUEUE_TYPE_TX << I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
-		wr32(hw, I40E_PFINT_LNKLSTN(vector), val);
-
-		val = I40E_QINT_RQCTL_CAUSE_ENA_MASK |
-			(I40E_RX_ITR << I40E_QINT_RQCTL_ITR_INDX_SHIFT) |
-			(vector << I40E_QINT_RQCTL_MSIX_INDX_SHIFT) |
-			(I40E_QUEUE_END_OF_LIST << I40E_QINT_RQCTL_NEXTQ_INDX_SHIFT);
-		wr32(hw, I40E_QINT_RQCTL(qp_idx), val);
-
-		/* originally in i40e_irq_dynamic_enable() */
-		val = I40E_PFINT_DYN_CTLN_INTENA_MASK |
-			I40E_PFINT_DYN_CTLN_CLEARPBA_MASK |
-			(I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);
-		wr32(hw, I40E_PFINT_DYN_CTLN(vector), val);
-	}
-
-	for (i = 0; i < iface->num_qps; i++, vector++){
-		qp_idx = i40e_iface->base_qp + i;
-
-		wr32(hw, I40E_PFINT_ITRN(I40E_TX_ITR, vector),
+		/* In Intel x710 document, "ITR" term just means "Interrupt Throttling"
+		 * x710 supports 3 ITR values per MSI-X vector, but we use only ITR0
+		 * because we use 1 vector per queue(not queue-pair like vanilla driver)
+		*/
+		wr32(hw, I40E_PFINT_ITRN(I40E_IDX_ITR0, vector),
 		     ITR_TO_REG(I40E_ITR_20K));
 
 		wr32(hw, I40E_PFINT_RATEN(vector),
@@ -251,24 +228,38 @@ void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 			I40E_QUEUE_TYPE_RX << I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
 		wr32(hw, I40E_PFINT_LNKLSTN(vector), val);
 
+		val = I40E_QINT_RQCTL_CAUSE_ENA_MASK |
+			(I40E_IDX_ITR0 << I40E_QINT_RQCTL_ITR_INDX_SHIFT) |
+			(vector << I40E_QINT_RQCTL_MSIX_INDX_SHIFT) |
+			(I40E_QUEUE_END_OF_LIST << I40E_QINT_RQCTL_NEXTQ_INDX_SHIFT);
+		wr32(hw, I40E_QINT_RQCTL(qp_idx), val);
+	}
+
+	for (i = 0; i < iface->num_qps; i++, vector++){
+		qp_idx = i40e_iface->base_qp + i;
+
+		wr32(hw, I40E_PFINT_ITRN(I40E_IDX_ITR0, vector),
+		     ITR_TO_REG(I40E_ITR_20K));
+
+		wr32(hw, I40E_PFINT_RATEN(vector),
+		     INTRL_USEC_TO_REG(vsi->int_rate_limit));
+
+		val = qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT |
+			I40E_QUEUE_TYPE_TX << I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
+		wr32(hw, I40E_PFINT_LNKLSTN(vector), val);
+
 		val = I40E_QINT_TQCTL_CAUSE_ENA_MASK |
-			(I40E_TX_ITR << I40E_QINT_TQCTL_ITR_INDX_SHIFT) |
+			(I40E_IDX_ITR0 << I40E_QINT_TQCTL_ITR_INDX_SHIFT) |
 			(vector << I40E_QINT_TQCTL_MSIX_INDX_SHIFT) |
 			(I40E_QUEUE_END_OF_LIST << I40E_QINT_TQCTL_NEXTQ_INDX_SHIFT);
 		wr32(hw, I40E_QINT_TQCTL(qp_idx), val);
-
-		/* originally in i40e_irq_dynamic_enable() */
-		val = I40E_PFINT_DYN_CTLN_INTENA_MASK |
-			I40E_PFINT_DYN_CTLN_CLEARPBA_MASK |
-			(I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);
-		wr32(hw, I40E_PFINT_DYN_CTLN(vector), val);
 	}
 
 	i40e_flush(hw);
 	return;
 }
 
-static void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface)
+static void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
@@ -279,8 +270,6 @@ static void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	vector = i40e_iface->base_qp * 2 + dev->num_misc_irqs;
 	for (i = 0; i < iface->num_qps; i++, vector++){
 		qp_idx = i40e_iface->base_qp + i;
-
-		wr32(hw, I40E_PFINT_DYN_CTLN(vector), 0);
 
 		val = rd32(hw, I40E_PFINT_LNKLSTN(vector));
 		val |= I40E_QUEUE_END_OF_LIST
@@ -303,8 +292,6 @@ static void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	for(i = 0; i < iface->num_qps; i++, vector++){
 		qp_idx = i40e_iface->base_qp + i;
 
-		wr32(hw, I40E_PFINT_DYN_CTLN(vector), 0);
-
 		val = rd32(hw, I40E_PFINT_LNKLSTN(vector));
 		val |= I40E_QUEUE_END_OF_LIST
 			<< I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT;
@@ -325,6 +312,57 @@ static void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 
 	i40e_flush(hw);
 	return;
+}
+
+void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	uint16_t vector;
+	uint32_t val;
+	int i;
+
+	vector = i40e_iface->base_qp * 2;
+	for (i = 0; i < iface->num_qps * 2; i++, vector++){
+		/* definitely clear the Pending Interrupt Array(PBA) here,
+		 * as this function is meant to clean out all previous interrupts
+		 * AND enable the interrupt 
+		 */
+		val = I40E_PFINT_DYN_CTLN_INTENA_MASK |
+			I40E_PFINT_DYN_CTLN_CLEARPBA_MASK |
+			(I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);
+		wr32(hw, I40E_PFINT_DYN_CTLN(vector), val);
+	}
+
+	i40e_flush(hw);
+	return;
+}
+
+static void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	uint16_t vector;
+	int i;
+
+	vector = i40e_iface->base_qp * 2
+	for (i = 0; i < iface->num_qps * 2; i++, vector++){
+		wr32(hw, I40E_PFINT_DYN_CTLN(vector), 0);
+	}
+
+	i40e_flush(hw);
+	return;
+}
+
+void i40e_update_enable_itr(void *bar, uint16_t vector)
+{
+	uint32_t val;
+
+	val = I40E_PFINT_DYN_CTLN_INTENA_MASK |
+		/* Don't clear PBA because that can cause lost interrupts that
+		 * came in while we were cleaning/polling
+		 */
+		(I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);
+
+	ufp_writel(val, bar + I40E_PFINT_DYN_CTLN(vector));
 }
 
 static int i40e_vsi_start_rx(struct ufp_dev *dev, struct ufp_iface *iface)

@@ -29,7 +29,7 @@ int ufp_i40e_init(struct ufp_dev *dev, struct ufp_ops *ops)
 	ops->close		= ufp_i40e_close;
 
 	/* RxTx related functions */
-	ops->unmask_queues	= ufp_i40e_unmask_queues;
+	ops->unmask_queues	= i40e_update_enable_itr;
 	ops->fill_rx_desc	= ufp_i40e_rx_desc_fill;
 	ops->fetch_rx_desc	= ufp_i40e_rx_desc_fetch;
 	ops->fill_tx_desc	= ufp_i40e_tx_desc_fill;
@@ -137,6 +137,10 @@ int ufp_i40e_up(struct ufp_dev *dev)
 		if(err < 0)
 			goto err_configure_tx;
 
+		err = i40e_vsi_configure_irq(iface);
+		if(err < 0)
+			goto err_configure_irq;
+
 		err = i40e_vsi_start_rx(dev, iface);
 		if(err < 0)
 			goto err_start_rx;
@@ -155,11 +159,15 @@ int ufp_i40e_up(struct ufp_dev *dev)
 err_start_irq:
 err_start_tx:
 err_start_rx:
+err_configure_irq:
 err_configure_tx:
 err_configure_rx:
 err_configure_filter:
 		goto err_up;
 	}
+
+	i40e_setup_misc_vector(dev);
+	i40e_start_misc_vector(dev);
 
 	dev->irqh = ufp_irq_open(dev, UFP_IRQ_MISC, 0, 0);
 	if(!dev->irqh)
@@ -168,6 +176,8 @@ err_configure_filter:
 	return 0;
 
 err_open_irq:
+	i40e_stop_misc_vector(dev);
+	i40e_shutdown_misc_vector(dev);
 err_up:
 	return -1;
 }
@@ -177,6 +187,8 @@ int ufp_i40e_down(struct ufp_dev *dev)
 	struct ufp_iface *iface;
 
 	ufp_irq_close(dev->irqh);
+	i40e_stop_misc_vector(dev);
+	i40e_shutdown_misc_vector(dev);
 
 	iface = dev->iface;
 	while(iface){
@@ -192,9 +204,14 @@ int ufp_i40e_down(struct ufp_dev *dev)
 		if(err < 0)
 			goto err_stop_rx;
 
+		err = i40e_vsi_shutdown_irq(dev, iface);
+		if(err < 0)
+			goto err_shutdown_irq;
+
 		iface = iface->next;
 		continue;
 
+err_shutdown_irq:
 err_stop_rx:
 err_stop_tx:
 err_stop_irq:

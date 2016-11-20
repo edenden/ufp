@@ -224,6 +224,66 @@ void i40e_clear_hw(struct ufp_dev *dev)
 	return;
 }
 
+void i40e_setup_misc_vector(struct ufp_dev *dev)
+{
+	u32 val;
+
+	/* clear things first */
+	wr32(hw, I40E_PFINT_ICR0_ENA, 0);  /* disable all */
+	rd32(hw, I40E_PFINT_ICR0);	 /* read to clear */
+
+	val =	I40E_PFINT_ICR0_ENA_ECC_ERR_MASK |
+		I40E_PFINT_ICR0_ENA_MAL_DETECT_MASK |
+		I40E_PFINT_ICR0_ENA_GRST_MASK |
+		I40E_PFINT_ICR0_ENA_PCI_EXCEPTION_MASK |
+		I40E_PFINT_ICR0_ENA_GPIO_MASK |
+		I40E_PFINT_ICR0_ENA_HMC_ERR_MASK |
+		I40E_PFINT_ICR0_ENA_VFLR_MASK |
+		I40E_PFINT_ICR0_ENA_ADMINQ_MASK;
+	wr32(hw, I40E_PFINT_ICR0_ENA, val);
+
+	/* OTHER_ITR_IDX = 0 */
+	wr32(hw, I40E_PFINT_STAT_CTL0, 0);
+
+	/* associate no queues to the misc vector */
+	wr32(hw, I40E_PFINT_LNKLST0, I40E_QUEUE_END_OF_LIST);
+	wr32(hw, I40E_PFINT_ITR0(I40E_IDX_ITR0), I40E_ITR_8K);
+
+	i40e_flush(hw);
+	return;
+}
+
+void i40e_shutdown_misc_vector(struct ufp_dev *dev)
+{
+	/* Disable ICR 0 */
+	wr32(&pf->hw, I40E_PFINT_ICR0_ENA, 0);
+
+	i40e_flush(&pf->hw);
+	return;
+}
+
+void i40e_start_misc_vector(struct ufp_dev *dev)
+{
+	/* originally in i40e_irq_dynamic_enable_icr0() */
+	val = I40E_PFINT_DYN_CTL0_INTENA_MASK |
+		I40E_PFINT_DYN_CTL0_CLEARPBA_MASK |
+		(I40E_ITR_NONE << I40E_PFINT_DYN_CTL0_ITR_INDX_SHIFT);
+
+	wr32(hw, I40E_PFINT_DYN_CTL0, val);
+
+	i40e_flush(hw);
+	return;
+}
+
+void i40e_stop_misc_vector(struct ufp_dev *dev)
+{
+	wr32(hw, I40E_PFINT_DYN_CTL0,
+		I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);
+
+	i40e_flush(hw);
+	return;
+}
+
 void i40e_set_mac_type(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
