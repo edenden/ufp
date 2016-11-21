@@ -48,11 +48,17 @@ struct ufp_i40e_iface {
 	uint16_t qs_handles[8];
 };
 
-#define msleep(t, n)		(t)->tv_sec = 0; \
-				(t)->tv_nsec = ((n) * 1000000); \
-				nanosleep((t), NULL);
-#define usleep(t, n)		(t)->tv_sec = 0; \
-				(t)->tv_nsec = ((n) * 1000); \
-				nanosleep((t), NULL);
+#define msleep(n) ({			\
+	struct timespec ts;		\
+	ts.tv_sec = 0;			\
+	ts.tv_nsec = ((n) * 1000000);	\
+	nanosleep(&ts, NULL);		\
+})
+#define usleep(n) ({			\
+	struct timespec ts;		\
+	ts.tv_sec = 0;			\
+	ts.tv_nsec = ((n) * 1000);	\
+	nanosleep(&ts, NULL);		\
+})
 
 #endif /* _I40E_H__ */

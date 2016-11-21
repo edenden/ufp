@@ -61,12 +61,11 @@ void ufp_i40e_page_release(struct ufp_dev *dev, struct ufp_i40e_page *page)
 int ufp_i40e_wait_cmd(struct ufp_dev *dev)
 {
 	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct timespec ts;
 	unsigned int timeout;
 
 	timeout = I40E_ASQ_CMD_TIMEOUT;
 	do{
-		usleep(&ts, 1000);
+		usleep(1000);
 		i40e_aq_asq_clean(dev);
 		if(!i40e_dev->aq.flag)
 			break;
@@ -82,7 +81,6 @@ err_timeout:
 
 int i40e_reset_hw(struct ufp_dev *dev)
 {
-	struct timespec ts;
 	uint32_t grst_del, reg;
 	unsigned int timeout;
 
@@ -94,7 +92,7 @@ int i40e_reset_hw(struct ufp_dev *dev)
 		I40E_GLGEN_RSTCTL_GRSTDEL_MASK) >> I40E_GLGEN_RSTCTL_GRSTDEL_SHIFT;
 	timeout = grst_del * 20;
 	do{
-		msleep(&ts, 100);
+		msleep(100);
 		reg = ufp_read_reg(dev, I40E_GLGEN_RSTAT);
 		if(!(reg & I40E_GLGEN_RSTAT_DEVSTATE_MASK))
 			break;
@@ -105,7 +103,7 @@ int i40e_reset_hw(struct ufp_dev *dev)
 	/* Now Wait for the FW to be ready */
 	timeout = I40E_PF_RESET_WAIT_COUNT;
 	do{
-		usleep(&ts, 10000);
+		usleep(10000);
 		reg = ufp_read_reg(dev, I40E_GLNVM_ULD);
 		if((reg & I40E_GLNVM_ULD_CONF_CORE_DONE_MASK) &&
 		(reg & I40E_GLNVM_ULD_CONF_GLOBAL_DONE_MASK))
@@ -120,7 +118,7 @@ int i40e_reset_hw(struct ufp_dev *dev)
 
 	timeout = I40E_PF_RESET_WAIT_COUNT;
 	do{
-		usleep(&ts, 1000);
+		usleep(1000);
 		reg = ufp_read_reg(dev, I40E_PFGEN_CTRL);
 		if(!(reg & I40E_PFGEN_CTRL_PFSWR_MASK))
 			break;
@@ -138,7 +136,6 @@ err_grst_in_progress:
 
 void i40e_clear_hw(struct ufp_dev *dev)
 {
-	struct timespec ts;
 	uint32_t num_queues, base_queue;
 	uint32_t num_pf_int;
 	uint32_t num_vf_int;
@@ -208,7 +205,7 @@ void i40e_clear_hw(struct ufp_dev *dev)
 
 		ufp_write_reg(dev, I40E_GLLAN_TXPRE_QDIS(reg_block), val);
 	}
-	usleep(&ts, 400);
+	usleep(400);
 
 	/* stop all the queues */
 	for (i = 0; i < num_queues; i++) {
@@ -219,7 +216,7 @@ void i40e_clear_hw(struct ufp_dev *dev)
 	}
 
 	/* short wait for all queue disables to settle */
-	usleep(&ts, 50);
+	usleep(50);
 
 	return;
 }
