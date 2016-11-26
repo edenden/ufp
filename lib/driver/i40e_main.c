@@ -8,10 +8,8 @@
 #include <time.h>
 
 #include "lib_main.h"
-#include "lib_rtx.h"
-
-#include "lib_i40e.h"
-#include "lib_i40e_main.h"
+#include "i40e_main.h"
+#include "i40e_aqc.h"
 
 struct i40e_page *i40e_page_alloc(struct ufp_dev *dev)
 {

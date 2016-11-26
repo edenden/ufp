@@ -6,6 +6,11 @@
 #include <errno.h>
 #include <stdint.h>
 
+#include "lib_main.h"
+#include "i40e_main.h"
+#include "i40e_aqc.h"
+#include "i40e_io.h"
+
 int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_aqc_vsi_properties_data data;

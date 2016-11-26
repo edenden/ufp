@@ -6,6 +6,10 @@
 #include <errno.h>
 #include <stdint.h>
 
+#include "lib_main.h"
+#include "i40e_main.h"
+#include "i40e_hmc.h"
+
 int ufp_i40e_hmc_init(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;

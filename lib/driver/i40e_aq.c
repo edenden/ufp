@@ -6,6 +6,10 @@
 #include <errno.h>
 #include <stdint.h>
 
+#include "lib_main.h"
+#include "i40e_main.h"
+#include "i40e_aq.h"
+
 int ufp_i40e_aq_init(struct ufp_dev *dev)
 {       
 	int err;

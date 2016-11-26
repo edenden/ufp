@@ -6,6 +6,11 @@
 #include <errno.h>
 #include <stdint.h>
 
+#include "lib_main.h"
+#include "i40e_main.h"
+#include "i40e_aq.h"
+#include "i40e_aqc.h"
+
 int i40e_aqc_req_get_macaddr(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;

@@ -7,9 +7,11 @@
 #include <stdint.h>
 
 #include "lib_main.h"
-#include "lib_rtx.h"
-
-#include "lib_i40e.h"
+#include "i40e_main.h"
+#include "i40e_aq.h"
+#include "i40e_hmc.h"
+#include "i40e_io.h"
+#include "i40e_ops.h"
 
 int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops)
 {
