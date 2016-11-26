@@ -5,35 +5,34 @@
 #include <string.h>
 #include <errno.h>
 #include <stdint.h>
-#include <time.h>
 
 #include "lib_main.h"
 #include "lib_rtx.h"
 
 #include "lib_i40e.h"
 
-int ufp_i40e_init(struct ufp_dev *dev, struct ufp_ops *ops)
+int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops)
 {
-	struct ufp_i40e_dev *i40e_dev;
+	struct i40e_dev *i40e_dev;
 
-	i40e_dev = malloc(sizeof(struct ufp_i40e_dev));
+	i40e_dev = malloc(sizeof(struct i40e_dev));
 	if(!i40e_dev)
 		goto err_alloc_drv_data;
 
 	dev->drv_data = i40e_dev;
 
 	/* Configuration related functions*/
-	ops->open		= ufp_i40e_open;
-	ops->up			= ufp_i40e_up;
-	ops->down		= ufp_i40e_down;
-	ops->close		= ufp_i40e_close;
+	ops->open		= i40e_ops_open;
+	ops->up			= i40e_ops_up;
+	ops->down		= i40e_ops_down;
+	ops->close		= i40e_ops_close;
 
 	/* RxTx related functions */
 	ops->unmask_queues	= i40e_update_enable_itr;
-	ops->fill_rx_desc	= ufp_i40e_rx_desc_fill;
-	ops->fetch_rx_desc	= ufp_i40e_rx_desc_fetch;
-	ops->fill_tx_desc	= ufp_i40e_tx_desc_fill;
-	ops->fetch_tx_desc	= ufp_i40e_tx_desc_fetch;
+	ops->fill_rx_desc	= i40e_rx_desc_fill;
+	ops->fetch_rx_desc	= i40e_rx_desc_fetch;
+	ops->fill_tx_desc	= i40e_tx_desc_fill;
+	ops->fetch_tx_desc	= i40e_tx_desc_fetch;
 
 	return 0;
 
@@ -41,13 +40,13 @@ err_alloc_drv_data:
 	return -1;
 }
 
-void ufp_i40e_destroy(struct ufp_dev *dev, struct ufp_ops *ops)
+void i40e_ops_destroy(struct ufp_dev *dev, struct ufp_ops *ops)
 {
 	free(dev->drv_data);
 	return;
 }
 
-int ufp_i40e_open(struct ufp_dev *dev)
+static int i40e_ops_open(struct ufp_dev *dev)
 {
 	int err;
 
@@ -88,7 +87,7 @@ err_configure_pf:
 	return -1;
 }
 
-int ufp_i40e_close(struct ufp_dev *dev)
+static int i40e_ops_close(struct ufp_dev *dev)
 {
 	ufp_i40e_hmc_destroy(dev);
 	ufp_i40e_aq_destroy(dev);
@@ -96,9 +95,10 @@ int ufp_i40e_close(struct ufp_dev *dev)
 	return 0;
 }
 
-int ufp_i40e_up(struct ufp_dev *dev)
+static int i40e_ops_up(struct ufp_dev *dev)
 {
 	struct ufp_iface *iface;
+	int err;
 
 	iface = dev->iface;
 	while(iface){
@@ -154,9 +154,10 @@ err_up:
 	return -1;
 }
 
-int ufp_i40e_down(struct ufp_dev *dev)
+static int i40e_ops_down(struct ufp_dev *dev)
 {
 	struct ufp_iface *iface;
+	int err;
 
 	i40e_stop_misc_irq(dev);
 	i40e_shutdown_misc_irq(dev);

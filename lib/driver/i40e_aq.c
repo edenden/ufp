@@ -1,3 +1,11 @@
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <stdint.h>
+
 int ufp_i40e_aq_init(struct ufp_dev *dev)
 {       
 	int err;
@@ -22,10 +30,10 @@ err_init_asq:
 	return -1;
 }
 
-int i40e_aq_asq_init(struct ufp_dev *dev)
+static int i40e_aq_asq_init(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_ring *ring;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_aq_ring *ring;
 	int err;
 
 	ring = malloc(sizeof(struct i40e_aq_ring));
@@ -59,10 +67,10 @@ err_alloc_ring:
 	return -1;
 }
 
-int i40e_aq_arq_init(struct ufp_dev *dev)
+static int i40e_aq_arq_init(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_ring *ring;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_aq_ring *ring;
 	struct ufp_irq_handle *irqh;
 	int err;
 
@@ -98,9 +106,9 @@ err_alloc_ring:
 	return -1;
 }
 
-int i40e_aq_ring_alloc(struct ufp_dev *dev, struct ufp_i40e_aq_ring *ring)
+static int i40e_aq_ring_alloc(struct ufp_dev *dev, struct ufp_i40e_aq_ring *ring)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	uint64_t size;
 	int i;
 
@@ -113,26 +121,26 @@ int i40e_aq_ring_alloc(struct ufp_dev *dev, struct ufp_i40e_aq_ring *ring)
 	if(size > sysconf(_SC_PAGESIZE))
 		goto err_desc_size;
 
-	ring->desc = ufp_i40e_page_alloc(dev);
+	ring->desc = i40e_page_alloc(dev);
 	if(!ring->desc)
 		goto err_desc_alloc;
 
 	/* allocate buffers in the rings */
-	ring->bufs = malloc(ring->num_desc * sizeof(struct ufp_i40e_page *));
+	ring->bufs = malloc(ring->num_desc * sizeof(struct i40e_page *));
 	if(!ring->bufs)
 		goto err_buf_alloc;
 
 	return 0;
 
 err_buf_alloc:
-	ufp_i40e_page_release(ring->desc);
+	i40e_page_release(ring->desc);
 err_desc_alloc:
 err_config:
 err_already:
 	return -1;
 }
 
-int i40e_aq_ring_configure(struct ufp_dev *dev, struct ufp_i40e_aq_ring *ring)
+static int i40e_aq_ring_configure(struct ufp_dev *dev, struct ufp_i40e_aq_ring *ring)
 {
 	/* Clear Head and Tail */
 	ufp_write_reg(hw, ring->head, 0);
@@ -154,9 +162,9 @@ err_init_ring:
 	return -1;
 }
 
-void ufp_i40e_aq_destroy(struct ufp_dev *dev)
+void i40e_aq_destroy(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	i40e_aq_queue_shutdown(dev, true);
 	i40e_aq_asq_shutdown(dev);
@@ -165,9 +173,9 @@ void ufp_i40e_aq_destroy(struct ufp_dev *dev)
 	return;
 }
 
-void i40e_aq_asq_shutdown(ufp_dev *dev)
+static void i40e_aq_asq_shutdown(ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	/* Stop firmware AdminQ processing */
 	ufp_write_reg(hw, ring->head, 0);
@@ -183,9 +191,9 @@ void i40e_aq_asq_shutdown(ufp_dev *dev)
 	return;
 }
 
-void i40e_aq_arq_shutdown(ufp_dev *dev)
+static void i40e_aq_arq_shutdown(ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	/* Stop firmware AdminQ processing */
 	ufp_write_reg(hw, ring->head, 0);
@@ -201,16 +209,16 @@ void i40e_aq_arq_shutdown(ufp_dev *dev)
 	return;
 }
 
-void i40e_aq_ring_release(struct ufp_dev *dev, struct ufp_i40e_aq_ring *ring)
+static void i40e_aq_ring_release(struct ufp_dev *dev, struct ufp_i40e_aq_ring *ring)
 {
 	int i;
 
 	for(i = 0; i < ring->num_desc; i++){
 		if(ring->bufs[i])
-			ufp_i40e_page_release(ring->bufs[i]);
+			i40e_page_release(ring->bufs[i]);
 	}
 	free(ring->bufs);
-	ufp_i40e_page_release(ring->desc);
+	i40e_page_release(ring->desc);
 
 	return;
 }
@@ -229,10 +237,10 @@ static uint16_t i40e_aq_desc_unused(struct i40e_aq_ring *ring,
 void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 	void *cmd, uint16_t cmd_size, void *data, uint16_t data_size)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data; 
+	struct i40e_dev *i40e_dev = dev->drv_data; 
 	struct i40e_aq_ring *ring = i40e_dev->aq.tx_ring;
 	struct i40e_aq_desc *desc;
-	struct ufp_i40e_page *buf;
+	struct i40e_page *buf;
 	uint16_t next_to_use;
 	uint16_t unused_count;
 
@@ -247,7 +255,7 @@ void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 	memcpy(&desc->params, cmd, cmd_size);
 
 	if(flags & I40E_AQ_FLAG_BUF){
-		buf = ufp_i40e_page_alloc(dev);
+		buf = i40e_page_alloc(dev);
 		if(!buf)
 			goto err_page_alloc;
 		ring->bufs[ring->next_to_use] = buf;
@@ -278,10 +286,10 @@ void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 
 void i40e_aq_arq_assign(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_ring *ring = i40e_dev->aq.rx_ring;
 	struct i40e_aq_desc *desc;
-	struct ufp_i40e_page *buf;
+	struct i40e_page *buf;
 	unsigned int total_allocated;
 	uint16_t max_allocation;
 	uint16_t next_to_use;
@@ -292,7 +300,7 @@ void i40e_aq_arq_assign(struct ufp_dev *dev)
 
 	total_allocated = 0;
 	while(total_allocated < max_allocation){
-		buf = ufp_i40e_page_alloc(dev);
+		buf = i40e_page_alloc(dev);
 		if(!buf)
 			break;
 
@@ -333,10 +341,10 @@ void i40e_aq_arq_assign(struct ufp_dev *dev)
 
 void i40e_aq_asq_clean(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_ring *ring = i40e_dev->aq.tx_ring;
 	struct i40e_aq_desc *desc;
-	struct ufp_i40e_page *buf;
+	struct i40e_page *buf;
 	uint16_t next_to_clean;
 
 	/* AQ designers suggest use of head for better
@@ -348,7 +356,7 @@ void i40e_aq_asq_clean(struct ufp_dev *dev)
 		buf = ring->bufs[ring->next_to_clean];
 		i40e_aq_asq_process(dev, desc, buf);
 		if(desc->flags & I40E_AQ_FLAG_BUF)
-			ufp_i40e_page_release(dev, buf);
+			i40e_page_release(dev, buf);
 
 		next_to_clean = ring->next_to_clean + 1;
 		ring->next_to_clean =
@@ -360,10 +368,10 @@ void i40e_aq_asq_clean(struct ufp_dev *dev)
 
 void i40e_aq_arq_clean(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_ring *ring = i40e_dev->aq.rx_ring;
 	struct i40e_aq_desc *desc;
-	struct ufp_i40e_page *buf;
+	struct i40e_page *buf;
 	uint16_t next_to_clean;
 
 	while(ring->next_to_clean != (ufp_read_reg(hw, ring->head) & I40E_PF_ARQH_ARQH_MASK)){
@@ -372,7 +380,7 @@ void i40e_aq_arq_clean(struct ufp_dev *dev)
 			ring->desc->addr_virt)[ring->next_to_clean];
 		buf = ring->bufs[ring->next_to_clean];
 		i40e_arq_process(dev, desc, buf);
-		ufp_i40e_page_release(dev, buf);
+		i40e_page_release(dev, buf);
 
 		next_to_clean = ring->next_to_clean + 1;
 		ring->next_to_clean =
@@ -382,8 +390,8 @@ void i40e_aq_arq_clean(struct ufp_dev *dev)
 	return;
 }
 
-int i40e_aq_asq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
-	struct ufp_i40e_page *buf)
+static int i40e_aq_asq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
+	struct i40e_page *buf)
 {
 	uint16_t retval;
 	uint16_t opcode;
@@ -416,8 +424,8 @@ err_retval:
 	return err;
 }
 
-int i40e_aq_arq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
-	struct ufp_i40e_page *buf)
+static int i40e_aq_arq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
+	struct i40e_page *buf)
 {
 	uint16_t len;
 	uint16_t flags;

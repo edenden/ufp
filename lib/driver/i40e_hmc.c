@@ -1,6 +1,14 @@
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <stdint.h>
+
 int ufp_i40e_hmc_init(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_hmc *hmc = &i40e_dev->hmc;
 	uint64_t fpm_size;
 	uint32_t queue_max;
@@ -49,7 +57,7 @@ err_alloc_sd_entry:
 
 void i40e_hmc_destroy(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_hmc *hmc = &i40e_dev->hmc;
 
 	i40e_hmc_shutdown(dev);
@@ -58,9 +66,9 @@ void i40e_hmc_destroy(struct ufp_dev *dev)
 	return;
 }
 
-int i40e_hmc_configure(struct ufp_dev *dev)
+static int i40e_hmc_configure(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_hmc *hmc = &i40e_dev->hmc;
 	struct i40e_hmc_obj *obj;
 	struct i40e_hmc_sd_entry *sd_entry;
@@ -97,9 +105,9 @@ err_alloc_sd:
 	return -1;
 }
 
-void i40e_hmc_shutdown(struct ufp_dev *dev)
+static void i40e_hmc_shutdown(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_hmc *hmc = &i40e_dev->hmc;
 	struct i40e_hmc_obj *obj;
 	struct i40e_hmc_sd_entry *sd_entry;
@@ -113,20 +121,20 @@ void i40e_hmc_shutdown(struct ufp_dev *dev)
 	return;
 }
 
-int i40e_hmc_sd_allocate(struct ufp_dev *dev,
+static int i40e_hmc_sd_allocate(struct ufp_dev *dev,
 	struct i40e_hmc_sd_entry *sd_entry, uint32_t sd_index)
 {
 	unsigned int pd_allocated = 0;
-	struct ufp_i40e_page *pd;
+	struct i40e_page *pd;
 	uint64_t *pd_addr;
 	int i;
 
-	sd_entry->pd_addrs = ufp_i40e_page_alloc(dev);
+	sd_entry->pd_addrs = i40e_page_alloc(dev);
 	if(!sd_entry->pd_addrs)
 		goto err_alloc_pd_addrs;
 
 	for(i = 0; i < I40E_HMC_MAX_BP_COUNT; i++, pd_allocated++){
-		pd = ufp_i40e_page_alloc(dev);
+		pd = i40e_page_alloc(dev);
 		if(!pd)
 			goto err_alloc_pd;
 
@@ -144,17 +152,17 @@ int i40e_hmc_sd_allocate(struct ufp_dev *dev,
 
 err_alloc_pd:
 	for(i = 0; i < pd_allocated; i++){
-		ufp_i40e_page_free(sd_entry->pd[i]);
+		i40e_page_release(sd_entry->pd[i]);
 	}
-	ufp_i40e_page_free(sd_entry->pd_addrs);
+	i40e_page_release(sd_entry->pd_addrs);
 err_alloc_pd_addrs:
 	return -1;
 }
 
-void i40e_hmc_sd_release(struct ufp_dev *dev,
+static void i40e_hmc_sd_release(struct ufp_dev *dev,
 	struct i40e_hmc_sd_entry *sd_entry, uint32_t sd_index)
 {
-	struct ufp_i40e_page *pd;
+	struct i40e_page *pd;
 	int i;
 
 	i40e_clear_pf_sd_entry(hw, sd_index, I40E_SD_TYPE_PAGED);
@@ -166,10 +174,10 @@ void i40e_hmc_sd_release(struct ufp_dev *dev,
 			(sd_idx << I40E_PFHMC_PDINV_PMSDIDX_SHIFT) |
 			(i << I40E_PFHMC_PDINV_PMPDIDX_SHIFT));
 
-		ufp_i40e_page_free(pd);
+		i40e_page_release(pd);
 	}
 
-	ufp_i40e_page_free(sd_entry->pd_addrs);
+	i40e_page_release(sd_entry->pd_addrs);
 }
 
 static void i40e_set_pf_sd_entry(struct ufp_dev *dev, unsigned long pa,
@@ -217,10 +225,10 @@ static void i40e_clear_pf_sd_entry(struct ufp_dev *dev,
 static void *i40e_hmc_va(struct ufp_dev *dev, struct i40e_hmc_obj *obj,
 	uint16_t qp_idx)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_hmc *hmc = &i40e_dev->hmc;
 	struct i40e_hmc_sd_entry *sd_entry;
-	struct ufp_i40e_page *pd;
+	struct i40e_page *pd;
 	uint32_t page_idx, sd_idx, pd_idx;
 	uint64_t addr_fpm, offset;
 	void *hmc_va;
@@ -247,7 +255,7 @@ err_sd_idx:
 int i40e_hmc_set_ctx_tx(struct ufp_dev *dev, struct i40e_hmc_ctx_tx *ctx,
 	uint16_t qp_idx)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_hmc *hmc = &i40e_dev->hmc;
 	void *hmc_va;
 	struct i40e_hmc_ce ce[] = {
@@ -293,7 +301,7 @@ err_hmc_va:
 int i40e_hmc_set_ctx_rx(struct ufp_dev *dev, struct i40e_hmc_ctx_rx *ctx,
 	uint16_t qp_idx)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_i40e_hmc *hmc = &i40e_dev->hmc;
 	void *hmc_va;
 	struct i40e_hmc_ce ce[] = {
@@ -337,7 +345,7 @@ err_hmc_va:
 	return -1;
 }
 
-void i40e_hmc_write(uint8_t *hmc_bits,
+static void i40e_hmc_write(uint8_t *hmc_bits,
 	struct i40e_hmc_ce *ce, uint8_t *host_buf)
 {
 	uint8_t data[8], mask[8];
@@ -384,7 +392,7 @@ void i40e_hmc_write(uint8_t *hmc_bits,
 	return;
 }
 
-void i40e_hmc_read(uint8_t *hmc_bits,
+static void i40e_hmc_read(uint8_t *hmc_bits,
 	struct i40e_hmc_ce *ce, uint8_t *host_buf)
 {
 	uint8_t data[8], mask[8];

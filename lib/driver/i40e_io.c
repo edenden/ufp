@@ -1,3 +1,11 @@
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <stdint.h>
+
 void i40e_vlan_stripping_disable(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_aqc_vsi_properties_data data;
@@ -75,8 +83,8 @@ err_set_promisc_mode:
 int i40e_vsi_configure_tx(struct ufp_dev *dev,
 	struct ufp_iface *iface)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	struct ufp_ring *ring;
 	struct i40e_hmc_ctx_tx ctx;
 	uint16_t qp_idx;
@@ -146,8 +154,8 @@ err_set_ctx:
 int i40e_vsi_configure_rx(struct ufp_dev *dev,
 	struct ufp_iface *iface)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	struct ufp_ring *ring;
 	struct i40e_hmc_ctx_rx ctx;
 	uint16_t qp_idx;
@@ -208,8 +216,8 @@ err_set_ctx:
 
 void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint16_t qp_idx, irq_idx;
 	uint32_t val;
 	int i;
@@ -274,8 +282,8 @@ void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 
 static void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint16_t qp_idx, irq_idx;
 	uint32_t val;
 	int i;
@@ -333,7 +341,7 @@ static void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 
 void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 {
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint16_t irq_idx;
 	uint32_t val;
 	int i;
@@ -356,7 +364,7 @@ void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 
 static void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 {
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint16_t irq_idx;
 	int i;
 
@@ -383,8 +391,8 @@ void i40e_update_enable_itr(void *bar, uint16_t entry_idx)
 
 static int i40e_vsi_start_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint32_t rx_reg;
 	uint16_t qp_idx;
 	int i;
@@ -427,8 +435,8 @@ err_vsi_start:
 
 static int i40e_vsi_stop_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint32_t rx_reg;
 	uint16_t qp_idx;
 	int i;
@@ -471,8 +479,8 @@ err_vsi_stop:
 
 static int i40e_vsi_start_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint32_t tx_reg;
 	uint16_t qp_idx;
 	int i, retry;
@@ -521,8 +529,8 @@ err_vsi_start:
 
 static int i40e_vsi_stop_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint32_t tx_reg;
 	uint16_t qp_idx;
 	int i, retry;

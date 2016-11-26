@@ -27,8 +27,8 @@ struct i40e_aq_desc {
 };
 
 struct i40e_aq_ring {
-	struct ufp_i40e_page *desc; /* descriptor ring memory */
-	struct ufp_i40e_page **bufs;
+	struct i40e_page *desc; /* descriptor ring memory */
+	struct i40e_page **bufs;
 	uint16_t num_desc;
 
 	uint16_t next_to_use;

@@ -32,7 +32,7 @@ enum i40e_mac_type {
 	I40E_MAC_GENERIC,
 };
 
-struct ufp_i40e_dev {
+struct i40e_dev {
 	uint8_t pf_id;
 	enum i40e_mac_type mac_type;
 
@@ -41,7 +41,7 @@ struct ufp_i40e_dev {
 	struct i40e_hmc hmc;
 };
 
-struct ufp_i40e_iface {
+struct i40e_iface {
 	enum i40e_vsi_type type;
 	uint16_t vsi_id;
 	uint16_t base_qp;

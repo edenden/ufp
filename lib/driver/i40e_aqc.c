@@ -1,6 +1,14 @@
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <stdint.h>
+
 int i40e_aqc_req_get_macaddr(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_cmd_macaddr cmd;
 	uint16_t flags;
 	int err;
@@ -23,7 +31,7 @@ err_xmit:
 int i40e_aqc_resp_get_macaddr(struct ufp_dev *dev,
 	struct i40e_aq_cmd_macaddr *cmd, struct i40e_aq_buf_macaddr *buf)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	if(!(cmd->command_flags & I40E_AQC_PORT_ADDR_VALID))
 		goto err_invalid;
@@ -38,7 +46,7 @@ err_invalid:
 
 int i40e_aqc_req_clear_pxemode(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_cmd_clear_pxe cmd;
 	int err;
 
@@ -59,7 +67,7 @@ err_xmit:
 
 int i40e_aqc_resp_clear_pxemode(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	wr32(hw, I40E_GLLAN_RCTL_0, 0x1);
 	i40e_dev->aq.flag &= ~AQ_CLEAR_PXE;
@@ -69,7 +77,7 @@ int i40e_aqc_resp_clear_pxemode(struct ufp_dev *dev)
 
 int i40e_aqc_req_stop_lldp(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aqc_lldp_stop cmd;
 	int err;
 
@@ -89,7 +97,7 @@ err_xmit:
 
 int i40e_aqc_resp_stop_lldp(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	i40e_dev->aq.flag &= ~AQ_STOP_LLDP;
 	return 0;
@@ -97,7 +105,7 @@ int i40e_aqc_resp_stop_lldp(struct ufp_dev *dev)
 
 int i40e_aqc_req_get_swconf(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_cmd_getconf cmd;
 	uint16_t flags;
 	int err;
@@ -121,7 +129,7 @@ err_xmit:
 int i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
 	struct i40e_aq_cmd_getconf *cmd, struct i40e_aqc_get_switch_config_resp *buf)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aqc_switch_config_element_resp *elem_resp;
 
 	num_reported = le16_to_cpu(buf->header.num_reported);
@@ -148,7 +156,7 @@ int i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
 int i40e_aqc_req_set_swconf(struct ufp_dev *dev,
 	uint16_t flags, uint16_t valid_flags)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aqc_set_switch_config cmd;
 	int err;
 
@@ -171,7 +179,7 @@ err_xmit:
 int i40e_aqc_resp_set_swconf(struct ufp_dev *dev,
 	struct i40e_aq_cmd_clear_pxe *cmd)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	i40e_dev->aq.flag &= ~AQ_SET_CONF;
 	return 0;
@@ -180,8 +188,8 @@ int i40e_aqc_resp_set_swconf(struct ufp_dev *dev,
 int i40e_aqc_req_update_vsi(struct ufp_dev *dev, struct ufp_iface *iface,
 	struct i40e_aqc_vsi_properties_data *data)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	struct i40e_aqc_add_get_update_vsi cmd;
 	uint16_t flags;
 	int err;
@@ -205,9 +213,9 @@ err_xmit:
 int i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
 	struct i40e_aqc_add_get_update_vsi_completion *cmd)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_iface *iface = dev->iface;
-	struct ufp_i40e_iface *i40e_iface;
+	struct i40e_iface *i40e_iface;
 
 	while(iface){
 		i40e_iface = iface->drv_data;
@@ -231,8 +239,8 @@ err_notfound:
 int i40e_aqc_req_set_rsskey(struct ufp_dev *dev,
 	struct ufp_iface *iface, uint8_t *key, uint16_t key_size)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	struct i40e_aqc_get_set_rss_key cmd;
 	uint16_t flags;
 	int err;
@@ -258,7 +266,7 @@ err_xmit:
 
 int i40e_aqc_resp_set_rsskey(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	i40e_dev->aq.flag &= ~AQ_SET_RSSKEY;
 	return 0;
@@ -267,8 +275,8 @@ int i40e_aqc_resp_set_rsskey(struct ufp_dev *dev)
 int i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
 	struct ufp_iface *iface, uint8_t *lut, uint16_t lut_size)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	struct i40e_aqc_get_set_rss_lut cmd;
 	uint16_t flags;
 	int err;
@@ -307,7 +315,7 @@ err_xmit:
 
 int i40e_aqc_resp_set_rsslut(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	i40e_dev->aq.flag &= ~AQ_SET_RSSLUT;
 	return 0;
@@ -315,7 +323,7 @@ int i40e_aqc_resp_set_rsslut(struct ufp_dev *dev)
 
 int i40e_aqc_req_set_phyintmask(struct ufp_dev *dev, uint16_t mask)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aqc_set_phy_int_mask cmd;
 	int err;
 
@@ -336,7 +344,7 @@ err_xmit:
 
 int i40e_aqc_resp_set_phyintmask(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	i40e_dev->aq.flag &= ~AQ_SET_PHYINTMASK;
 	return 0;
@@ -345,8 +353,8 @@ int i40e_aqc_resp_set_phyintmask(struct ufp_dev *dev)
 int i40e_aqc_req_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface,
 	uint16_t promisc_flags)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
-	struct ufp_i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
 	struct i40e_aqc_set_vsi_promiscuous_modes cmd;
 	int err;
 
@@ -372,7 +380,7 @@ err_xmit:
 
 int i40e_aqc_resp_promisc_mode(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	i40e_dev->aq.flag &= ~AQ_PROMISC_MODE;
 	return 0;

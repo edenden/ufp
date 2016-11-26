@@ -13,14 +13,14 @@
 #include "lib_i40e.h"
 #include "lib_i40e_main.h"
 
-struct ufp_i40e_page *ufp_i40e_page_alloc(struct ufp_dev *dev)
+struct i40e_page *i40e_page_alloc(struct ufp_dev *dev)
 {
-	struct ufp_i40e_page *page;
+	struct i40e_page *page;
 	unsigned long addr_dma, size;
 	void *addr_virt;
 	int err;
 
-	page = malloc(sizeof(struct ufp_i40e_page));
+	page = malloc(sizeof(struct i40e_page));
 	if(!page)
 		goto err_alloc_page;
 
@@ -50,7 +50,7 @@ err_alloc_page:
 	return NULL;
 }
 
-void ufp_i40e_page_release(struct ufp_dev *dev, struct ufp_i40e_page *page)
+void i40e_page_release(struct ufp_dev *dev, struct i40e_page *page)
 {
 	ufp_dma_unmap(dev, page->addr_dma);
 	munmap(page->addr_virt, sysconf(_SC_PAGESIZE));
@@ -60,7 +60,7 @@ void ufp_i40e_page_release(struct ufp_dev *dev, struct ufp_i40e_page *page)
 
 int ufp_i40e_wait_cmd(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	unsigned int timeout;
 
 	timeout = I40E_ASQ_CMD_TIMEOUT;
@@ -340,7 +340,7 @@ void i40e_stop_misc_irq(struct ufp_dev *dev)
 
 void i40e_set_mac_type(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	switch(dev->ops->device_id){
 	case I40E_DEV_ID_SFP_XL710:
@@ -383,7 +383,7 @@ err_mac_unknown:
 
 void i40e_set_pf_id(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	uint32_t pci_cap, pci_cap_ari, func_rid;
 
 	pci_cap = rd32(hw, I40E_GLPCI_CAPSUP);
@@ -401,7 +401,7 @@ void i40e_set_pf_id(struct ufp_dev *dev)
 
 int i40e_switchconf_fetch(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	int err;
 
 	i40e_dev->aq_seid_offset = 0;
@@ -498,9 +498,9 @@ static int i40e_configure_rss(struct ufp_dev *dev)
 
 static int i40e_setup_pf_switch(struct ufp_dev *dev)
 {
-	struct ufp_i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_iface *iface;
-	struct ufp_i40e_iface *i40e_iface;
+	struct i40e_iface *i40e_iface;
 	struct switch_elem *elem;
 	int err;
 
@@ -540,7 +540,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	/* Set up the PF VSI associated with the PF's main VSI
 	 * that is already in the HW switch
 	 */
-	i40e_iface = malloc(sizeof(struct ufp_i40e_iface));
+	i40e_iface = malloc(sizeof(struct i40e_iface));
 	if(!i40e_iface)
 		goto err_alloc_iface;
 

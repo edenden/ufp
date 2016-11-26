@@ -18,8 +18,8 @@ struct i40e_hmc_sd_table {
 };
 
 struct i40e_hmc_sd_entry {
-	struct ufp_i40e_page *pd_addrs;
-	struct ufp_i40e_page *pd[I40E_HMC_MAX_BP_COUNT];
+	struct i40e_page *pd_addrs;
+	struct i40e_page *pd[I40E_HMC_MAX_BP_COUNT];
 };
 
 struct i40e_hmc_ctx_rx {
