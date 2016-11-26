@@ -58,7 +58,7 @@ void i40e_page_release(struct ufp_dev *dev, struct i40e_page *page)
 	return;
 }
 
-int ufp_i40e_wait_cmd(struct ufp_dev *dev)
+int i40e_wait_cmd(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	unsigned int timeout;
@@ -251,11 +251,7 @@ int i40e_configure_pf(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_aq_set_phy_int_mask;
 
-	err = i40e_switchconf_fetch(dev);
-	if(err < 0)
-		goto err_switchconf_fetch;
-
-	err = ufp_i40e_wait_cmd(dev);
+	err = i40e_wait_cmd(dev);
 	if(err < 0)
 		goto err_wait_cmd;
 
@@ -402,19 +398,26 @@ void i40e_set_pf_id(struct ufp_dev *dev)
 int i40e_switchconf_fetch(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_elem *elem, *elem_next;
 	int err;
 
 	i40e_dev->aq_seid_offset = 0;
-	clear_list(i40e_dev->switch_elem);
+
+	elem = i40e_dev->elem;
+	while(elem){
+		elem_next = elem->next;
+		free(elem);
+		elem = elem_next;
+	}
 
 	do{
 		err = i40e_aq_cmd_xmit_getconf(dev);
 		if(err < 0)
 			goto err_cmd_xmit_getconf;
 
-		while(!(data->flag & AQ_GETCONF)){
-			i40e_aq_asq_clean(dev);
-		}
+		err = i40e_wait_cmd(dev);
+		if(err < 0)
+			goto err_wait_cmd;
 	}while(i40e_dev->aq_seid_offset);
 
 	return 0;
@@ -514,6 +517,10 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 			0, I40E_AQ_SET_SWITCH_CFG_PROMISC);
 		if(err < 0)
 			goto err_switch_setconf;
+
+		err = i40e_wait_cmd(dev);
+		if(err < 0)
+			goto err_wait_cmd;
 	}
 
 	/* Setup static PF queue filter control settings */
@@ -527,6 +534,10 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	err = i40e_configure_rss(dev);
 	if(err < 0)
 		goto err_configure_rss;
+
+	err = i40e_switchconf_fetch(dev);
+	if(err < 0)
+		goto err_switchconf_fetch;
 
 	foreach(data->switch_elem){
 		if(elem->type == I40E_SWITCH_ELEMENT_TYPE_VSI){
@@ -557,11 +568,19 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	iface->num_tx_desc = I40E_MAX_NUM_DESCRIPTORS;
 	iface->size_tx_desc =
 		iface->num_tx_desc * sizeof(union i40e_tx_desc);
-	i40e_vlan_stripping_disable(dev, iface);
-	i40e_vsi_rss_config(dev, iface);
+
+	err = i40e_vsi_update(dev, iface);
+	if(err < 0)
+		goto err_vsi_update;
+
+	err = i40e_vsi_rss_config(dev, iface);
+	if(err < 0)
+		goto err_vsi_rss_config;
 
 	return 0;
 
+err_vsi_update:
+err_vsi_rss_config:
 err_set_filter_ctrl:
 err_switch_setconf:
 	free(i40e_iface);

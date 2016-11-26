@@ -131,20 +131,30 @@ int i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aqc_switch_config_element_resp *elem_resp;
+	struct i40e_elem **elem;
 
 	num_reported = le16_to_cpu(buf->header.num_reported);
+
+	elem = &i40e_dev->elem;
+	while(*elem->next){
+		elem = &(*elem->next);
+	}
+
 	for (i = 0; i < num_reported; i++) {
-		struct switch_elem *elem;
+		*elem = malloc(sizeof(struct i40e_elem));
+		if(!*elem)
+			goto err_alloc_elem;
 
 		elem_resp = buf->element[i];
 
-		elem->type = elem_resp->element_type;
-		elem->seid = le16_to_cpu(elem_resp->seid);
-		elem->seid_uplink = le16_to_cpu(elem_resp->uplink_seid);
-		elem->seid_downlink = le16_to_cpu(elem_resp->downlink_seid);
-		elem->element_info = le16_to_cpu(elem_resp->element_info);
+		*elem->type = elem_resp->element_type;
+		*elem->seid = le16_to_cpu(elem_resp->seid);
+		*elem->seid_uplink = le16_to_cpu(elem_resp->uplink_seid);
+		*elem->seid_downlink = le16_to_cpu(elem_resp->downlink_seid);
+		*elem->element_info = le16_to_cpu(elem_resp->element_info);
+		*elem->next = NULL;
 
-		add_conf_to_list(i40e_dev->switch_elem, elem);
+		elem = &(*elem->next);
 	}
 
 	i40e_dev->aq.flag &= ~AQ_GET_CONF;

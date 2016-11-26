@@ -6,11 +6,12 @@
 #include <errno.h>
 #include <stdint.h>
 
-void i40e_vlan_stripping_disable(struct ufp_dev *dev, struct ufp_iface *iface)
+int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_aqc_vsi_properties_data data;
 	i40e_status ret;
 
+	/* Turn off vlan stripping for the VSI */
 	data.valid_sections = cpu_to_le16(I40E_AQ_VSI_PROP_VLAN_VALID);
 	data.port_vlan_flags = I40E_AQ_VSI_PVLAN_MODE_ALL |
 				    I40E_AQ_VSI_PVLAN_EMOD_NOTHING;
@@ -19,8 +20,13 @@ void i40e_vlan_stripping_disable(struct ufp_dev *dev, struct ufp_iface *iface)
 	if(err < 0)
 		goto err_req_update;
 
+	err = i40e_wait_cmd(dev);
+	if(err < 0)
+		goto err_wait_cmd;
+
 	return 0;
 
+err_wait_cmd:
 err_req_update:
 	return -1;
 }
@@ -51,8 +57,13 @@ int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface)
 	if(err < 0)
 		goto err_set_rss_lut;
 
+	err = i40e_wait_cmd(dev);
+	if(err < 0)
+		goto err_wait_cmd;
+
 	return 0;
 
+err_wait_cmd:
 err_set_rss_lut:
 err_set_rss_key:
 	return -1;
