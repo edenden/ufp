@@ -19,19 +19,24 @@ err_req_update:
 
 int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface)
 {
-	u8 seed[I40E_HKEY_ARRAY_SIZE];
-	u8 lut[512];
-
-	/* seed configuration */
-	netdev_rss_key_fill((void *)seed, I40E_HKEY_ARRAY_SIZE);
+	/* Default seed is retrieved from DPDK i40e PMD */
+	uint32_t seed[I40E_PFQF_HKEY_MAX_INDEX + 1] = {
+		0x6b793944, 0x23504cb5, 0x5bea75b6, 0x309f4f12,
+		0x3dc0a2b8, 0x024ddcdf, 0x339b8ca0, 0x4c4af64a,
+		0x34fac605, 0x55d85839, 0x3a58997d, 0x2ec938e1,
+		0x66031581
+	};
+	uint32_t lut[I40E_PFQF_HLUT_MAX_INDEX + 1];
 
 	err = i40e_aq_cmd_xmit_setrsskey(dev, iface,
 		seed, sizeof(seed));
 	if(err < 0)
 		goto err_set_rss_key;
 
-	/* lut configuration */
-	i40e_fill_rss_lut(pf, lut, sizeof(lut), dev->num_qp);
+	/* LUT (Look Up Table) configuration */
+	for (i = 0; i < sizeof(lut); i++) {
+		((uint8_t *)lut)[i] = i % dev->num_qp;
+	}
 
 	err = i40e_aq_cmd_xmit_setrsslut(dev, iface,
 		lut, sizeof(lut));
