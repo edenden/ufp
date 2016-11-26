@@ -221,6 +221,53 @@ void i40e_clear_hw(struct ufp_dev *dev)
 	return;
 }
 
+int i40e_configure_pf(struct ufp_dev *dev)
+{
+	int err;
+
+	err = i40e_aq_clear_pxe_mode(dev);
+	if(err < 0)
+		goto err_clear_pxe;
+
+	/* Disable LLDP for NICs that have firmware versions lower than v4.3.
+	 * Ignore error return codes because if it was already disabled via
+	 * hardware settings this will fail
+	 */
+	err = i40e_aqc_req_stop_lldp(dev);
+	if(err < 0)
+		goto err_stop_lldp;
+
+	err = i40e_aqc_req_get_macaddr(dev);
+	if(err < 0)
+		goto err_get_macaddr;
+
+	/* The driver only wants link up/down and module qualification
+	 * reports from firmware.  Note the negative logic.
+	 */
+	err = i40e_aqc_req_set_phyintmask(dev,
+		~(I40E_AQ_EVENT_LINK_UPDOWN |
+		I40E_AQ_EVENT_MEDIA_NA |
+		I40E_AQ_EVENT_MODULE_QUAL_FAIL));
+	if(err < 0)
+		goto err_aq_set_phy_int_mask;
+
+	err = i40e_switchconf_fetch(dev);
+	if(err < 0)
+		goto err_switchconf_fetch;
+
+	err = ufp_i40e_wait_cmd(dev);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	return 0;
+
+err_clear_pxe:
+err_init_adminq:
+err_reset_hw:
+err_mac_unknown:
+	return -1;
+}
+
 int i40e_setup_misc_irq(struct ufp_dev *dev)
 {
 	u32 val;
