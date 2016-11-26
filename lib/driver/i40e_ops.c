@@ -62,7 +62,7 @@ static int i40e_ops_open(struct ufp_dev *dev)
 		goto err_reset_hw;
 
 	/* adminQ related initialization and depending process */
-	err = ufp_i40e_aq_init(dev);
+	err = i40e_aq_init(dev);
 	if(err < 0)
 		goto err_init_adminq;
 
@@ -74,7 +74,7 @@ static int i40e_ops_open(struct ufp_dev *dev)
 	if (err)
 		goto err_setup_switch;
 
-	err = ufp_i40e_hmc_init(dev);
+	err = i40e_hmc_init(dev);
 	if(err < 0)
 		goto err_hmc_init;
 
@@ -82,15 +82,15 @@ static int i40e_ops_open(struct ufp_dev *dev)
 
 err_hmc_init:
 err_setup_switch:
-	ufp_i40e_aq_destroy(dev);
+	i40e_aq_destroy(dev);
 err_configure_pf:
 	return -1;
 }
 
 static int i40e_ops_close(struct ufp_dev *dev)
 {
-	ufp_i40e_hmc_destroy(dev);
-	ufp_i40e_aq_destroy(dev);
+	i40e_hmc_destroy(dev);
+	i40e_aq_destroy(dev);
 
 	return 0;
 }
