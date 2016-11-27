@@ -254,8 +254,8 @@ void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 
 	desc = &((struct ufp_aq_desc *)
 		ring->desc->addr_virt)[ring->next_to_use];
-	desc->flags = CPU_TO_LE16(flags);
-	desc->opcode = CPU_TO_LE16(opcode);
+	desc->flags = htole16(flags);
+	desc->opcode = htole16(opcode);
 	memcpy(&desc->params, cmd, cmd_size);
 
 	if(flags & I40E_AQ_FLAG_BUF){
@@ -266,18 +266,18 @@ void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 
 		if(flag & I40E_AQ_FLAG_RD){
 			memcpy(buf->addr_virt, data, data_size);
-			desc->datalen = CPU_TO_LE16(data_size);
+			desc->datalen = htole16(data_size);
 		}else{
-			desc->datalen = CPU_TO_LE16(I40E_AQ_LARGE_BUF);
+			desc->datalen = htole16(I40E_AQ_LARGE_BUF);
 		}
 
 		/* Update the address values in the desc with the pa value
 		 * for respective buffer
 		 */
 		desc->params.external.addr_high =
-			CPU_TO_LE32(upper_32_bits(buf->addr_dma));
+			htole32(upper_32_bits(buf->addr_dma));
 		desc->params.external.addr_low =
-			CPU_TO_LE32(lower_32_bits(buf->addr_dma));
+			htole32(lower_32_bits(buf->addr_dma));
 	}
 
 	next_to_use = ring->next_to_use + 1;
@@ -314,19 +314,19 @@ void i40e_aq_arq_assign(struct ufp_dev *dev)
 		desc = &((struct ufp_aq_desc *)
 			ring->desc->addr_virt)[ring->next_to_use];
 
-		desc->flags = CPU_TO_LE16(I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_LB);
+		desc->flags = htole16(I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_LB);
 		desc->opcode = 0;
 		/* This is in accordance with Admin queue design, there is no
 		 * register for buffer size configuration
 		 */
-		desc->datalen = CPU_TO_LE16((u16)bi->size);
+		desc->datalen = htole16((u16)bi->size);
 		desc->retval = 0;
 		desc->cookie_high = 0;
 		desc->cookie_low = 0;
 		desc->params.external.addr_high =
-			CPU_TO_LE32(upper_32_bits(buf->addr_dma));
+			htole32(upper_32_bits(buf->addr_dma));
 		desc->params.external.addr_low =
-			CPU_TO_LE32(lower_32_bits(buf->addr_dma));
+			htole32(lower_32_bits(buf->addr_dma));
 		desc->params.external.param0 = 0;
 		desc->params.external.param1 = 0;
 
@@ -401,8 +401,8 @@ static int i40e_aq_asq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
 	uint16_t opcode;
 	int err = -1;
 
-	retval = LE16_TO_CPU(desc->retval);
-	opcode = LE16_TO_CPU(desc->opcode);
+	retval = le16toh(desc->retval);
+	opcode = le16toh(desc->opcode);
 
 	if(retval != 0)
 		goto err_retval;
@@ -436,9 +436,9 @@ static int i40e_aq_arq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
 	uint16_t opcode;
 	int err = -1;
 
-	len = LE16_TO_CPU(desc->datalen);
-	flags = LE16_TO_CPU(desc->flags);
-	opcode = LE16_TO_CPU(desc->opcode);
+	len = le16toh(desc->datalen);
+	flags = le16toh(desc->flags);
+	opcode = le16toh(desc->opcode);
 
 	if (flags & I40E_AQ_FLAG_ERR) {
 		goto err_flag;

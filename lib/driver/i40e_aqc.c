@@ -115,7 +115,7 @@ int i40e_aqc_req_get_swconf(struct ufp_dev *dev)
 	uint16_t flags;
 	int err;
 
-	cmd.seid_offset = CPU_TO_LE16(i40e_dev->aq_seid_offset);
+	cmd.seid_offset = htole16(i40e_dev->aq_seid_offset);
 	flags = I40E_AQ_FLAG_BUF;
 
 	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_get_switch_config, flags,
@@ -176,8 +176,8 @@ int i40e_aqc_req_set_swconf(struct ufp_dev *dev,
 	struct i40e_aqc_set_switch_config cmd;
 	int err;
 
-	cmd.flags = CPU_TO_LE16(flags);
-	cmd.valid_flags = CPU_TO_LE16(valid_flags);
+	cmd.flags = htole16(flags);
+	cmd.valid_flags = htole16(valid_flags);
 
 	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_switch_config, 0,
 		&cmd, sizeof(struct i40e_aqc_set_switch_config),
@@ -210,7 +210,7 @@ int i40e_aqc_req_update_vsi(struct ufp_dev *dev, struct ufp_iface *iface,
 	uint16_t flags;
 	int err;
 
-	cmd.uplink_seid = CPU_TO_LE16(i40e_iface->seid);
+	cmd.uplink_seid = htole16(i40e_iface->seid);
 	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
 
 	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_update_vsi_parameters, flags,
@@ -261,10 +261,10 @@ int i40e_aqc_req_set_rsskey(struct ufp_dev *dev,
 	uint16_t flags;
 	int err;
 
-	cmd.vsi_id = CPU_TO_LE16((u16)
+	cmd.vsi_id = htole16((u16)
 		((i40e_iface->id << I40E_AQC_SET_RSS_KEY_VSI_ID_SHIFT) &
 		I40E_AQC_SET_RSS_KEY_VSI_ID_MASK));
-	cmd.vsi_id |= CPU_TO_LE16((u16)I40E_AQC_SET_RSS_KEY_VSI_VALID);
+	cmd.vsi_id |= htole16((u16)I40E_AQC_SET_RSS_KEY_VSI_VALID);
 	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
 
 	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_rss_key, flags,
@@ -297,18 +297,18 @@ int i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
 	uint16_t flags;
 	int err;
 
-	cmd.vsi_id = CPU_TO_LE16((u16)
+	cmd.vsi_id = htole16((u16)
 		((i40e_iface->id << I40E_AQC_SET_RSS_LUT_VSI_ID_SHIFT) &
 		I40E_AQC_SET_RSS_LUT_VSI_ID_MASK));
-	cmd.vsi_id |= CPU_TO_LE16((u16)I40E_AQC_SET_RSS_LUT_VSI_VALID);
+	cmd.vsi_id |= htole16((u16)I40E_AQC_SET_RSS_LUT_VSI_VALID);
 
 	if(vsi->type == VSI_TYPE_MAIN){
-		cmd.flags |= CPU_TO_LE16((u16)
+		cmd.flags |= htole16((u16)
 			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_PF <<
 			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &
 			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_MASK));
 	}else{
-		cmd.flags |= CPU_TO_LE16((u16)
+		cmd.flags |= htole16((u16)
 			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_VSI <<
 			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &
 			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_MASK));
@@ -343,7 +343,7 @@ int i40e_aqc_req_set_phyintmask(struct ufp_dev *dev, uint16_t mask)
 	struct i40e_aqc_set_phy_int_mask cmd;
 	int err;
 
-	cmd.event_mask = CPU_TO_LE16(mask);
+	cmd.event_mask = htole16(mask);
 
 	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_phy_int_mask, 0,
 		&cmd, sizeof(struct i40e_aqc_set_phy_int_mask),
@@ -374,12 +374,12 @@ int i40e_aqc_req_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface,
 	struct i40e_aqc_set_vsi_promiscuous_modes cmd;
 	int err;
 
-	cmd.promiscuous_flags = CPU_TO_LE16(promisc_flags);
-	cmd.valid_flags = CPU_TO_LE16(
+	cmd.promiscuous_flags = htole16(promisc_flags);
+	cmd.valid_flags = htole16(
 		I40E_AQC_SET_VSI_PROMISC_UNICAST |
 		I40E_AQC_SET_VSI_PROMISC_MULTICAST |
 		I40E_AQC_SET_VSI_PROMISC_BROADCAST);
-	cmd.seid = CPU_TO_LE16(i40e_iface->seid);
+	cmd.seid = htole16(i40e_iface->seid);
 
 	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_vsi_promiscuous_modes, 0,
 		&cmd, sizeof(struct i40e_aqc_set_vsi_promiscuous_modes),
