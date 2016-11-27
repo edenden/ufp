@@ -92,6 +92,7 @@ err_configure_pf:
 static int i40e_ops_close(struct ufp_dev *dev)
 {
 	i40e_hmc_destroy(dev);
+	i40e_switchconf_clear(dev);
 	i40e_aq_destroy(dev);
 
 	return 0;

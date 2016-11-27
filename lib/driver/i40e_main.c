@@ -86,12 +86,12 @@ int i40e_reset_hw(struct ufp_dev *dev)
 	 * The grst delay value is in 100ms units, and we'll wait a
 	 * couple counts longer to be sure we don't just miss the end.
 	 */
-	grst_del = (ufp_read_reg(dev, I40E_GLGEN_RSTCTL) &
+	grst_del = (UFP_READ32(dev, I40E_GLGEN_RSTCTL) &
 		I40E_GLGEN_RSTCTL_GRSTDEL_MASK) >> I40E_GLGEN_RSTCTL_GRSTDEL_SHIFT;
 	timeout = grst_del * 20;
 	do{
 		msleep(100);
-		reg = ufp_read_reg(dev, I40E_GLGEN_RSTAT);
+		reg = UFP_READ32(dev, I40E_GLGEN_RSTAT);
 		if(!(reg & I40E_GLGEN_RSTAT_DEVSTATE_MASK))
 			break;
 	}while(--timeout);
@@ -102,7 +102,7 @@ int i40e_reset_hw(struct ufp_dev *dev)
 	timeout = I40E_PF_RESET_WAIT_COUNT;
 	do{
 		usleep(10000);
-		reg = ufp_read_reg(dev, I40E_GLNVM_ULD);
+		reg = UFP_READ32(dev, I40E_GLNVM_ULD);
 		if((reg & I40E_GLNVM_ULD_CONF_CORE_DONE_MASK) &&
 		(reg & I40E_GLNVM_ULD_CONF_GLOBAL_DONE_MASK))
 			break;
@@ -110,14 +110,14 @@ int i40e_reset_hw(struct ufp_dev *dev)
 	if(!timeout)
 		goto err_firmware_not_ready;
 
-	reg = ufp_read_reg(dev, I40E_PFGEN_CTRL);
+	reg = UFP_READ32(dev, I40E_PFGEN_CTRL);
 	reg |= I40E_PFGEN_CTRL_PFSWR_MASK;
-	ufp_write_reg(dev, I40E_PFGEN_CTRL, reg);
+	UFP_WRITE32(dev, I40E_PFGEN_CTRL, reg);
 
 	timeout = I40E_PF_RESET_WAIT_COUNT;
 	do{
 		usleep(1000);
-		reg = ufp_read_reg(dev, I40E_PFGEN_CTRL);
+		reg = UFP_READ32(dev, I40E_PFGEN_CTRL);
 		if(!(reg & I40E_PFGEN_CTRL_PFSWR_MASK))
 			break;
 	}while(--timeout);
@@ -143,13 +143,13 @@ void i40e_clear_hw(struct ufp_dev *dev)
 	uint32_t eol = 0x7ff;
 
 	/* get number of interrupts, queues, and vfs */
-	val = ufp_read_reg(dev, I40E_GLPCI_CNF2);
+	val = UFP_READ32(dev, I40E_GLPCI_CNF2);
 	num_pf_int = (val & I40E_GLPCI_CNF2_MSI_X_PF_N_MASK) >>
 			I40E_GLPCI_CNF2_MSI_X_PF_N_SHIFT;
 	num_vf_int = (val & I40E_GLPCI_CNF2_MSI_X_VF_N_MASK) >>
 			I40E_GLPCI_CNF2_MSI_X_VF_N_SHIFT;
 
-	val = ufp_read_reg(dev, I40E_PFLAN_QALLOC);
+	val = UFP_READ32(dev, I40E_PFLAN_QALLOC);
 	base_queue = (val & I40E_PFLAN_QALLOC_FIRSTQ_MASK) >>
 			I40E_PFLAN_QALLOC_FIRSTQ_SHIFT;
 	j = (val & I40E_PFLAN_QALLOC_LASTQ_MASK) >>
@@ -159,7 +159,7 @@ void i40e_clear_hw(struct ufp_dev *dev)
 	else
 		num_queues = 0;
 
-	val = ufp_read_reg(dev, I40E_PF_VT_PFALLOC);
+	val = UFP_READ32(dev, I40E_PF_VT_PFALLOC);
 	i = (val & I40E_PF_VT_PFALLOC_FIRSTVF_MASK) >>
 			I40E_PF_VT_PFALLOC_FIRSTVF_SHIFT;
 	j = (val & I40E_PF_VT_PFALLOC_LASTVF_MASK) >>
@@ -170,21 +170,21 @@ void i40e_clear_hw(struct ufp_dev *dev)
 		num_vfs = 0;
 
 	/* stop all the interrupts */
-	ufp_write_reg(dev, I40E_PFINT_ICR0_ENA, 0);
+	UFP_WRITE32(dev, I40E_PFINT_ICR0_ENA, 0);
 	val = 0x3 << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT;
 	for (i = 0; i < num_pf_int - 2; i++)
-		ufp_write_reg(dev, I40E_PFINT_DYN_CTLN(i), val);
+		UFP_WRITE32(dev, I40E_PFINT_DYN_CTLN(i), val);
 
 	/* Set the FIRSTQ_INDX field to 0x7FF in PFINT_LNKLSTx */
 	val = eol << I40E_PFINT_LNKLST0_FIRSTQ_INDX_SHIFT;
-	ufp_write_reg(dev, I40E_PFINT_LNKLST0, val);
+	UFP_WRITE32(dev, I40E_PFINT_LNKLST0, val);
 	for (i = 0; i < num_pf_int - 2; i++)
-		ufp_write_reg(dev, I40E_PFINT_LNKLSTN(i), val);
+		UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(i), val);
 	val = eol << I40E_VPINT_LNKLST0_FIRSTQ_INDX_SHIFT;
 	for (i = 0; i < num_vfs; i++)
-		ufp_write_reg(dev, I40E_VPINT_LNKLST0(i), val);
+		UFP_WRITE32(dev, I40E_VPINT_LNKLST0(i), val);
 	for (i = 0; i < num_vf_int - 2; i++)
-		ufp_write_reg(dev, I40E_VPINT_LNKLSTN(i), val);
+		UFP_WRITE32(dev, I40E_VPINT_LNKLSTN(i), val);
 
 	/* warn the HW of the coming Tx disables */
 	for (i = 0; i < num_queues; i++) {
@@ -196,21 +196,21 @@ void i40e_clear_hw(struct ufp_dev *dev)
 			abs_queue_idx %= 128;
 		}
 
-		val = ufp_read_reg(dev, I40E_GLLAN_TXPRE_QDIS(reg_block));
+		val = UFP_READ32(dev, I40E_GLLAN_TXPRE_QDIS(reg_block));
 		val &= ~I40E_GLLAN_TXPRE_QDIS_QINDX_MASK;
 		val |= (abs_queue_idx << I40E_GLLAN_TXPRE_QDIS_QINDX_SHIFT);
 		val |= I40E_GLLAN_TXPRE_QDIS_SET_QDIS_MASK;
 
-		ufp_write_reg(dev, I40E_GLLAN_TXPRE_QDIS(reg_block), val);
+		UFP_WRITE32(dev, I40E_GLLAN_TXPRE_QDIS(reg_block), val);
 	}
 	usleep(400);
 
 	/* stop all the queues */
 	for (i = 0; i < num_queues; i++) {
-		ufp_write_reg(dev, I40E_QINT_TQCTL(i), 0);
-		ufp_write_reg(dev, I40E_QTX_ENA(i), 0);
-		ufp_write_reg(dev, I40E_QINT_RQCTL(i), 0);
-		ufp_write_reg(dev, I40E_QRX_ENA(i), 0);
+		UFP_WRITE32(dev, I40E_QINT_TQCTL(i), 0);
+		UFP_WRITE32(dev, I40E_QTX_ENA(i), 0);
+		UFP_WRITE32(dev, I40E_QINT_RQCTL(i), 0);
+		UFP_WRITE32(dev, I40E_QRX_ENA(i), 0);
 	}
 
 	/* short wait for all queue disables to settle */
@@ -267,8 +267,8 @@ int i40e_setup_misc_irq(struct ufp_dev *dev)
 	u32 val;
 
 	/* clear things first */
-	wr32(hw, I40E_PFINT_ICR0_ENA, 0);  /* disable all */
-	rd32(hw, I40E_PFINT_ICR0);	 /* read to clear */
+	UFP_WRITE32(dev, I40E_PFINT_ICR0_ENA, 0);  /* disable all */
+	UFP_READ32(dev, I40E_PFINT_ICR0);	 /* read to clear */
 
 	val =	I40E_PFINT_ICR0_ENA_ECC_ERR_MASK |
 		I40E_PFINT_ICR0_ENA_MAL_DETECT_MASK |
@@ -278,14 +278,14 @@ int i40e_setup_misc_irq(struct ufp_dev *dev)
 		I40E_PFINT_ICR0_ENA_HMC_ERR_MASK |
 		I40E_PFINT_ICR0_ENA_VFLR_MASK |
 		I40E_PFINT_ICR0_ENA_ADMINQ_MASK;
-	wr32(hw, I40E_PFINT_ICR0_ENA, val);
+	UFP_WRITE32(dev, I40E_PFINT_ICR0_ENA, val);
 
 	/* OTHER_ITR_IDX = 0 */
-	wr32(hw, I40E_PFINT_STAT_CTL0, 0);
+	UFP_WRITE32(dev, I40E_PFINT_STAT_CTL0, 0);
 
 	/* associate no queues to the misc IRQ */
-	wr32(hw, I40E_PFINT_LNKLST0, I40E_QUEUE_END_OF_LIST);
-	wr32(hw, I40E_PFINT_ITR0(I40E_IDX_ITR0), I40E_ITR_8K);
+	UFP_WRITE32(dev, I40E_PFINT_LNKLST0, I40E_QUEUE_END_OF_LIST);
+	UFP_WRITE32(dev, I40E_PFINT_ITR0(I40E_IDX_ITR0), I40E_ITR_8K);
 
 	i40e_flush(hw);
 
@@ -304,7 +304,7 @@ void i40e_shutdown_misc_irq(struct ufp_dev *dev)
 {
 	ufp_irq_close(dev->irqh);
 	/* Disable ICR 0 */
-	wr32(&pf->hw, I40E_PFINT_ICR0_ENA, 0);
+	UFP_WRITE32(&pf->hw, I40E_PFINT_ICR0_ENA, 0);
 
 	i40e_flush(&pf->hw);
 	return;
@@ -317,7 +317,7 @@ void i40e_start_misc_irq(struct ufp_dev *dev)
 		I40E_PFINT_DYN_CTL0_CLEARPBA_MASK |
 		(I40E_ITR_NONE << I40E_PFINT_DYN_CTL0_ITR_INDX_SHIFT);
 
-	wr32(hw, I40E_PFINT_DYN_CTL0, val);
+	UFP_WRITE32(dev, I40E_PFINT_DYN_CTL0, val);
 
 	i40e_flush(hw);
 	return;
@@ -325,7 +325,7 @@ void i40e_start_misc_irq(struct ufp_dev *dev)
 
 void i40e_stop_misc_irq(struct ufp_dev *dev)
 {
-	wr32(hw, I40E_PFINT_DYN_CTL0,
+	UFP_WRITE32(dev, I40E_PFINT_DYN_CTL0,
 		I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);
 
 	i40e_flush(hw);
@@ -380,15 +380,30 @@ void i40e_set_pf_id(struct ufp_dev *dev)
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	uint32_t pci_cap, pci_cap_ari, func_rid;
 
-	pci_cap = rd32(hw, I40E_GLPCI_CAPSUP);
+	pci_cap = UFP_READ32(hw, I40E_GLPCI_CAPSUP);
 	pci_cap_ari = (pci_cap & I40E_GLPCI_CAPSUP_ARI_EN_MASK) >>
 		I40E_GLPCI_CAPSUP_ARI_EN_SHIFT;
-	func_rid = rd32(hw, I40E_PF_FUNC_RID);
+	func_rid = UFP_READ32(hw, I40E_PF_FUNC_RID);
 
 	if (pci_cap_ari)
 		i40e_dev->pf_id = (u8)(func_rid & 0xff);
 	else
 		i40e_dev->pf_id = (u8)(func_rid & 0x7);
+
+	return;
+}
+
+void i40e_switchconf_clear(struct ufp_dev *dev)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_elem *elem, *elem_next;
+
+	elem = i40e_dev->elem;
+	while(elem){
+		elem_next = elem->next;
+		free(elem);
+		elem = elem_next;
+	}
 
 	return;
 }
@@ -400,13 +415,7 @@ int i40e_switchconf_fetch(struct ufp_dev *dev)
 	int err;
 
 	i40e_dev->aq_seid_offset = 0;
-
-	elem = i40e_dev->elem;
-	while(elem){
-		elem_next = elem->next;
-		free(elem);
-		elem = elem_next;
-	}
+	i40e_switchconf_clear(dev);
 
 	do{
 		err = i40e_aq_cmd_xmit_getconf(dev);

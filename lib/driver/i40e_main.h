@@ -78,5 +78,7 @@ struct i40e_iface {
 	ts.tv_nsec = ((n) * 1000);	\
 	nanosleep(&ts, NULL);		\
 })
+#define i40e_flush(dev) \
+	UFP_READ32((dev), I40E_GLGEN_STAT)
 
 #endif /* _I40E_MAIN_H__ */

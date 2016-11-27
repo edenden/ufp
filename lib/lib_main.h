@@ -41,6 +41,11 @@
 #define ufp_print(args...)
 #endif
 
+#define UFP_READ32(dev, reg) \
+	ufp_readl((entry)->bar + (reg))
+#define UFP_WRITE32(dev, reg, value) \
+	ufp_writel((value), (entry)->bar + (reg))
+
 struct ufp_mpool {
 	struct ufp_mnode	*node;
 	void			*addr_virt;
@@ -227,8 +232,5 @@ struct ufp_irqbind_req {
 
 inline uint32_t ufp_readl(const volatile void *addr);
 inline void ufp_writel(uint32_t b, volatile void *addr);
-inline uint32_t ufp_read_reg(struct ufp_handle *ih, uint32_t reg);
-inline void ufp_write_reg(struct ufp_handle *ih, uint32_t reg, uint32_t value);
-inline void ufp_write_flush(struct ufp_handle *ih);
 
 #endif /* _LIBUFP_MAIN_H */

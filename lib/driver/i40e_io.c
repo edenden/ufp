@@ -154,7 +154,7 @@ int i40e_vsi_configure_tx(struct ufp_dev *dev,
 		qtx_ctl = I40E_QTX_CTL_PF_QUEUE;
 		qtx_ctl |= ((i40e_dev->pf_id << I40E_QTX_CTL_PF_INDX_SHIFT) &
 			I40E_QTX_CTL_PF_INDX_MASK);
-		wr32(hw, I40E_QTX_CTL(qp_idx), qtx_ctl);
+		UFP_WRITE32(dev, I40E_QTX_CTL(qp_idx), qtx_ctl);
 		i40e_flush(dev);
 
 		/* cache tail off for easier writes later */
@@ -221,7 +221,7 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev,
 
 		/* cache tail for quicker writes, and clear the reg before use */
 		ring->tail = dev->bar + I40E_QRX_TAIL(qp_idx);
-		writel(0, ring->tail);
+		ufp_writel(0, ring->tail);
 	}
 
 	return 0;
@@ -246,22 +246,22 @@ void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 		 * x710 supports 3 ITR values per IRQ, but we use only ITR0
 		 * because we use 1 IRQ per queue(not queue-pair like vanilla driver)
 		*/
-		wr32(hw, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
+		UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
 		     ITR_TO_REG(I40E_ITR_20K));
 
-		wr32(hw, I40E_PFINT_RATEN(irq_idx),
+		UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx),
 		     INTRL_USEC_TO_REG(vsi->int_rate_limit));
 
 		/* Linked list for the queuepairs assigned to this IRQ */
 		val = qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT |
 			I40E_QUEUE_TYPE_RX << I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
-		wr32(hw, I40E_PFINT_LNKLSTN(irq_idx), val);
+		UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
 
 		val = I40E_QINT_RQCTL_CAUSE_ENA_MASK |
 			(I40E_IDX_ITR0 << I40E_QINT_RQCTL_ITR_INDX_SHIFT) |
 			(irq_idx << I40E_QINT_RQCTL_MSIX_INDX_SHIFT) |
 			(I40E_QUEUE_END_OF_LIST << I40E_QINT_RQCTL_NEXTQ_INDX_SHIFT);
-		wr32(hw, I40E_QINT_RQCTL(qp_idx), val);
+		UFP_WRITE32(dev, I40E_QINT_RQCTL(qp_idx), val);
 
 		iface->rx_irqh[i] = ufp_irq_open(dev, irq_idx + 1);
 		if(!iface->rx_irqh[i])
@@ -271,28 +271,28 @@ void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	for (i = 0; i < iface->num_qps; i++, irq_idx++){
 		qp_idx = i40e_iface->base_qp + i;
 
-		wr32(hw, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
+		UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
 		     ITR_TO_REG(I40E_ITR_20K));
 
-		wr32(hw, I40E_PFINT_RATEN(irq_idx),
+		UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx),
 		     INTRL_USEC_TO_REG(vsi->int_rate_limit));
 
 		val = qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT |
 			I40E_QUEUE_TYPE_TX << I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
-		wr32(hw, I40E_PFINT_LNKLSTN(irq_idx), val);
+		UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
 
 		val = I40E_QINT_TQCTL_CAUSE_ENA_MASK |
 			(I40E_IDX_ITR0 << I40E_QINT_TQCTL_ITR_INDX_SHIFT) |
 			(irq_idx << I40E_QINT_TQCTL_MSIX_INDX_SHIFT) |
 			(I40E_QUEUE_END_OF_LIST << I40E_QINT_TQCTL_NEXTQ_INDX_SHIFT);
-		wr32(hw, I40E_QINT_TQCTL(qp_idx), val);
+		UFP_WRITE32(dev, I40E_QINT_TQCTL(qp_idx), val);
 
 		iface->tx_irqh[i] = ufp_irq_open(dev, irq_idx + 1);
 		if(!iface->tx_irqh[i])
 			goto err_tx_irqh;
 	}
 
-	i40e_flush(hw);
+	i40e_flush(dev);
 	return;
 }
 
@@ -310,12 +310,12 @@ static void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 
 		ufp_irq_close(iface->rx_irqh[i]);
 
-		val = rd32(hw, I40E_PFINT_LNKLSTN(irq_idx));
+		val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx));
 		val |= I40E_QUEUE_END_OF_LIST
 			<< I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT;
-		wr32(hw, I40E_PFINT_LNKLSTN(irq_idx), val);
+		UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
 
-		val = rd32(hw, I40E_QINT_RQCTL(qp_idx));
+		val = UFP_READ32(dev, I40E_QINT_RQCTL(qp_idx));
 
 		val &= ~(I40E_QINT_RQCTL_MSIX_INDX_MASK  |
 			 I40E_QINT_RQCTL_MSIX0_INDX_MASK |
@@ -325,7 +325,7 @@ static void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 		val |= (I40E_QINT_RQCTL_ITR_INDX_MASK |
 			 I40E_QINT_RQCTL_NEXTQ_INDX_MASK);
 
-		wr32(hw, I40E_QINT_RQCTL(qp_idx), val);
+		UFP_WRITE32(dev, I40E_QINT_RQCTL(qp_idx), val);
 	}
 
 	for(i = 0; i < iface->num_qps; i++, irq_idx++){
@@ -333,12 +333,12 @@ static void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 
 		ufp_irq_close(iface->tx_irqh[i]);
 
-		val = rd32(hw, I40E_PFINT_LNKLSTN(irq_idx));
+		val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx));
 		val |= I40E_QUEUE_END_OF_LIST
 			<< I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT;
-		wr32(hw, I40E_PFINT_LNKLSTN(irq_idx), val);
+		UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
 
-		val = rd32(hw, I40E_QINT_TQCTL(qp_idx));
+		val = UFP_READ32(dev, I40E_QINT_TQCTL(qp_idx));
 
 		val &= ~(I40E_QINT_TQCTL_MSIX_INDX_MASK |
 			 I40E_QINT_TQCTL_MSIX0_INDX_MASK |
@@ -348,10 +348,10 @@ static void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 		val |= (I40E_QINT_TQCTL_ITR_INDX_MASK |
 			 I40E_QINT_TQCTL_NEXTQ_INDX_MASK);
 
-		wr32(hw, I40E_QINT_TQCTL(qp_idx), val);
+		UFP_WRITE32(dev, I40E_QINT_TQCTL(qp_idx), val);
 	}
 
-	i40e_flush(hw);
+	i40e_flush(dev);
 	return;
 }
 
@@ -371,10 +371,10 @@ void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 		val = I40E_PFINT_DYN_CTLN_INTENA_MASK |
 			I40E_PFINT_DYN_CTLN_CLEARPBA_MASK |
 			(I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);
-		wr32(hw, I40E_PFINT_DYN_CTLN(irq_idx), val);
+		UFP_WRITE32(dev, I40E_PFINT_DYN_CTLN(irq_idx), val);
 	}
 
-	i40e_flush(hw);
+	i40e_flush(dev);
 	return;
 }
 
@@ -386,10 +386,10 @@ static void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 
 	irq_idx = i40e_iface->base_qp * 2
 	for (i = 0; i < iface->num_qps * 2; i++, irq_idx++){
-		wr32(hw, I40E_PFINT_DYN_CTLN(irq_idx), 0);
+		UFP_WRITE32(dev, I40E_PFINT_DYN_CTLN(irq_idx), 0);
 	}
 
-	i40e_flush(hw);
+	i40e_flush(dev);
 	return;
 }
 
@@ -417,7 +417,7 @@ static int i40e_vsi_start_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		qp_idx = i40e_iface->base_qp + i;
 
 		for (j = 0; j < 50; j++) {
-			rx_reg = rd32(hw, I40E_QRX_ENA(pf_q));
+			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(pf_q));
 			if (((rx_reg >> I40E_QRX_ENA_QENA_REQ_SHIFT) & 1) ==
 			    ((rx_reg >> I40E_QRX_ENA_QENA_STAT_SHIFT) & 1))
 				break;
@@ -430,11 +430,11 @@ static int i40e_vsi_start_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 
 		/* turn on/off the queue */
 		rx_reg |= I40E_QRX_ENA_QENA_REQ_MASK;
-		wr32(hw, I40E_QRX_ENA(pf_q), rx_reg);
+		UFP_WRITE32(dev, I40E_QRX_ENA(pf_q), rx_reg);
 
 		/* wait for the change to finish */
 		for (retry = 0; retry < I40E_QUEUE_WAIT_RETRY_LIMIT; retry++) {
-			rx_reg = rd32(&pf->hw, I40E_QRX_ENA(pf_q));
+			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(pf_q));
 			if (rx_reg & I40E_QRX_ENA_QENA_STAT_MASK)
 				break;
 
@@ -461,7 +461,7 @@ static int i40e_vsi_stop_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		qp_idx = i40e_iface->base_qp + i;
 
 		for (j = 0; j < 50; j++) {
-			rx_reg = rd32(hw, I40E_QRX_ENA(pf_q));
+			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(pf_q));
 			if (((rx_reg >> I40E_QRX_ENA_QENA_REQ_SHIFT) & 1) ==
 			    ((rx_reg >> I40E_QRX_ENA_QENA_STAT_SHIFT) & 1))
 				break;
@@ -474,11 +474,11 @@ static int i40e_vsi_stop_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 
 		/* turn on/off the queue */
 		rx_reg &= ~I40E_QRX_ENA_QENA_REQ_MASK;
-		wr32(hw, I40E_QRX_ENA(pf_q), rx_reg);
+		UFP_WRITE32(dev, I40E_QRX_ENA(pf_q), rx_reg);
 
 		/* wait for the change to finish */
 		for (retry = 0; retry < I40E_QUEUE_WAIT_RETRY_LIMIT; retry++) {
-			rx_reg = rd32(&pf->hw, I40E_QRX_ENA(pf_q));
+			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(pf_q));
 			if(!(rx_reg & I40E_QRX_ENA_QENA_STAT_MASK))
 				break;
 
@@ -510,7 +510,7 @@ static int i40e_vsi_start_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 			usleep_range(10, 20);
 
 		for (j = 0; j < 50; j++) {
-			tx_reg = rd32(hw, I40E_QTX_ENA(qp_idx));
+			tx_reg = UFP_READ32(dev, I40E_QTX_ENA(qp_idx));
 			if (((tx_reg >> I40E_QTX_ENA_QENA_REQ_SHIFT) & 1) ==
 			    ((tx_reg >> I40E_QTX_ENA_QENA_STAT_SHIFT) & 1))
 				break;
@@ -521,13 +521,13 @@ static int i40e_vsi_start_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 			continue;
 
 		/* turn on/off the queue */
-		wr32(hw, I40E_QTX_HEAD(qp_idx), 0);
+		UFP_WRITE32(dev, I40E_QTX_HEAD(qp_idx), 0);
 		tx_reg |= I40E_QTX_ENA_QENA_REQ_MASK;
-		wr32(hw, I40E_QTX_ENA(qp_idx), tx_reg);
+		UFP_WRITE32(dev, I40E_QTX_ENA(qp_idx), tx_reg);
 
 		/* wait for the change to finish */
 		for (retry = 0; retry < I40E_QUEUE_WAIT_RETRY_LIMIT; retry++) {
-			tx_reg = rd32(&pf->hw, I40E_QTX_ENA(qp_idx));
+			tx_reg = UFP_READ32(dev, I40E_QTX_ENA(qp_idx));
 			if (tx_reg & I40E_QTX_ENA_QENA_STAT_MASK)
 				break;
 
@@ -560,7 +560,7 @@ static int i40e_vsi_stop_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 			usleep_range(10, 20);
 
 		for (j = 0; j < 50; j++) {
-			tx_reg = rd32(hw, I40E_QTX_ENA(qp_idx));
+			tx_reg = UFP_READ32(dev, I40E_QTX_ENA(qp_idx));
 			if (((tx_reg >> I40E_QTX_ENA_QENA_REQ_SHIFT) & 1) ==
 			    ((tx_reg >> I40E_QTX_ENA_QENA_STAT_SHIFT) & 1))
 				break;
@@ -572,11 +572,11 @@ static int i40e_vsi_stop_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 
 		/* turn on/off the queue */
 		tx_reg &= ~I40E_QTX_ENA_QENA_REQ_MASK;
-		wr32(hw, I40E_QTX_ENA(qp_idx), tx_reg);
+		UFP_WRITE32(dev, I40E_QTX_ENA(qp_idx), tx_reg);
 
 		/* wait for the change to finish */
 		for (retry = 0; retry < I40E_QUEUE_WAIT_RETRY_LIMIT; retry++) {
-			tx_reg = rd32(&pf->hw, I40E_QTX_ENA(qp_idx));
+			tx_reg = UFP_READ32(dev, I40E_QTX_ENA(qp_idx));
 			if (!(tx_reg & I40E_QTX_ENA_QENA_STAT_MASK))
 				break;
 

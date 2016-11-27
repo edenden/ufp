@@ -17,13 +17,13 @@ int ufp_i40e_hmc_init(struct ufp_dev *dev)
 	uint64_t fpm_size;
 	uint32_t queue_max;
 
-	queue_max = rd32(hw, I40E_GLHMC_LANQMAX);
+	queue_max = UFP_READ32(dev, I40E_GLHMC_LANQMAX);
 
-	obj_size_tx = BIT(rd32(hw, I40E_GLHMC_LANTXOBJSZ));
+	obj_size_tx = BIT(UFP_READ32(dev, I40E_GLHMC_LANTXOBJSZ));
 	fpm_size_tx = ALIGN(queue_max * obj_size_tx,
 		I40E_HMC_L2OBJ_BASE_ALIGNMENT);
 
-	obj_size_rx = BIT(rd32(hw, I40E_GLHMC_LANRXOBJSZ));
+	obj_size_rx = BIT(UFP_READ32(dev, I40E_GLHMC_LANRXOBJSZ));
 	fpm_size_rx = ALIGN(queue_max * obj_size_rx,
 		I40E_HMC_L2OBJ_BASE_ALIGNMENT);
 
@@ -91,13 +91,13 @@ static int i40e_hmc_configure(struct ufp_dev *dev)
 	/* Configure and program the FPM registers so objects can be created */
 	hmc_base = (hmc->hmc_obj_tx.base & I40E_GLHMC_LANTXBASE_FPMLANTXBASE_MASK) / 512;
 	hmc_count = hmc->hmc_obj_tx.count;
-	wr32(hw, I40E_GLHMC_LANTXBASE(i40e_dev->pf_id), hmc_base);
-	wr32(hw, I40E_GLHMC_LANTXCNT(i40e_dev->pf_id), hmc_count);
+	UFP_WRITE32(dev, I40E_GLHMC_LANTXBASE(i40e_dev->pf_id), hmc_base);
+	UFP_WRITE32(dev, I40E_GLHMC_LANTXCNT(i40e_dev->pf_id), hmc_count);
 
 	hmc_base = (hmc->hmc_obj_rx.base & I40E_GLHMC_LANRXBASE_FPMLANRXBASE_MASK) / 512;
 	hmc_count = hmc->hmc_obj_rx.count;
-	wr32(hw, I40E_GLHMC_LANRXBASE(i40e_dev->pf_id), hmc_base);
-	wr32(hw, I40E_GLHMC_LANRXCNT(i40e_dev->pf_id), hmc_count);
+	UFP_WRITE32(dev, I40E_GLHMC_LANRXBASE(i40e_dev->pf_id), hmc_base);
+	UFP_WRITE32(dev, I40E_GLHMC_LANRXCNT(i40e_dev->pf_id), hmc_count);
 
 	return 0;
 
@@ -174,7 +174,7 @@ static void i40e_hmc_sd_release(struct ufp_dev *dev,
 	for(i = 0; i < I40E_HMC_MAX_BP_COUNT; i++){
 		pd = sd_entry->pd[i];
 
-		wr32(hw, I40E_PFHMC_PDINV,
+		UFP_WRITE32(dev, I40E_PFHMC_PDINV,
 			(sd_idx << I40E_PFHMC_PDINV_PMSDIDX_SHIFT) |
 			(i << I40E_PFHMC_PDINV_PMPDIDX_SHIFT));
 
@@ -200,9 +200,9 @@ static void i40e_set_pf_sd_entry(struct ufp_dev *dev, unsigned long pa,
 
 	val3 = (sd_index) | BIT_ULL(I40E_PFHMC_SDCMD_PMSDWR_SHIFT);
 
-	wr32((hw), I40E_PFHMC_SDDATAHIGH, val1);
-	wr32((hw), I40E_PFHMC_SDDATALOW, val2);
-	wr32((hw), I40E_PFHMC_SDCMD, val3);
+	UFP_WRITE32(dev, I40E_PFHMC_SDDATAHIGH, val1);
+	UFP_WRITE32(dev, I40E_PFHMC_SDDATALOW, val2);
+	UFP_WRITE32(dev, I40E_PFHMC_SDCMD, val3);
 
 	return;
 }
@@ -219,9 +219,9 @@ static void i40e_clear_pf_sd_entry(struct ufp_dev *dev,
 
 	val3 = (sd_index) | BIT_ULL(I40E_PFHMC_SDCMD_PMSDWR_SHIFT); 
 
-	wr32((hw), I40E_PFHMC_SDDATAHIGH, 0);
-	wr32((hw), I40E_PFHMC_SDDATALOW, val2);
-	wr32((hw), I40E_PFHMC_SDCMD, val3);
+	UFP_WRITE32(dev, I40E_PFHMC_SDDATAHIGH, 0);
+	UFP_WRITE32(dev, I40E_PFHMC_SDDATALOW, val2);
+	UFP_WRITE32(dev, I40E_PFHMC_SDCMD, val3);
 
 	return;
 }

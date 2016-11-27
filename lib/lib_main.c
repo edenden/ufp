@@ -29,30 +29,12 @@ static int ufp_irq_setaffinity(unsigned int vector, unsigned int core_id);
 
 inline uint32_t ufp_readl(const volatile void *addr)
 {
-	return htole32( *(volatile uint32_t *) addr );
+	return htole32(*(volatile uint32_t *)addr);
 }
 
 inline void ufp_writel(uint32_t b, volatile void *addr)
 {
-	*(volatile uint32_t *) addr = htole32(b);
-	return;
-}
-
-inline uint32_t ufp_read_reg(struct ufp_handle *ih, uint32_t reg)
-{
-	uint32_t value = ufp_readl(ih->bar + reg);
-	return value;
-}
-
-inline void ufp_write_reg(struct ufp_handle *ih, uint32_t reg, uint32_t value)
-{
-	ufp_writel(value, ih->bar + reg);
-	return;
-}
-
-inline void ufp_write_flush(struct ufp_handle *ih)
-{
-	ufp_read_reg(ih, 0x00008);
+	*(volatile uint32_t *)addr = htole32(b);
 	return;
 }
 
