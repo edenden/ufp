@@ -417,11 +417,11 @@ static int i40e_vsi_start_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		qp_idx = i40e_iface->base_qp + i;
 
 		for (j = 0; j < 50; j++) {
-			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(pf_q));
+			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(qp_idx));
 			if (((rx_reg >> I40E_QRX_ENA_QENA_REQ_SHIFT) & 1) ==
 			    ((rx_reg >> I40E_QRX_ENA_QENA_STAT_SHIFT) & 1))
 				break;
-			usleep_range(1000, 2000);
+			usleep(1000);
 		}
 
 		/* Skip if the queue is already in the requested state */
@@ -430,15 +430,14 @@ static int i40e_vsi_start_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 
 		/* turn on/off the queue */
 		rx_reg |= I40E_QRX_ENA_QENA_REQ_MASK;
-		UFP_WRITE32(dev, I40E_QRX_ENA(pf_q), rx_reg);
+		UFP_WRITE32(dev, I40E_QRX_ENA(qp_idx), rx_reg);
 
 		/* wait for the change to finish */
 		for (retry = 0; retry < I40E_QUEUE_WAIT_RETRY_LIMIT; retry++) {
-			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(pf_q));
+			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(qp_idx));
 			if (rx_reg & I40E_QRX_ENA_QENA_STAT_MASK)
 				break;
-
-			usleep_range(10, 20);
+			uslep(10);
 		}
 		if (retry >= I40E_QUEUE_WAIT_RETRY_LIMIT)
 			goto err_vsi_start;
@@ -461,11 +460,11 @@ static int i40e_vsi_stop_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		qp_idx = i40e_iface->base_qp + i;
 
 		for (j = 0; j < 50; j++) {
-			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(pf_q));
+			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(qp_idx));
 			if (((rx_reg >> I40E_QRX_ENA_QENA_REQ_SHIFT) & 1) ==
 			    ((rx_reg >> I40E_QRX_ENA_QENA_STAT_SHIFT) & 1))
 				break;
-			usleep_range(1000, 2000);
+			usleep(1000);
 		}
 
 		/* Skip if the queue is already in the requested state */
@@ -474,15 +473,14 @@ static int i40e_vsi_stop_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 
 		/* turn on/off the queue */
 		rx_reg &= ~I40E_QRX_ENA_QENA_REQ_MASK;
-		UFP_WRITE32(dev, I40E_QRX_ENA(pf_q), rx_reg);
+		UFP_WRITE32(dev, I40E_QRX_ENA(qp_idx), rx_reg);
 
 		/* wait for the change to finish */
 		for (retry = 0; retry < I40E_QUEUE_WAIT_RETRY_LIMIT; retry++) {
-			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(pf_q));
+			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(qp_idx));
 			if(!(rx_reg & I40E_QRX_ENA_QENA_STAT_MASK))
 				break;
-
-			usleep_range(10, 20);
+			usleep(10);
 		}
 		if (retry >= I40E_QUEUE_WAIT_RETRY_LIMIT)
 			goto err_vsi_stop;
@@ -505,16 +503,16 @@ static int i40e_vsi_start_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 		qp_idx = i40e_iface->base_qp + i;
 
 		/* warn the TX unit of coming changes */
-		i40e_pre_tx_queue_cfg(&pf->hw, pf_q, enable);
+		i40e_pre_tx_queue_cfg(&pf->hw, qp_idx, enable);
 		if (!enable)
-			usleep_range(10, 20);
+			usleep(10);
 
 		for (j = 0; j < 50; j++) {
 			tx_reg = UFP_READ32(dev, I40E_QTX_ENA(qp_idx));
 			if (((tx_reg >> I40E_QTX_ENA_QENA_REQ_SHIFT) & 1) ==
 			    ((tx_reg >> I40E_QTX_ENA_QENA_STAT_SHIFT) & 1))
 				break;
-			usleep_range(1000, 2000);
+			usleep(1000);
 		}
 		/* Skip if the queue is already in the requested state */
 		if (tx_reg & I40E_QTX_ENA_QENA_STAT_MASK)
@@ -530,8 +528,7 @@ static int i40e_vsi_start_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 			tx_reg = UFP_READ32(dev, I40E_QTX_ENA(qp_idx));
 			if (tx_reg & I40E_QTX_ENA_QENA_STAT_MASK)
 				break;
-
-			usleep_range(10, 20);
+			usleep(10);
 		}
 		if (retry >= I40E_QUEUE_WAIT_RETRY_LIMIT)
 			goto err_vsi_start;
@@ -555,16 +552,16 @@ static int i40e_vsi_stop_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 		qp_idx = i40e_iface->base_qp + i;
 
 		/* warn the TX unit of coming changes */
-		i40e_pre_tx_queue_cfg(&pf->hw, pf_q, enable);
+		i40e_pre_tx_queue_cfg(&pf->hw, qp_idx, enable);
 		if (!enable)
-			usleep_range(10, 20);
+			usleep(10);
 
 		for (j = 0; j < 50; j++) {
 			tx_reg = UFP_READ32(dev, I40E_QTX_ENA(qp_idx));
 			if (((tx_reg >> I40E_QTX_ENA_QENA_REQ_SHIFT) & 1) ==
 			    ((tx_reg >> I40E_QTX_ENA_QENA_STAT_SHIFT) & 1))
 				break;
-			usleep_range(1000, 2000);
+			usleep(1000);
 		}
 		/* Skip if the queue is already in the requested state */
 		if (!(tx_reg & I40E_QTX_ENA_QENA_STAT_MASK))
@@ -579,8 +576,7 @@ static int i40e_vsi_stop_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 			tx_reg = UFP_READ32(dev, I40E_QTX_ENA(qp_idx));
 			if (!(tx_reg & I40E_QTX_ENA_QENA_STAT_MASK))
 				break;
-
-			usleep_range(10, 20);
+			usleep(10);
 		}
 		if (retry >= I40E_QUEUE_WAIT_RETRY_LIMIT)
 			goto err_vsi_stop;
