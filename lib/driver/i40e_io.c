@@ -678,10 +678,10 @@ void i40e_tx_desc_fill(struct ufp_ring *tx_ring, uint16_t index,
 	 */
 	tx_desc->buffer_addr = htole64(addr_dma);
 	tx_desc->cmd_type_offset_bsz = htole64(I40E_TX_DESC_DTYPE_DATA |
-		((u64)tx_cmd << I40E_TXD_QW1_CMD_SHIFT) |
-		((u64)tx_offset << I40E_TXD_QW1_OFFSET_SHIFT) |
-		((u64)packet->slot_size << I40E_TXD_QW1_TX_BUF_SZ_SHIFT) |
-		((u64)tx_tag << I40E_TXD_QW1_L2TAG1_SHIFT));
+		((uint64_t)tx_cmd << I40E_TXD_QW1_CMD_SHIFT) |
+		((uint64_t)tx_offset << I40E_TXD_QW1_OFFSET_SHIFT) |
+		((uint64_t)packet->slot_size << I40E_TXD_QW1_TX_BUF_SZ_SHIFT) |
+		((uint64_t)tx_tag << I40E_TXD_QW1_L2TAG1_SHIFT));
 
 	return;
 }

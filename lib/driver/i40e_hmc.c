@@ -187,11 +187,11 @@ static void i40e_hmc_sd_release(struct ufp_dev *dev,
 static void i40e_set_pf_sd_entry(struct ufp_dev *dev, unsigned long pa,
 	uint32_t sd_index,  enum i40e_sd_entry_type type)
 {
-	u32 val1, val2, val3;
+	uint32_t val1, val2, val3;
 
-	val1 = (u32)(upper_32_bits(pa));
+	val1 = (uint32_t)(upper_32_bits(pa));
 
-	val2 = (u32)(pa)
+	val2 = (uint32_t)(pa)
 	val2 |= I40E_HMC_MAX_BP_COUNT
 		<< I40E_PFHMC_SDDATALOW_PMSDBPCOUNT_SHIFT;
 	val2 |= (((type) == I40E_SD_TYPE_PAGED) ? 0 : 1)
@@ -210,7 +210,7 @@ static void i40e_set_pf_sd_entry(struct ufp_dev *dev, unsigned long pa,
 static void i40e_clear_pf_sd_entry(struct ufp_dev *dev,
 	uint32_t sd_index, enum i40e_sd_entry_type type)
 {
-	u32 val2, val3;
+	uint32_t val2, val3;
 
 	val2 = I40E_HMC_MAX_BP_COUNT
 		<< I40E_PFHMC_SDDATALOW_PMSDBPCOUNT_SHIFT;

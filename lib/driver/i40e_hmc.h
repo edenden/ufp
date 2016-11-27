@@ -7,9 +7,9 @@ struct i40e_hmc {
 };
 
 struct i40e_hmc_obj {
-	u64 base;	/* base addr in FPM */
-	u32 count;	/* maximum count of objects */
-	u64 size;	/* size in bytes of one object */
+	uint64_t base;	/* base addr in FPM */
+	uint32_t count;	/* maximum count of objects */
+	uint64_t size;	/* size in bytes of one object */
 };
 
 struct i40e_hmc_sd_table {
@@ -23,50 +23,50 @@ struct i40e_hmc_sd_entry {
 };
 
 struct i40e_hmc_ctx_rx {
-	u16 head;
-	u16 cpuid; /* bigger than needed, see above for reason */
-	u64 base;
-	u16 qlen;
+	uint16_t head;
+	uint16_t cpuid; /* bigger than needed, see above for reason */
+	uint64_t base;
+	uint16_t qlen;
 #define I40E_RXQ_CTX_DBUFF_SHIFT 7
-	u16 dbuff; /* bigger than needed, see above for reason */
+	uint16_t dbuff; /* bigger than needed, see above for reason */
 #define I40E_RXQ_CTX_HBUFF_SHIFT 6
-	u16 hbuff; /* bigger than needed, see above for reason */
-	u8  dtype;
-	u8  dsize;
-	u8  crcstrip;
-	u8  fc_ena;
-	u8  l2tsel;
-	u8  hsplit_0;
-	u8  hsplit_1;
-	u8  showiv;
-	u32 rxmax; /* bigger than needed, see above for reason */
-	u8  tphrdesc_ena;
-	u8  tphwdesc_ena;
-	u8  tphdata_ena;
-	u8  tphhead_ena;
-	u16 lrxqthresh; /* bigger than needed, see above for reason */
-	u8  prefena;    /* NOTE: normally must be set to 1 at init */
+	uint16_t hbuff; /* bigger than needed, see above for reason */
+	uint8_t  dtype;
+	uint8_t  dsize;
+	uint8_t  crcstrip;
+	uint8_t  fc_ena;
+	uint8_t  l2tsel;
+	uint8_t  hsplit_0;
+	uint8_t  hsplit_1;
+	uint8_t  showiv;
+	uint32_t rxmax; /* bigger than needed, see above for reason */
+	uint8_t  tphrdesc_ena;
+	uint8_t  tphwdesc_ena;
+	uint8_t  tphdata_ena;
+	uint8_t  tphhead_ena;
+	uint16_t lrxqthresh; /* bigger than needed, see above for reason */
+	uint8_t  prefena;    /* NOTE: normally must be set to 1 at init */
 };
 
 struct i40e_hmc_ctx_tx {
-	u16 head;
-	u8  new_context;
-	u64 base;
-	u8  fc_ena;
-	u8  timesync_ena;
-	u8  fd_ena;
-	u8  alt_vlan_ena;
-	u16 thead_wb;
-	u8  cpuid;
-	u8  head_wb_ena;
-	u16 qlen;
-	u8  tphrdesc_ena;
-	u8  tphrpacket_ena;
-	u8  tphwdesc_ena;
-	u64 head_wb_addr;
-	u32 crc;
-	u16 rdylist;
-	u8  rdylist_act;
+	uint16_t head;
+	uint8_t  new_context;
+	uint64_t base;
+	uint8_t  fc_ena;
+	uint8_t  timesync_ena;
+	uint8_t  fd_ena;
+	uint8_t  alt_vlan_ena;
+	uint16_t thead_wb;
+	uint8_t  cpuid;
+	uint8_t  head_wb_ena;
+	uint16_t qlen;
+	uint8_t  tphrdesc_ena;
+	uint8_t  tphrpacket_ena;
+	uint8_t  tphwdesc_ena;
+	uint64_t head_wb_addr;
+	uint32_t crc;
+	uint16_t rdylist;
+	uint8_t  rdylist_act;
 };
 
 struct i40e_hmc_ce {

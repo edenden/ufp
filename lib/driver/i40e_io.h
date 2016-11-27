@@ -6,27 +6,27 @@
  */
 union i40e_16byte_rx_desc {
 	struct {
-		__le64 pkt_addr; /* Packet buffer address */
-		__le64 hdr_addr; /* Header buffer address */
+		uint64_t pkt_addr; /* Packet buffer address */
+		uint64_t hdr_addr; /* Header buffer address */
 	} read;
 	struct {
 		struct {
 			struct {
 				union {
-					__le16 mirroring_status;
-					__le16 fcoe_ctx_id;
+					uint16_t mirroring_status;
+					uint16_t fcoe_ctx_id;
 				} mirr_fcoe;
-				__le16 l2tag1;
+				uint16_t l2tag1;
 			} lo_dword;
 			union {
-				__le32 rss; /* RSS Hash */
-				__le32 fd_id; /* Flow director filter id */
-				__le32 fcoe_param; /* FCoE DDP Context id */
+				uint32_t rss; /* RSS Hash */
+				uint32_t fd_id; /* Flow director filter id */
+				uint32_t fcoe_param; /* FCoE DDP Context id */
 			} hi_dword;
 		} qword0;
 		struct {
 			/* ext status/error/pktype/length */
-			__le64 status_error_len;
+			uint64_t status_error_len;
 		} qword1;
 	} wb;  /* writeback */
 };
@@ -35,8 +35,8 @@ union i40e_16byte_rx_desc {
  * See 8.4.2.1 - General Descriptors
  */
 struct i40e_tx_desc {
-	__le64 buffer_addr; /* Address of descriptor's data buf */
-	__le64 cmd_type_offset_bsz;
+	uint64_t buffer_addr; /* Address of descriptor's data buf */
+	uint64_t cmd_type_offset_bsz;
 };
 
 #define I40E_RX_DESC(R, i)                      \

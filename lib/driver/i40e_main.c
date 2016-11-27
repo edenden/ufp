@@ -264,7 +264,7 @@ err_mac_unknown:
 
 int i40e_setup_misc_irq(struct ufp_dev *dev)
 {
-	u32 val;
+	uint32_t val;
 
 	/* clear things first */
 	UFP_WRITE32(dev, I40E_PFINT_ICR0_ENA, 0);  /* disable all */
@@ -386,9 +386,9 @@ void i40e_set_pf_id(struct ufp_dev *dev)
 	func_rid = UFP_READ32(hw, I40E_PF_FUNC_RID);
 
 	if (pci_cap_ari)
-		i40e_dev->pf_id = (u8)(func_rid & 0xff);
+		i40e_dev->pf_id = (uint8_t)(func_rid & 0xff);
 	else
-		i40e_dev->pf_id = (u8)(func_rid & 0x7);
+		i40e_dev->pf_id = (uint8_t)(func_rid & 0x7);
 
 	return;
 }
@@ -442,27 +442,27 @@ int i40e_configure_filter(struct ufp_dev *dev)
 
 	/* Program required PE hash buckets for the PF */
 	val &= ~I40E_PFQF_CTL_0_PEHSIZE_MASK;
-	val |= ((u32)I40E_HASH_FILTER_SIZE_1K << I40E_PFQF_CTL_0_PEHSIZE_SHIFT) &
+	val |= ((uint32_t)I40E_HASH_FILTER_SIZE_1K << I40E_PFQF_CTL_0_PEHSIZE_SHIFT) &
 		I40E_PFQF_CTL_0_PEHSIZE_MASK;
 	/* Program required PE contexts for the PF */
 	val &= ~I40E_PFQF_CTL_0_PEDSIZE_MASK;
-	val |= ((u32)I40E_DMA_CNTX_SIZE_512 << I40E_PFQF_CTL_0_PEDSIZE_SHIFT) &
+	val |= ((uint32_t)I40E_DMA_CNTX_SIZE_512 << I40E_PFQF_CTL_0_PEDSIZE_SHIFT) &
 		I40E_PFQF_CTL_0_PEDSIZE_MASK;
 
 	/* Program required FCoE hash buckets for the PF */
 	val &= ~I40E_PFQF_CTL_0_PFFCHSIZE_MASK;
-	val |= ((u32)I40E_HASH_FILTER_SIZE_1K <<
+	val |= ((uint32_t)I40E_HASH_FILTER_SIZE_1K <<
 			I40E_PFQF_CTL_0_PFFCHSIZE_SHIFT) &
 		I40E_PFQF_CTL_0_PFFCHSIZE_MASK;
 	/* Program required FCoE DDP contexts for the PF */
 	val &= ~I40E_PFQF_CTL_0_PFFCDSIZE_MASK;
-	val |= ((u32)I40E_DMA_CNTX_SIZE_512 <<
+	val |= ((uint32_t)I40E_DMA_CNTX_SIZE_512 <<
 			I40E_PFQF_CTL_0_PFFCDSIZE_SHIFT) &
 		I40E_PFQF_CTL_0_PFFCDSIZE_MASK;
 
 	/* Program Hash LUT size for the PF */
 	val &= ~I40E_PFQF_CTL_0_HASHLUTSIZE_MASK;
-	val |= ((u32)I40E_HASH_LUT_SIZE_128 << I40E_PFQF_CTL_0_HASHLUTSIZE_SHIFT) &
+	val |= ((uint32_t)I40E_HASH_LUT_SIZE_128 << I40E_PFQF_CTL_0_HASHLUTSIZE_SHIFT) &
 		I40E_PFQF_CTL_0_HASHLUTSIZE_MASK;
 
 	/* Enable FDIR, Ethertype and MACVLAN filters for PF and VFs */
@@ -477,12 +477,12 @@ int i40e_configure_filter(struct ufp_dev *dev)
 
 static int i40e_configure_rss(struct ufp_dev *dev)
 {
-	u32 reg_val;
-	u64 hena;
+	uint32_t reg_val;
+	uint64_t hena;
 
 	/* By default we enable TCP/UDP with IPv4/IPv6 ptypes */
-	hena = (u64)i40e_read_rx_ctl(hw, I40E_PFQF_HENA(0)) |
-		((u64)i40e_read_rx_ctl(hw, I40E_PFQF_HENA(1)) << 32);
+	hena = (uint64_t)i40e_read_rx_ctl(hw, I40E_PFQF_HENA(0)) |
+		((uint64_t)i40e_read_rx_ctl(hw, I40E_PFQF_HENA(1)) << 32);
 	hena |=	BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_UDP) |
 		BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_SCTP) |
 		BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_TCP) |
@@ -495,8 +495,8 @@ static int i40e_configure_rss(struct ufp_dev *dev)
 		BIT_ULL(I40E_FILTER_PCTYPE_FRAG_IPV6) |
 		BIT_ULL(I40E_FILTER_PCTYPE_L2_PAYLOAD);
 
-	i40e_write_rx_ctl(hw, I40E_PFQF_HENA(0), (u32)hena);
-	i40e_write_rx_ctl(hw, I40E_PFQF_HENA(1), (u32)(hena >> 32));
+	i40e_write_rx_ctl(hw, I40E_PFQF_HENA(0), (uint32_t)hena);
+	i40e_write_rx_ctl(hw, I40E_PFQF_HENA(1), (uint32_t)(hena >> 32));
 
 	/* Determine the RSS table size based on the hardware capabilities */
 	reg_val = i40e_read_rx_ctl(hw, I40E_PFQF_CTL_0);

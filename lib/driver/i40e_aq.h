@@ -3,26 +3,26 @@
 #define I40E_ASQ_CMD_TIMEOUT    250  /* msecs */
 
 struct i40e_aq_desc {
-	__le16 flags;
-	__le16 opcode;
-	__le16 datalen;
-	__le16 retval;
-	__le32 cookie_high;
-	__le32 cookie_low;
+	uint16_t flags;
+	uint16_t opcode;
+	uint16_t datalen;
+	uint16_t retval;
+	uint32_t cookie_high;
+	uint32_t cookie_low;
 	union { 
 		struct {
-			__le32 param0;
-			__le32 param1;
-			__le32 param2;
-			__le32 param3;
+			uint32_t param0;
+			uint32_t param1;
+			uint32_t param2;
+			uint32_t param3;
 		} internal;
 		struct {
-			__le32 param0;
-			__le32 param1;
-			__le32 addr_high;
-			__le32 addr_low;
+			uint32_t param0;
+			uint32_t param1;
+			uint32_t addr_high;
+			uint32_t addr_low;
 		} external;
-		u8 raw[16];
+		uint8_t raw[16];
 	} params;
 };
 
@@ -35,11 +35,11 @@ struct i40e_aq_ring {
 	uint16_t next_to_clean;
 
 	/* used for queue tracking */
-	u32 head;
-	u32 tail;
-	u32 len;
-	u32 bah;
-	u32 bal;
+	uint32_t head;
+	uint32_t tail;
+	uint32_t len;
+	uint32_t bah;
+	uint32_t bal;
 };
 
 struct i40e_aq {

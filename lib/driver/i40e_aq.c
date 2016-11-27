@@ -319,7 +319,7 @@ void i40e_aq_arq_assign(struct ufp_dev *dev)
 		/* This is in accordance with Admin queue design, there is no
 		 * register for buffer size configuration
 		 */
-		desc->datalen = htole16((u16)bi->size);
+		desc->datalen = htole16((uint16_t)bi->size);
 		desc->retval = 0;
 		desc->cookie_high = 0;
 		desc->cookie_low = 0;
