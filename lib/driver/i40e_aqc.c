@@ -14,7 +14,7 @@
 int i40e_aqc_req_macaddr_read(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aq_cmd_macaddr cmd;
+	struct i40e_aq_cmd_macaddr_read cmd;
 	uint16_t flags;
 	int err;
 
@@ -34,14 +34,17 @@ err_xmit:
 }
 
 int i40e_aqc_resp_macaddr_read(struct ufp_dev *dev,
-	struct i40e_aq_cmd_macaddr *cmd, struct i40e_aq_buf_macaddr *buf)
+	struct i40e_aq_cmd_macaddr_read *cmd, void *buf)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_aq_buf_macaddr *resp_macaddr;
+
+	resp_macaddr = buf;
 
 	if(!(cmd->command_flags & I40E_AQC_PORT_ADDR_VALID))
 		goto err_invalid;
 
-	memcpy(i40e_dev->pf_lan_mac, result->pf_lan_mac, ETH_ALEN);
+	memcpy(i40e_dev->pf_lan_mac, resp_macaddr->pf_lan_mac, ETH_ALEN);
 	i40e_dev->aq.flag &= ~AQ_MAC_ADDR;
 	return 0;
 
@@ -52,13 +55,13 @@ err_invalid:
 int i40e_aqc_req_clear_pxemode(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aq_cmd_clear_pxe cmd;
+	struct i40e_aq_cmd_clear_pxemode cmd;
 	int err;
 
 	cmd.rx_cnt = 0x2;
 
 	err = i40e_aq_asq_assign(dev, i40e_aq_opc_clear_pxemode, 0, 
-		&cmd, sizeof(struct i40e_aq_cmd_clear_pxe),
+		&cmd, sizeof(struct i40e_aq_cmd_clear_pxemode),
 		NULL, 0);
 	if(err < 0)
 		goto err_xmit;
@@ -83,13 +86,13 @@ int i40e_aqc_resp_clear_pxemode(struct ufp_dev *dev)
 int i40e_aqc_req_stop_lldp(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aqc_lldp_stop cmd;
+	struct i40e_aq_cmd_stop_lldp cmd;
 	int err;
 
 	cmd.command |= I40E_AQ_LLDP_AGENT_SHUTDOWN;
 
 	err = i40e_aq_asq_assign(dev, i40e_aq_opc_stop_lldp, 0,
-		&cmd, sizeof(struct i40e_aqc_lldp_stop),
+		&cmd, sizeof(struct i40e_aq_cmd_stop_lldp),
 		NULL, 0);
 	if(err < 0)
 		goto err_xmit;
@@ -111,7 +114,7 @@ int i40e_aqc_resp_stop_lldp(struct ufp_dev *dev)
 int i40e_aqc_req_get_swconf(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aq_cmd_getconf cmd;
+	struct i40e_aq_cmd_get_swconf cmd;
 	uint16_t flags;
 	int err;
 
@@ -132,10 +135,10 @@ err_xmit:
 }
 
 int i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
-	struct i40e_aq_cmd_getconf *cmd, struct i40e_aqc_get_switch_config_resp *buf)
+	struct i40e_aq_cmd_get_swconf *cmd, void *buf)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aqc_switch_config_element_resp *elem_resp;
+	struct i40e_aq_buf_get_swconf_elem *resp_elem;
 	struct i40e_elem *elem, *elem_new;
 
 	num_reported = le16_to_cpu(buf->header.num_reported);
@@ -145,18 +148,18 @@ int i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
 		elem = elem->next;
 	}
 
+	resp_elem = buf + sizeof(struct i40e_aq_buf_get_swconf_header);
+
 	for (i = 0; i < num_reported; i++) {
 		elem_new = malloc(sizeof(struct i40e_elem));
 		if(!elem_new)
 			goto err_alloc_elem_new;
 
-		elem_resp = buf->element[i];
-
-		elem_new->type = elem_resp->element_type;
-		elem_new->seid = le16_to_cpu(elem_resp->seid);
-		elem_new->seid_uplink = le16_to_cpu(elem_resp->uplink_seid);
-		elem_new->seid_downlink = le16_to_cpu(elem_resp->downlink_seid);
-		elem_new->element_info = le16_to_cpu(elem_resp->element_info);
+		elem_new->type = (&resp_elem[i])->element_type;
+		elem_new->seid = le16_to_cpu((&resp_elem[i])->seid);
+		elem_new->seid_uplink = le16_to_cpu((&resp_elem[i])->uplink_seid);
+		elem_new->seid_downlink = le16_to_cpu((&resp_elem[i])->downlink_seid);
+		elem_new->element_info = le16_to_cpu((&resp_elem[i])->element_info);
 
 		elem_new->next = NULL;
 		elem->next = elem_new; 
@@ -173,7 +176,7 @@ int i40e_aqc_req_set_swconf(struct ufp_dev *dev,
 	uint16_t flags, uint16_t valid_flags)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aqc_set_switch_config cmd;
+	struct i40e_aq_cmd_set_swconf cmd;
 	int err;
 
 	cmd.flags = htole16(flags);
@@ -193,7 +196,7 @@ err_xmit:
 }
 
 int i40e_aqc_resp_set_swconf(struct ufp_dev *dev,
-	struct i40e_aq_cmd_clear_pxe *cmd)
+	struct i40e_aq_cmd_set_swconf *cmd)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 
@@ -202,11 +205,11 @@ int i40e_aqc_resp_set_swconf(struct ufp_dev *dev,
 }
 
 int i40e_aqc_req_update_vsi(struct ufp_dev *dev, struct ufp_iface *iface,
-	struct i40e_aqc_vsi_properties_data *data)
+	struct i40e_aq_buf_vsi_data *data)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aqc_add_get_update_vsi cmd;
+	struct i40e_aq_cmd_update_vsi cmd;
 	uint16_t flags;
 	int err;
 
@@ -214,8 +217,8 @@ int i40e_aqc_req_update_vsi(struct ufp_dev *dev, struct ufp_iface *iface,
 	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
 
 	err = i40e_aq_asq_assign(dev, i40e_aq_opc_update_vsi, flags,
-		&cmd, sizeof(struct i40e_aqc_add_get_update_vsi),
-		data, sizeof(struct i40e_aqc_vsi_properties_data));
+		&cmd, sizeof(struct i40e_aq_cmd_update_vsi),
+		data, sizeof(struct i40e_aq_buf_vsi_data));
 	if(err < 0)
 		goto err_xmit;
 
@@ -227,7 +230,7 @@ err_xmit:
 }
 
 int i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
-	struct i40e_aqc_add_get_update_vsi_completion *cmd)
+	struct i40e_aq_cmd_update_vsi_resp *cmd)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_iface *iface = dev->iface;
