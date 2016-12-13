@@ -402,3 +402,33 @@ int i40e_aqc_resp_promisc_mode(struct ufp_dev *dev)
 	return 0;
 }
 
+int i40e_aqc_req_rxctl_write(struct ufp_dev *dev,
+	uint32_t reg_addr, uint32_t reg_val)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_aqc_rx_ctl_reg_read_write cmd;
+	int err;
+
+	cmd.address = htole32(reg_addr);
+	cmd.value = htole32(reg_val);
+
+	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_rx_ctl_reg_write, 0,
+		&cmd, sizeof(struct i40e_aqc_rx_ctl_reg_read_write),
+		NULL, 0);
+	if(err < 0)
+		goto err_xmit;
+
+	i40e_dev->aq.flag |= AQ_RXCTL_WRITE;
+	return 0;
+
+err_xmit:
+	return -1;
+}
+
+int i40e_aqc_resp_rxctl_write(struct ufp_dev *dev)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+
+	i40e_dev->aq.flag &= ~AQ_RXCTL_WRITE;
+	return 0;
+}

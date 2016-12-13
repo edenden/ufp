@@ -11,6 +11,25 @@
 #include "i40e_main.h"
 #include "i40e_aqc.h"
 
+void i40e_rxctl_write(struct ufp_dev *dev,
+	uint32_t reg_addr, uint32_t reg_val)
+{
+	err = i40e_aqc_req_rxctl_write(dev, reg_addr, reg_val);
+	if(err < 0)
+		goto err_rxctl_write;
+
+	err = i40e_wait_cmd(dev);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	return 0;
+
+err_wait_cmd:
+err_rxctl_write:
+	return -1;
+
+}
+
 struct i40e_page *i40e_page_alloc(struct ufp_dev *dev)
 {
 	struct i40e_page *page;
@@ -470,9 +489,14 @@ int i40e_configure_filter(struct ufp_dev *dev)
 	val |= I40E_PFQF_CTL_0_ETYPE_ENA_MASK;
 	val |= I40E_PFQF_CTL_0_MACVLAN_ENA_MASK;
 
-	i40e_write_rx_ctl(hw, I40E_PFQF_CTL_0, val);
+	err = i40e_rxctl_write(dev, I40E_PFQF_CTL_0, val);
+	if(err < 0)
+		goto err_pfqfctl0_write;
 
 	return 0;
+
+err_pfqfctl0_write:
+	return -1;
 }
 
 static int i40e_configure_rss(struct ufp_dev *dev)
@@ -495,15 +519,28 @@ static int i40e_configure_rss(struct ufp_dev *dev)
 		BIT_ULL(I40E_FILTER_PCTYPE_FRAG_IPV6) |
 		BIT_ULL(I40E_FILTER_PCTYPE_L2_PAYLOAD);
 
-	i40e_write_rx_ctl(hw, I40E_PFQF_HENA(0), (uint32_t)hena);
-	i40e_write_rx_ctl(hw, I40E_PFQF_HENA(1), (uint32_t)(hena >> 32));
+	err = i40e_rxctl_write(dev, I40E_PFQF_HENA(0), (uint32_t)hena);
+	if(err < 0)
+		goto err_hena0_write; 
+
+	err = i40e_rxctl_write(dev, I40E_PFQF_HENA(1), (uint32_t)(hena >> 32));
+	if(err < 0)
+		goto err_hena1_write;
 
 	/* Determine the RSS table size based on the hardware capabilities */
 	reg_val = i40e_read_rx_ctl(hw, I40E_PFQF_CTL_0);
 	reg_val |= I40E_PFQF_CTL_0_HASHLUTSIZE_512;
-	i40e_write_rx_ctl(hw, I40E_PFQF_CTL_0, reg_val);
+
+	err = i40e_rxctl_write(dev, I40E_PFQF_CTL_0, reg_val);
+	if(err < 0)
+		goto err_pfqfctl0_write;
 
 	return 0;
+
+err_pfqfctl0_write:
+err_hena1_write:
+err_hena0_write:
+	return -1;
 }
 
 static int i40e_setup_pf_switch(struct ufp_dev *dev)
