@@ -11,7 +11,7 @@
 #include "i40e_aq.h"
 #include "i40e_aqc.h"
 
-int i40e_aqc_req_get_macaddr(struct ufp_dev *dev)
+int i40e_aqc_req_macaddr_read(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_cmd_macaddr cmd;
@@ -20,7 +20,7 @@ int i40e_aqc_req_get_macaddr(struct ufp_dev *dev)
 
 	flags = I40E_AQ_FLAG_BUF;
 
-	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_mac_address_read, flags
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_macaddr_read, flags
 		&cmd, sizeof(struct i40e_aq_cmd_macaddr),
 		NULL, 0);
 	if(err < 0)
@@ -33,7 +33,7 @@ err_xmit:
 	return -1;
 }
 
-int i40e_aqc_resp_get_macaddr(struct ufp_dev *dev,
+int i40e_aqc_resp_macaddr_read(struct ufp_dev *dev,
 	struct i40e_aq_cmd_macaddr *cmd, struct i40e_aq_buf_macaddr *buf)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
@@ -57,7 +57,7 @@ int i40e_aqc_req_clear_pxemode(struct ufp_dev *dev)
 
 	cmd.rx_cnt = 0x2;
 
-	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_clear_pxe_mode, 0, 
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_clear_pxemode, 0, 
 		&cmd, sizeof(struct i40e_aq_cmd_clear_pxe),
 		NULL, 0);
 	if(err < 0)
@@ -88,7 +88,7 @@ int i40e_aqc_req_stop_lldp(struct ufp_dev *dev)
 
 	cmd.command |= I40E_AQ_LLDP_AGENT_SHUTDOWN;
 
-	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_lldp_stop, 0,
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_stop_lldp, 0,
 		&cmd, sizeof(struct i40e_aqc_lldp_stop),
 		NULL, 0);
 	if(err < 0)
@@ -118,7 +118,7 @@ int i40e_aqc_req_get_swconf(struct ufp_dev *dev)
 	cmd.seid_offset = htole16(i40e_dev->aq_seid_offset);
 	flags = I40E_AQ_FLAG_BUF;
 
-	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_get_switch_config, flags,
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_get_swconf, flags,
 		&cmd, sizeof(struct i40e_aq_cmd_getconf),
 		NULL, 0);
 	if(err < 0)
@@ -179,7 +179,7 @@ int i40e_aqc_req_set_swconf(struct ufp_dev *dev,
 	cmd.flags = htole16(flags);
 	cmd.valid_flags = htole16(valid_flags);
 
-	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_switch_config, 0,
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_set_swconf, 0,
 		&cmd, sizeof(struct i40e_aqc_set_switch_config),
 		NULL, 0);
 	if(err < 0)
@@ -213,7 +213,7 @@ int i40e_aqc_req_update_vsi(struct ufp_dev *dev, struct ufp_iface *iface,
 	cmd.uplink_seid = htole16(i40e_iface->seid);
 	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
 
-	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_update_vsi_parameters, flags,
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_update_vsi, flags,
 		&cmd, sizeof(struct i40e_aqc_add_get_update_vsi),
 		data, sizeof(struct i40e_aqc_vsi_properties_data));
 	if(err < 0)
@@ -267,7 +267,7 @@ int i40e_aqc_req_set_rsskey(struct ufp_dev *dev,
 	cmd.vsi_id |= htole16((uint16_t)I40E_AQC_SET_RSS_KEY_VSI_VALID);
 	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
 
-	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_rss_key, flags,
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_set_rsskey, flags,
 		&cmd, sizeof(struct i40e_aqc_get_set_rss_key),
 		key, key_size);
 	if(err < 0)
@@ -316,7 +316,7 @@ int i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
 
 	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
 
-	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_rss_lut, flags,
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_set_rsslut, flags,
 		&cmd, sizeof(struct i40e_aqc_get_set_rss_lut),
 		lut, lut_size);
 	if(err < 0)
@@ -345,7 +345,7 @@ int i40e_aqc_req_set_phyintmask(struct ufp_dev *dev, uint16_t mask)
 
 	cmd.event_mask = htole16(mask);
 
-	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_phy_int_mask, 0,
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_set_phyintmask, 0,
 		&cmd, sizeof(struct i40e_aqc_set_phy_int_mask),
 		NULL, 0);
 	if(err < 0)
@@ -381,7 +381,7 @@ int i40e_aqc_req_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface,
 		I40E_AQC_SET_VSI_PROMISC_BROADCAST);
 	cmd.seid = htole16(i40e_iface->seid);
 
-	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_set_vsi_promiscuous_modes, 0,
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_promisc_mode, 0,
 		&cmd, sizeof(struct i40e_aqc_set_vsi_promiscuous_modes),
 		NULL, 0);
 	if(err < 0)
@@ -412,7 +412,7 @@ int i40e_aqc_req_rxctl_write(struct ufp_dev *dev,
 	cmd.address = htole32(reg_addr);
 	cmd.value = htole32(reg_val);
 
-	err = i40e_aq_asq_assign(dev, i40e_aqc_opc_rx_ctl_reg_write, 0,
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_rxctl_write, 0,
 		&cmd, sizeof(struct i40e_aqc_rx_ctl_reg_read_write),
 		NULL, 0);
 	if(err < 0)

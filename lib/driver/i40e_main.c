@@ -254,9 +254,9 @@ int i40e_configure_pf(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_stop_lldp;
 
-	err = i40e_aqc_req_get_macaddr(dev);
+	err = i40e_aqc_req_macaddr_read(dev);
 	if(err < 0)
-		goto err_get_macaddr;
+		goto err_macaddr_read;
 
 	/* The driver only wants link up/down and module qualification
 	 * reports from firmware.  Note the negative logic.
@@ -583,11 +583,12 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_switchconf_fetch;
 
-	foreach(data->switch_elem){
+	elem = i40e_dev->elem;
+	while(elem)
 		if(elem->type == I40E_SWITCH_ELEMENT_TYPE_VSI){
-			elem = current;
 			break;
 		}
+		elem = elem->next;
 	}
 	if(!elem)
 		goto err_first_vsi;

@@ -1,3 +1,28 @@
+enum i40e_admin_queue_opc {
+	/* LAA */
+	i40e_aq_opc_macaddr_read	= 0x0107,
+
+	/* PXE */
+	i40e_aq_opc_clear_pxemode	= 0x0110,
+
+	/* internal switch commands */
+	i40e_aq_opc_get_swconf		= 0x0200,
+	i40e_aq_opc_set_swconf		= 0x0205,
+	i40e_aq_opc_rxctl_write		= 0x0207,
+	i40e_aq_opc_update_vsi		= 0x0211,
+	i40e_aq_opc_promisc_mode	= 0x0254,
+
+	/* phy commands*/
+	i40e_aq_opc_set_phyintmask	= 0x0613,
+
+	/* LLDP commands */
+	i40e_aq_opc_stop_lldp		= 0x0A05,
+
+	/* Tunnel commands */
+	i40e_aq_opc_set_rsskey		= 0x0B02,
+	i40e_aq_opc_set_rsslut		= 0x0B03,
+};
+
 struct i40e_aq_cmd_macaddr {
 	uint16_t  command_flags;
 #define I40E_AQC_LAN_ADDR_VALID		0x10
