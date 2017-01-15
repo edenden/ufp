@@ -503,7 +503,7 @@ static int i40e_vsi_start_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 		qp_idx = i40e_iface->base_qp + i;
 
 		/* warn the TX unit of coming changes */
-		i40e_pre_tx_queue_cfg(&pf->hw, qp_idx, enable);
+		i40e_pre_tx_queue_enable(dev, qp_idx);
 		if (!enable)
 			usleep(10);
 
@@ -552,7 +552,7 @@ static int i40e_vsi_stop_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 		qp_idx = i40e_iface->base_qp + i;
 
 		/* warn the TX unit of coming changes */
-		i40e_pre_tx_queue_cfg(&pf->hw, qp_idx, enable);
+		i40e_pre_tx_queue_disable(dev, qp_idx);
 		if (!enable)
 			usleep(10);
 
@@ -587,6 +587,55 @@ static int i40e_vsi_stop_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 err_vsi_stop:
 	return -1;
 }
+
+void i40e_pre_tx_queue_enable(struct ufp_dev *dev, uint32_t qp_idx)
+{
+	uint32_t first_queue;
+	uint32_t abs_queue_idx;
+	uint32_t reg_block;
+	uint32_t reg_val;
+
+	reg_val = UFP_READ32(dev, I40E_PFLAN_QALLOC);
+	first_queue = (reg_val & I40E_PFLAN_QALLOC_FIRSTQ_MASK) >>
+		I40E_PFLAN_QALLOC_FIRSTQ_SHIFT;
+	abs_queue_idx = first_queue + qp_idx;
+
+	reg_block	= abs_queue_idx / 128;
+	abs_queue_idx	= abs_queue_idx % 128;
+
+	reg_val = UFP_READ32(dev, I40E_GLLAN_TXPRE_QDIS(reg_block));
+	reg_val &= ~I40E_GLLAN_TXPRE_QDIS_QINDX_MASK;
+	reg_val |= (abs_queue_idx << I40E_GLLAN_TXPRE_QDIS_QINDX_SHIFT);
+	reg_val |= I40E_GLLAN_TXPRE_QDIS_CLEAR_QDIS_MASK;
+	UFP_WRITE32(dev, I40E_GLLAN_TXPRE_QDIS(reg_block), reg_val);
+
+	return;
+}
+
+void i40e_pre_tx_queue_disable(struct ufp_dev *dev, uint32_t qp_idx)
+{
+	uint32_t first_queue;
+	uint32_t abs_queue_idx;
+	uint32_t reg_block;
+	uint32_t reg_val;
+
+	reg_val = UFP_READ32(dev, I40E_PFLAN_QALLOC);
+	first_queue = (reg_val & I40E_PFLAN_QALLOC_FIRSTQ_MASK) >>
+		I40E_PFLAN_QALLOC_FIRSTQ_SHIFT;
+	abs_queue_idx = first_queue + qp_idx;
+
+	reg_block       = abs_queue_idx / 128;
+	abs_queue_idx   = abs_queue_idx % 128;
+
+	reg_val = UFP_READ32(dev, I40E_GLLAN_TXPRE_QDIS(reg_block));
+	reg_val &= ~I40E_GLLAN_TXPRE_QDIS_QINDX_MASK;
+	reg_val |= (abs_queue_idx << I40E_GLLAN_TXPRE_QDIS_QINDX_SHIFT);
+	reg_val |= I40E_GLLAN_TXPRE_QDIS_SET_QDIS_MASK;
+	UFP_WRITE32(dev, I40E_GLLAN_TXPRE_QDIS(reg_block), reg_val);
+
+	return;
+}
+
 
 int i40e_rx_desc_fetch(struct ufp_ring *rx_ring, uint16_t index,
 	struct ufp_packet *packet)
