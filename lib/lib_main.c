@@ -20,8 +20,8 @@
 static int ufp_dma_map(struct ufp_handle *ih, void *addr_virt,
 	unsigned long *addr_dma, unsigned long size);
 static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma);
-static struct ufp_ops *ufp_ops_alloc(uint16_t device_id);
-static void ufp_ops_release(struct ufp_ops *ops);
+static struct ufp_ops *ufp_ops_alloc(struct ufp_dev *dev);
+static void ufp_ops_release(struct ufp_dev *dev, struct ufp_ops *ops);
 static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
 	enum ufp_irq_type type, unsigned int irq_idx, unsigned int core_id)
 static void ufp_irq_close(struct ufp_irq_handle *irqh);
@@ -385,7 +385,7 @@ static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma)
 	return 0;
 }
 
-static struct ufp_ops *ufp_ops_alloc(uint16_t device_id)
+static struct ufp_ops *ufp_ops_alloc(struct ufp_dev *dev)
 {
 	struct ufp_ops *ops;
 	int err;
@@ -396,12 +396,26 @@ static struct ufp_ops *ufp_ops_alloc(uint16_t device_id)
 
 	memset(ops, 0, sizeof(struct ufp_ops));
 
-	switch(device_id){
-	case IXGBE_DEV_ID_82599_VF:
-	case IXGBE_DEV_ID_X540_VF:
-	case IXGBE_DEV_ID_X550_VF:
-	case IXGBE_DEV_ID_X550EM_X_VF:
-		err = ufp_ixgbevf_init(ops);
+	switch(dev->device_id){
+	case I40E_DEV_ID_SFP_XL710:
+	case I40E_DEV_ID_QEMU:
+	case I40E_DEV_ID_KX_B:
+	case I40E_DEV_ID_KX_C:
+	case I40E_DEV_ID_QSFP_A:
+	case I40E_DEV_ID_QSFP_B:
+	case I40E_DEV_ID_QSFP_C:
+	case I40E_DEV_ID_10G_BASE_T:
+	case I40E_DEV_ID_20G_KR2:
+	case I40E_DEV_ID_20G_KR2_A:
+	case I40E_DEV_ID_10G_BASE_T4:
+	case I40E_DEV_ID_KX_X722:
+	case I40E_DEV_ID_QSFP_X722:
+	case I40E_DEV_ID_SFP_X722:
+	case I40E_DEV_ID_1G_BASE_T_X722:
+	case I40E_DEV_ID_10G_BASE_T_X722:
+	case I40E_DEV_ID_SFP_I_X722:
+	case I40E_DEV_ID_QSFP_I_X722:
+		err = i40e_ops_init(dev, ops);
 		if(err)
 			goto err_init_device;
 		break;
@@ -409,7 +423,6 @@ static struct ufp_ops *ufp_ops_alloc(uint16_t device_id)
 		goto err_init_device;
 	}
 
-	ops->device_id = device_id;
 	return ops;
 
 err_init_device:
@@ -418,14 +431,28 @@ err_alloc_ops:
 	return NULL;
 }
 
-static void ufp_ops_release(struct ufp_ops *ops)
+static void ufp_ops_release(struct ufp_dev *dev, struct ufp_ops *ops)
 {
 	switch(ops->device_id){
-	case IXGBE_DEV_ID_82599_VF:
-	case IXGBE_DEV_ID_X540_VF:
-	case IXGBE_DEV_ID_X550_VF:
-	case IXGBE_DEV_ID_X550EM_X_VF:
-		ufp_ixgbevf_destroy(ops);
+	case I40E_DEV_ID_SFP_XL710:
+	case I40E_DEV_ID_QEMU:
+	case I40E_DEV_ID_KX_B:
+	case I40E_DEV_ID_KX_C:
+	case I40E_DEV_ID_QSFP_A:
+	case I40E_DEV_ID_QSFP_B:
+	case I40E_DEV_ID_QSFP_C:
+	case I40E_DEV_ID_10G_BASE_T:
+	case I40E_DEV_ID_20G_KR2:
+	case I40E_DEV_ID_20G_KR2_A:
+	case I40E_DEV_ID_10G_BASE_T4:
+	case I40E_DEV_ID_KX_X722:
+	case I40E_DEV_ID_QSFP_X722:
+	case I40E_DEV_ID_SFP_X722:
+	case I40E_DEV_ID_1G_BASE_T_X722:
+	case I40E_DEV_ID_10G_BASE_T_X722:
+	case I40E_DEV_ID_SFP_I_X722:
+	case I40E_DEV_ID_QSFP_I_X722:
+		i40e_ops_destroy(dev, ops);
 		break;
 	default:
 		break;
@@ -466,7 +493,8 @@ struct ufp_dev *ufp_open(const char *name)
 	if(ih->bar == MAP_FAILED)
 		goto err_mmap;
 
-	dev->ops = ufp_ops_alloc(req.device_id);
+	dev->device_id = req.device_id;
+	dev->ops = ufp_ops_alloc(dev);
 	if(!dev->ops)
 		goto err_ops_alloc;
 
@@ -491,7 +519,7 @@ err_alloc_rings:
 err_ops_open:
 	free(dev->iface);
 err_alloc_iface:
-	ufp_ops_release(dev->ops);
+	ufp_ops_release(dev, dev->ops);
 err_ops_alloc:
 	munmap(dev->bar, dev->bar_size);
 err_mmap:
@@ -518,7 +546,7 @@ void ufp_close(struct ufp_dev *dev)
 	}
 
 	dev->ops->close(dev);
-	ufp_ops_release(dev->ops);
+	ufp_ops_release(dev, dev->ops);
 	munmap(dev->bar, dev->bar_size);
 	close(dev->fd);
 	free(dev);

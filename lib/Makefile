@@ -5,7 +5,7 @@ TARGET_LIB = libufp.so.1.0.0
 LIBDIR = /usr/local/lib/
 
 SRCS = lib_main.c lib_api.c lib_mem.c lib_io.c \
-lib_ixgbevf.c lib_ixgbevf_mac.c lib_ixgbevf_mbx.c
+i40e_aq.c  i40e_aqc.c  i40e_hmc.c  i40e_io.c  i40e_main.c  i40e_ops.c
 OBJS = $(subst .c,.o,$(SRCS))
 VPATH = driver
 
