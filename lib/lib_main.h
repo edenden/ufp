@@ -120,7 +120,7 @@ struct ufp_dev {
 	char			name[IFNAMSIZ];
 	struct ufp_ops		*ops;
 
-	struct ufp_iface	*ifaces;
+	struct ufp_iface	*iface;
 	uint16_t		num_ifaces;
 	uint32_t		num_misc_irqs;
 	struct ufp_irq_handle	*misc_irqh;

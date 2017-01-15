@@ -15,15 +15,15 @@
 
 #include "lib_main.h"
 #include "lib_mem.h"
-#include "lib_ixgbevf.h"
+#include "i40e_ops.h"
 
-static int ufp_dma_map(struct ufp_handle *ih, void *addr_virt,
+static int ufp_dma_map(struct ufp_dev *dev, void *addr_virt,
 	unsigned long *addr_dma, unsigned long size);
-static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma);
+static int ufp_dma_unmap(struct ufp_dev *dev, unsigned long addr_dma);
 static struct ufp_ops *ufp_ops_alloc(struct ufp_dev *dev);
 static void ufp_ops_release(struct ufp_dev *dev, struct ufp_ops *ops);
-static struct ufp_irq_handle *ufp_irq_open(struct ufp_handle *ih,
-	enum ufp_irq_type type, unsigned int irq_idx, unsigned int core_id)
+static struct ufp_irq_handle *ufp_irq_open(struct ufp_dev *dev,
+	unsigned int entry_idx);
 static void ufp_irq_close(struct ufp_irq_handle *irqh);
 static int ufp_irq_setaffinity(unsigned int vector, unsigned int core_id);
 
@@ -43,6 +43,7 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_dev **devs, int num_devs,
 {
 	struct ufp_iface *iface;
 	struct ufp_plane *plane;
+	struct ufp_port *port;
 	unsigned int num_ports = 0, port_idx = 0;
 	int i, err;
 
@@ -125,7 +126,7 @@ void ufp_plane_release(struct ufp_plane *plane)
 struct ufp_mpool *ufp_mpool_init()
 {
 	struct ufp_mpool *mpool;
-	void *addr_virt, *addr_mem;
+	void *addr_virt;
 	unsigned long size;
 
 	mpool = malloc(sizeof(struct ufp_mpool));
@@ -146,6 +147,8 @@ struct ufp_mpool *ufp_mpool_init()
 	return mpool;
 
 err_mem_init:
+	munmap(mpool->addr_virt, SIZE_1GB);
+err_mmap:
 	free(mpool);
 err_alloc_mpool:
 	return NULL;
@@ -356,7 +359,7 @@ void ufp_release_buf(struct ufp_dev **devs, int num_devs,
 	return;
 }
 
-static int ufp_dma_map(struct ufp_handle *ih, void *addr_virt,
+static int ufp_dma_map(struct ufp_dev *dev, void *addr_virt,
 	unsigned long *addr_dma, unsigned long size)
 {
 	struct ufp_map_req req_map;
@@ -366,20 +369,20 @@ static int ufp_dma_map(struct ufp_handle *ih, void *addr_virt,
 	req_map.size = size;
 	req_map.cache = IXGBE_DMA_CACHE_DISABLE;
 
-	if(ioctl(ih->fd, UFP_MAP, (unsigned long)&req_map) < 0)
+	if(ioctl(dev->fd, UFP_MAP, (unsigned long)&req_map) < 0)
 		return -1;
 
 	*addr_dma = req_map.addr_dma;
 	return 0;
 }
 
-static int ufp_dma_unmap(struct ufp_handle *ih, unsigned long addr_dma)
+static int ufp_dma_unmap(struct ufp_dev *dev, unsigned long addr_dma)
 {
 	struct ufp_unmap_req req_unmap;
 
 	req_unmap.addr_dma = addr_dma;
 
-	if(ioctl(ih->fd, UFP_UNMAP, (unsigned long)&req_unmap) < 0)
+	if(ioctl(dev->fd, UFP_UNMAP, (unsigned long)&req_unmap) < 0)
 		return -1;
 
 	return 0;
@@ -606,7 +609,7 @@ err_stop_adapter:
 	return;
 }
 
-struct ufp_irq_handle *ufp_irq_open(struct ufp_dev *dev,
+static struct ufp_irq_handle *ufp_irq_open(struct ufp_dev *dev,
 	unsigned int entry_idx)
 {
 	struct ufp_irq_handle *irqh;
