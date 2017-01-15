@@ -83,34 +83,6 @@ int i40e_aqc_resp_clear_pxemode(struct ufp_dev *dev)
 	return 0;
 }
 
-int i40e_aqc_req_stop_lldp(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aq_cmd_stop_lldp cmd;
-	int err;
-
-	cmd.command |= I40E_AQ_LLDP_AGENT_SHUTDOWN;
-
-	err = i40e_aq_asq_assign(dev, i40e_aq_opc_stop_lldp, 0,
-		&cmd, sizeof(struct i40e_aq_cmd_stop_lldp),
-		NULL, 0);
-	if(err < 0)
-		goto err_xmit;
-
-	i40e_dev->aq.flag |= AQ_STOP_LLDP;
-
-err_xmit:
-	return -1;
-}
-
-int i40e_aqc_resp_stop_lldp(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-
-	i40e_dev->aq.flag &= ~AQ_STOP_LLDP;
-	return 0;
-}
-
 int i40e_aqc_req_get_swconf(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
@@ -204,6 +176,37 @@ int i40e_aqc_resp_set_swconf(struct ufp_dev *dev,
 	return 0;
 }
 
+int i40e_aqc_req_rxctl_write(struct ufp_dev *dev,
+	uint32_t reg_addr, uint32_t reg_val)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_aq_cmd_rxctl_write cmd;
+	int err;
+
+	cmd.address = htole32(reg_addr);
+	cmd.value = htole32(reg_val);
+
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_rxctl_write, 0,
+		&cmd, sizeof(struct i40e_aqc_rx_ctl_reg_read_write),
+		NULL, 0);
+	if(err < 0)
+		goto err_xmit;
+
+	i40e_dev->aq.flag |= AQ_RXCTL_WRITE;
+	return 0;
+
+err_xmit:
+	return -1;
+}
+
+int i40e_aqc_resp_rxctl_write(struct ufp_dev *dev)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+
+	i40e_dev->aq.flag &= ~AQ_RXCTL_WRITE;
+	return 0;
+}
+
 int i40e_aqc_req_update_vsi(struct ufp_dev *dev, struct ufp_iface *iface,
 	struct i40e_aq_buf_vsi_data *data)
 {
@@ -255,12 +258,105 @@ err_notfound:
 	return -1;
 }
 
+int i40e_aqc_req_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface,
+	uint16_t promisc_flags)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_aq_cmd_promisc_mode cmd;
+	int err;
+
+	cmd.promiscuous_flags = htole16(promisc_flags);
+	cmd.valid_flags = htole16(
+		I40E_AQC_SET_VSI_PROMISC_UNICAST |
+		I40E_AQC_SET_VSI_PROMISC_MULTICAST |
+		I40E_AQC_SET_VSI_PROMISC_BROADCAST);
+	cmd.seid = htole16(i40e_iface->seid);
+
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_promisc_mode, 0,
+		&cmd, sizeof(struct i40e_aqc_set_vsi_promiscuous_modes),
+		NULL, 0);
+	if(err < 0)
+		goto err_xmit;
+
+	i40e_dev->aq.flag |= AQ_PROMISC_MODE;
+	return 0;
+
+err_xmit:
+	return -1;
+}
+
+int i40e_aqc_resp_promisc_mode(struct ufp_dev *dev)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+
+	i40e_dev->aq.flag &= ~AQ_PROMISC_MODE;
+	return 0;
+}
+
+int i40e_aqc_req_set_phyintmask(struct ufp_dev *dev, uint16_t mask)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_aq_cmd_set_phyintmask cmd;
+	int err;
+
+	cmd.event_mask = htole16(mask);
+
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_set_phyintmask, 0,
+		&cmd, sizeof(struct i40e_aqc_set_phy_int_mask),
+		NULL, 0);
+	if(err < 0)
+		goto err_xmit;
+
+	i40e_dev->aq.flag |= AQ_SET_PHYINTMASK;
+	return 0;
+
+err_xmit:
+	return -1;
+}
+
+int i40e_aqc_resp_set_phyintmask(struct ufp_dev *dev)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+
+	i40e_dev->aq.flag &= ~AQ_SET_PHYINTMASK;
+	return 0;
+}
+
+int i40e_aqc_req_stop_lldp(struct ufp_dev *dev)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_aq_cmd_stop_lldp cmd;
+	int err;
+
+	cmd.command |= I40E_AQ_LLDP_AGENT_SHUTDOWN;
+
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_stop_lldp, 0,
+		&cmd, sizeof(struct i40e_aq_cmd_stop_lldp),
+		NULL, 0);
+	if(err < 0)
+		goto err_xmit;
+
+	i40e_dev->aq.flag |= AQ_STOP_LLDP;
+
+err_xmit:
+	return -1;
+}
+
+int i40e_aqc_resp_stop_lldp(struct ufp_dev *dev)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+
+	i40e_dev->aq.flag &= ~AQ_STOP_LLDP;
+	return 0;
+}
+
 int i40e_aqc_req_set_rsskey(struct ufp_dev *dev,
 	struct ufp_iface *iface, uint8_t *key, uint16_t key_size)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aqc_get_set_rss_key cmd;
+	struct i40e_aq_cmd_set_rsskey cmd;
 	uint16_t flags;
 	int err;
 
@@ -296,7 +392,7 @@ int i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aqc_get_set_rss_lut cmd;
+	struct i40e_aq_cmd_set_rsslut cmd;
 	uint16_t flags;
 	int err;
 
@@ -310,7 +406,7 @@ int i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
 			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_PF <<
 			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &
 			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_MASK));
-	}else{
+	}else{  
 		cmd.flags |= htole16((uint16_t)
 			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_VSI <<
 			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &
@@ -337,101 +433,5 @@ int i40e_aqc_resp_set_rsslut(struct ufp_dev *dev)
 	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	i40e_dev->aq.flag &= ~AQ_SET_RSSLUT;
-	return 0;
-}
-
-int i40e_aqc_req_set_phyintmask(struct ufp_dev *dev, uint16_t mask)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aqc_set_phy_int_mask cmd;
-	int err;
-
-	cmd.event_mask = htole16(mask);
-
-	err = i40e_aq_asq_assign(dev, i40e_aq_opc_set_phyintmask, 0,
-		&cmd, sizeof(struct i40e_aqc_set_phy_int_mask),
-		NULL, 0);
-	if(err < 0)
-		goto err_xmit;
-
-	i40e_dev->aq.flag |= AQ_SET_PHYINTMASK;
-	return 0;
-
-err_xmit:
-	return -1;
-}
-
-int i40e_aqc_resp_set_phyintmask(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-
-	i40e_dev->aq.flag &= ~AQ_SET_PHYINTMASK;
-	return 0;
-}
-
-int i40e_aqc_req_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface,
-	uint16_t promisc_flags)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aqc_set_vsi_promiscuous_modes cmd;
-	int err;
-
-	cmd.promiscuous_flags = htole16(promisc_flags);
-	cmd.valid_flags = htole16(
-		I40E_AQC_SET_VSI_PROMISC_UNICAST |
-		I40E_AQC_SET_VSI_PROMISC_MULTICAST |
-		I40E_AQC_SET_VSI_PROMISC_BROADCAST);
-	cmd.seid = htole16(i40e_iface->seid);
-
-	err = i40e_aq_asq_assign(dev, i40e_aq_opc_promisc_mode, 0,
-		&cmd, sizeof(struct i40e_aqc_set_vsi_promiscuous_modes),
-		NULL, 0);
-	if(err < 0)
-		goto err_xmit;
-
-	i40e_dev->aq.flag |= AQ_PROMISC_MODE;
-	return 0;
-
-err_xmit:
-	return -1;
-}
-
-int i40e_aqc_resp_promisc_mode(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-
-	i40e_dev->aq.flag &= ~AQ_PROMISC_MODE;
-	return 0;
-}
-
-int i40e_aqc_req_rxctl_write(struct ufp_dev *dev,
-	uint32_t reg_addr, uint32_t reg_val)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aqc_rx_ctl_reg_read_write cmd;
-	int err;
-
-	cmd.address = htole32(reg_addr);
-	cmd.value = htole32(reg_val);
-
-	err = i40e_aq_asq_assign(dev, i40e_aq_opc_rxctl_write, 0,
-		&cmd, sizeof(struct i40e_aqc_rx_ctl_reg_read_write),
-		NULL, 0);
-	if(err < 0)
-		goto err_xmit;
-
-	i40e_dev->aq.flag |= AQ_RXCTL_WRITE;
-	return 0;
-
-err_xmit:
-	return -1;
-}
-
-int i40e_aqc_resp_rxctl_write(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-
-	i40e_dev->aq.flag &= ~AQ_RXCTL_WRITE;
 	return 0;
 }

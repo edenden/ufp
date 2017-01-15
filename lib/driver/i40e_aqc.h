@@ -48,13 +48,6 @@ struct i40e_aq_cmd_clear_pxemode {
 	uint8_t		reserved[15];
 };
 
-struct i40e_aq_cmd_stop_lldp {
-	uint8_t		command;
-#define I40E_AQ_LLDP_AGENT_STOP		0x0
-#define I40E_AQ_LLDP_AGENT_SHUTDOWN	0x1
-	uint8_t		reserved[15];
-};
-
 struct i40e_aq_cmd_get_swconf {
 	uint16_t	seid_offset;
 	uint8_t		reserved[6];
@@ -99,6 +92,13 @@ struct i40e_aq_cmd_set_swconf {
 #define I40E_AQ_SET_SWITCH_CFG_L2_FILTER 0x0002
 	uint16_t	valid_flags;
 	uint8_t		reserved[12];
+};
+
+struct i40e_aq_cmd_rxctl_write {
+	uint32_t reserved1;
+	uint32_t address;
+	uint32_t reserved2;
+	uint32_t value;
 };
 
 struct i40e_aq_cmd_update_vsi {
@@ -239,4 +239,69 @@ struct i40e_aq_buf_vsi_data {
 	uint16_t	stat_counter_idx;
 	uint16_t	sched_id;
 	uint8_t		resp_reserved[12];
+};
+
+struct i40e_aq_cmd_promisc_mode {
+	uint16_t	promiscuous_flags;
+	uint16_t	valid_flags;
+/* flags used for both fields above */
+#define I40E_AQC_SET_VSI_PROMISC_UNICAST	0x01
+#define I40E_AQC_SET_VSI_PROMISC_MULTICAST	0x02
+#define I40E_AQC_SET_VSI_PROMISC_BROADCAST	0x04
+#define I40E_AQC_SET_VSI_DEFAULT		0x08
+#define I40E_AQC_SET_VSI_PROMISC_VLAN		0x10
+#define I40E_AQC_SET_VSI_PROMISC_TX		0x8000
+	uint16_t	seid;
+#define I40E_AQC_VSI_PROM_CMD_SEID_MASK		0x3FF
+	uint16_t	vlan_tag;
+#define I40E_AQC_SET_VSI_VLAN_MASK		0x0FFF
+#define I40E_AQC_SET_VSI_VLAN_VALID		0x8000
+	uint8_t		reserved[8];
+};
+
+struct i40e_aq_cmd_set_phyintmask {
+	uint8_t		reserved[8];
+	uint16_t	event_mask;
+#define I40E_AQ_EVENT_LINK_UPDOWN		0x0002
+#define I40E_AQ_EVENT_MEDIA_NA			0x0004
+#define I40E_AQ_EVENT_LINK_FAULT		0x0008
+#define I40E_AQ_EVENT_PHY_TEMP_ALARM		0x0010
+#define I40E_AQ_EVENT_EXCESSIVE_ERRORS		0x0020
+#define I40E_AQ_EVENT_SIGNAL_DETECT		0x0040
+#define I40E_AQ_EVENT_AN_COMPLETED		0x0080
+#define I40E_AQ_EVENT_MODULE_QUAL_FAIL		0x0100
+#define I40E_AQ_EVENT_PORT_TX_SUSPENDED		0x0200
+	uint8_t		reserved1[6];
+};
+
+struct i40e_aq_cmd_stop_lldp {
+	uint8_t		command;
+#define I40E_AQ_LLDP_AGENT_STOP			0x0
+#define I40E_AQ_LLDP_AGENT_SHUTDOWN		0x1
+	uint8_t		reserved[15];
+};
+
+struct i40e_aq_cmd_set_rsskey {
+#define I40E_AQC_SET_RSS_KEY_VSI_VALID		(0x1 << 15)
+#define I40E_AQC_SET_RSS_KEY_VSI_ID_SHIFT	0
+#define I40E_AQC_SET_RSS_KEY_VSI_ID_MASK	(0x3FF << I40E_AQC_SET_RSS_KEY_VSI_ID_SHIFT)
+	uint16_t	vsi_id;
+	uint8_t		reserved[6];
+	uint32_t	addr_high;
+	uint32_t	addr_low;
+};
+
+struct  i40e_aq_cmd_set_rsslut {
+#define I40E_AQC_SET_RSS_LUT_VSI_VALID		(0x1 << 15)
+#define I40E_AQC_SET_RSS_LUT_VSI_ID_SHIFT	0
+#define I40E_AQC_SET_RSS_LUT_VSI_ID_MASK	(0x3FF << I40E_AQC_SET_RSS_LUT_VSI_ID_SHIFT)
+	uint16_t	vsi_id;
+#define I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT	0
+#define I40E_AQC_SET_RSS_LUT_TABLE_TYPE_MASK	(0x1 << I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT)
+#define I40E_AQC_SET_RSS_LUT_TABLE_TYPE_VSI	0
+#define I40E_AQC_SET_RSS_LUT_TABLE_TYPE_PF	1
+	uint16_t	flags;
+	uint8_t		reserved[4];
+	uint32_t	addr_high;
+	uint32_t	addr_low;
 };
