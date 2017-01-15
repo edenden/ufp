@@ -9,34 +9,34 @@
 #include "lib_main.h"
 #include "lib_api.h"
 
-void *ufp_macaddr_default(struct ufp_handle *ih)
+void *ufp_macaddr_default(struct ufp_iface *iface)
 {
-	return ih->mac_addr;
+	return iface->mac_addr;
 }
 
-unsigned int ufp_mtu_get(struct ufp_handle *ih)
+unsigned int ufp_mtu_get(struct ufp_iface *iface)
 {
-	return ih->mtu_frame;
+	return iface->mtu_frame;
 }
 
-char *ufp_ifname_get(struct ufp_handle *ih)
+char *ufp_ifname_get(struct ufp_dev *dev)
 {
-	return ih->ifname;
+	return dev->name;
 }
 
 void *ufp_macaddr(struct ufp_plane *plane,
-	unsigned int port_index)
+	unsigned int port_idx)
 {
-	return plane->ports[port_index].mac_addr;
+	return plane->ports[port_idx].mac_addr;
 }
 
-int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_index,
+int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_idx,
 	enum ufp_irq_type type)
 {
 	struct ufp_port *port;
 	struct ufp_irq_handle *irqh;
 
-	port = &plane->ports[port_index];
+	port = &plane->ports[port_idx];
 
 	switch(type){
 	case UFP_IRQ_RX:
@@ -56,12 +56,12 @@ err_undefined_type:
 }
 
 struct ufp_irq_handle *ufp_irq_handle(struct ufp_plane *plane,
-	unsigned int port_index, enum ufp_irq_type type)
+	unsigned int port_idx, enum ufp_irq_type type)
 {
 	struct ufp_port *port;
 	struct ufp_irq_handle *irqh;
 
-	port = &plane->ports[port_index];
+	port = &plane->ports[port_idx];
 
 	switch(type){
 	case UFP_IRQ_RX:
@@ -81,25 +81,25 @@ err_undefined_type:
 }
 
 unsigned long ufp_count_rx_alloc_failed(struct ufp_plane *plane,
-	unsigned int port_index)
+	unsigned int port_idx)
 {
-	return plane->ports[port_index].count_rx_alloc_failed;
+	return plane->ports[port_idx].count_rx_alloc_failed;
 }
 
 unsigned long ufp_count_rx_clean_total(struct ufp_plane *plane,
-	unsigned int port_index)
+	unsigned int port_idx)
 {
-	return plane->ports[port_index].count_rx_clean_total;
+	return plane->ports[port_idx].count_rx_clean_total;
 }
 
 unsigned long ufp_count_tx_xmit_failed(struct ufp_plane *plane,
-	unsigned int port_index)
+	unsigned int port_idx)
 {
-	return plane->ports[port_index].count_tx_xmit_failed;
+	return plane->ports[port_idx].count_tx_xmit_failed;
 }
 
 unsigned long ufp_count_tx_clean_total(struct ufp_plane *plane,
-	unsigned int port_index)
+	unsigned int port_idx)
 {
-	return plane->ports[port_index].count_tx_clean_total;
+	return plane->ports[port_idx].count_tx_clean_total;
 }

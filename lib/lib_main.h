@@ -118,16 +118,16 @@ struct ufp_irq_handle {
 };
 
 struct ufp_port {
+	/* struct dev specific parameters */
 	void			*bar;
+	struct ufp_ops		*ops;
+	uint32_t		dev_idx;
+
+	/* struct iface specific parameters */
 	struct ufp_ring		*rx_ring;
 	struct ufp_ring		*tx_ring;
-	struct ufp_ops		*ops;
 	struct ufp_irq_handle	*rx_irq;
 	struct ufp_irq_handle	*tx_irq;
-
-	uint32_t		rx_slot_next;
-	uint32_t		rx_slot_offset;
-	uint32_t		tx_suspended;
 	uint32_t		mtu_frame;
 	uint32_t		num_tx_desc;
 	uint32_t		num_rx_desc;
@@ -136,6 +136,10 @@ struct ufp_port {
 	uint32_t		tx_budget;
 	uint8_t			mac_addr[ETH_ALEN];
 
+	/* original parameters */
+	uint32_t		rx_slot_next;
+	uint32_t		rx_slot_offset;
+	uint32_t		tx_suspended;
 	unsigned long		count_rx_alloc_failed;
 	unsigned long		count_rx_clean_total;
 	unsigned long		count_tx_xmit_failed;

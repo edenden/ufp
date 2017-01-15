@@ -38,56 +38,72 @@ inline void ufp_writel(uint32_t b, volatile void *addr)
 	return;
 }
 
-struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
-	struct ufp_buf *buf, int ih_num, unsigned int thread_id,
-	unsigned int core_id)
+struct ufp_plane *ufp_plane_alloc(struct ufp_dev **devs, int num_devs,
+	struct ufp_buf *buf, unsigned int thread_id, unsigned int core_id)
 {
+	struct ufp_iface *iface;
 	struct ufp_plane *plane;
+	unsigned int num_ports = 0, port_idx = 0;
 	int i, err;
 
 	plane = malloc(sizeof(struct ufp_plane));
 	if(!plane)
 		goto err_plane_alloc;
 
-	plane->ports = malloc(sizeof(struct ufp_port) * ih_num);
+	for(i = 0; i < num_devs; i++){
+		num_ports += devs[i]->num_ifaces;
+	}
+
+	plane->ports = malloc(sizeof(struct ufp_port) * num_ports);
 	if(!plane->ports){
 		printf("failed to allocate port for each plane\n");
 		goto err_alloc_ports;
 	}
 
-	for(i = 0; i < ih_num; i++){
-		plane->ports[i].bar = ih_list[i]->bar;
-		plane->ports[i].rx_ring = &(ih_list[i]->rx_ring[thread_id]);
-		plane->ports[i].tx_ring = &(ih_list[i]->tx_ring[thread_id]);
-		plane->ports[i].ops = ih_list[i]->ops;
-		plane->ports[i].rx_slot_next = 0;
-		plane->ports[i].rx_slot_offset = i * buf->count;
-		plane->ports[i].tx_suspended = 0;
-		plane->ports[i].num_rx_desc = ih_list[i]->num_rx_desc;
-		plane->ports[i].num_tx_desc = ih_list[i]->num_tx_desc;
-		plane->ports[i].num_qps = ih_list[i]->num_qps;
-		plane->ports[i].rx_budget = ih_list[i]->rx_budget;
-		plane->ports[i].tx_budget = ih_list[i]->tx_budget;
-		plane->ports[i].mtu_frame = ih_list[i]->mtu_frame;
-		plane->ports[i].count_rx_alloc_failed = 0;
-		plane->ports[i].count_rx_clean_total = 0;
-		plane->ports[i].count_tx_xmit_failed = 0;
-		plane->ports[i].count_tx_clean_total = 0;
-		memcpy(plane->ports[i].mac_addr, ih_list[i]->mac_addr, ETH_ALEN);
+	for(i = 0; i < num_devs; i++){
+		iface = devs[i]->iface;
+		while(iface){
+			port = &plane->ports[port_idx];
 
-		plane->ports[i].rx_irq = ih_list[i]->iface->rx_irq[thread_id];
-		plane->ports[i].tx_irq = ih_list[i]->iface->tx_irq[thread_id];
+			port->ops		= devs[i]->ops;
+			port->bar		= devs[i]->bar;
+			port->dev_idx		= i;
 
-		err = ufp_irq_setaffinity(plane->ports[i].rx_irq, core_id);
-		if(err < 0){
-			goto err_alloc_plane;
-		}
+			port->rx_ring		= &(iface->rx_ring[thread_id]);
+			port->tx_ring		= &(iface->tx_ring[thread_id]);
+			port->rx_irq		= iface->rx_irq[thread_id];
+			port->tx_irq		= iface->tx_irq[thread_id];
+			port->num_rx_desc	= iface->num_rx_desc;
+			port->num_tx_desc	= iface->num_tx_desc;
+			port->num_qps		= iface->num_qps;
+			port->rx_budget		= iface->rx_budget;
+			port->tx_budget		= iface->tx_budget;
+			port->mtu_frame		= iface->mtu_frame;
+			memcpy(port->mac_addr, iface->mac_addr, ETH_ALEN);
 
-		err = ufp_irq_setaffinity(plane->ports[i].tx_irq, core_id);
-		if(err < 0){
-			goto err_alloc_plane;
+			port->rx_slot_next	= 0;
+			port->rx_slot_offset	= port_idx * buf->count;
+			port->tx_suspended	= 0;
+			port->count_rx_alloc_failed	= 0;
+			port->count_rx_clean_total	= 0;
+			port->count_tx_xmit_failed	= 0;
+			port->count_tx_clean_total	= 0;
+
+			err = ufp_irq_setaffinity(port->rx_irq, core_id);
+			if(err < 0){
+				goto err_alloc_plane;
+			}
+
+			err = ufp_irq_setaffinity(port->tx_irq, core_id);
+			if(err < 0){
+				goto err_alloc_plane;
+			}
+
+			port_idx++;
+			iface = iface->next;
 		}
 	}
+
 	return plane;
 
 err_alloc_plane:

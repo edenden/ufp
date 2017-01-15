@@ -19,7 +19,7 @@ static inline uint16_t ufp_desc_unused(struct ufp_ring *ring,
 	uint16_t num_desc);
 static inline void ufp_write_tail(struct ufp_ring *ring, uint32_t value);
 inline int ufp_slot_assign(struct ufp_buf *buf,
-	struct ufp_plane *plane, unsigned int port_index);
+	struct ufp_plane *plane, unsigned int port_idx);
 static inline void ufp_slot_attach(struct ufp_ring *ring,
 	uint16_t desc_index, int slot_index);
 static inline int ufp_slot_detach(struct ufp_ring *ring,
@@ -27,7 +27,7 @@ static inline int ufp_slot_detach(struct ufp_ring *ring,
 inline void ufp_slot_release(struct ufp_buf *buf,
 	int slot_index);
 static inline unsigned long ufp_slot_addr_dma(struct ufp_buf *buf,
-	int slot_index, int port_index);
+	int slot_index, int port_idx);
 inline void *ufp_slot_addr_virt(struct ufp_buf *buf,
 	uint16_t slot_index);
 
@@ -49,17 +49,17 @@ static inline void ufp_write_tail(struct ufp_ring *ring, uint32_t value)
 }
 
 void ufp_irq_unmask_queues(struct ufp_plane *plane,
-	unsigned int port_index, struct ufp_irq_handle *irqh)
+	unsigned int port_idx, struct ufp_irq_handle *irqh)
 {
 	struct ufp_port *port;
 
-	port = &plane->ports[port_index];
+	port = &plane->ports[port_idx];
 	port->ops->unmask_queues(port->bar, irqh->entry_idx);
 
 	return;
 }
 
-void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,
+void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_idx,
 	struct ufp_buf *buf)
 {
 	struct ufp_port *port;
@@ -67,7 +67,7 @@ void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,
 	unsigned int total_allocated;
 	uint16_t max_allocation;
 
-	port = &plane->ports[port_index];
+	port = &plane->ports[port_idx];
 	rx_ring = port->rx_ring;
 
 	max_allocation = ufp_desc_unused(rx_ring, port->num_rx_desc);
@@ -80,14 +80,14 @@ void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,
 		uint64_t addr_dma;
 		int slot_index;
 
-		slot_index = ufp_slot_assign(buf, plane, port_index);
+		slot_index = ufp_slot_assign(buf, plane, port_idx);
 		if(unlikely(slot_index < 0)){
 			port->count_rx_alloc_failed +=
 				(max_allocation - total_allocated);
 			break;
 		}
 
-		addr_dma = (uint64_t)ufp_slot_addr_dma(buf, slot_index, port_index);
+		addr_dma = (uint64_t)ufp_slot_addr_dma(buf, slot_index, port->dev_idx);
 		port->ops->fill_rx_desc(rx_ring, rx_ring->next_to_use, addr_dma);
 		ufp_slot_attach(rx_ring, rx_ring->next_to_use, slot_index);
 
@@ -111,7 +111,7 @@ void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,
 	}
 }
 
-void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
+void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_idx,
 	struct ufp_buf *buf, struct ufp_packet *packet)
 {
 	struct ufp_port *port;
@@ -120,7 +120,7 @@ void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
 	uint16_t next_to_use;
 	uint64_t addr_dma;
 
-	port = &plane->ports[port_index];
+	port = &plane->ports[port_idx];
 	tx_ring = port->tx_ring;
 
 	unused_count = ufp_desc_unused(tx_ring, port->num_tx_desc);
@@ -130,7 +130,7 @@ void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
 		return;
 	}
 
-	addr_dma = (uint64_t)ufp_slot_addr_dma(buf, packet->slot_index, port_index);
+	addr_dma = (uint64_t)ufp_slot_addr_dma(buf, packet->slot_index, port->dev_idx);
 	port->ops->fill_tx_desc(tx_ring, tx_ring->next_to_use,
 		addr_dma, packet);
 	ufp_slot_attach(tx_ring, tx_ring->next_to_use, packet->slot_index);
@@ -145,12 +145,12 @@ void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
 	return;
 }
 
-void ufp_tx_xmit(struct ufp_plane *plane, unsigned int port_index)
+void ufp_tx_xmit(struct ufp_plane *plane, unsigned int port_idx)
 {
 	struct ufp_port *port;
 	struct ufp_ring *tx_ring;
 
-	port = &plane->ports[port_index];
+	port = &plane->ports[port_idx];
 	tx_ring = port->tx_ring;
 
 	if(port->tx_suspended){
@@ -170,7 +170,7 @@ void ufp_tx_xmit(struct ufp_plane *plane, unsigned int port_index)
 	return;
 }
 
-unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
+unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_idx,
 	struct ufp_buf *buf, struct ufp_packet *packet)
 {
 	struct ufp_port *port;
@@ -178,7 +178,7 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 	unsigned int total_rx_packets;
 	int err;
 
-	port = &plane->ports[port_index];
+	port = &plane->ports[port_idx];
 	rx_ring = port->rx_ring;
 
 	total_rx_packets = 0;
@@ -213,7 +213,7 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
 	return total_rx_packets;
 }
 
-void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
+void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_idx,
 	struct ufp_buf *buf)
 {
 	struct ufp_port *port;
@@ -221,7 +221,7 @@ void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
 	unsigned int total_tx_packets;
 	int err;
 
-	port = &plane->ports[port_index];
+	port = &plane->ports[port_idx];
 	tx_ring = port->tx_ring;
 
 	total_tx_packets = 0;
@@ -253,12 +253,12 @@ void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
 }
 
 inline int ufp_slot_assign(struct ufp_buf *buf,
-	struct ufp_plane *plane, unsigned int port_index)
+	struct ufp_plane *plane, unsigned int port_idx)
 {
 	struct ufp_port *port;
 	int slot_next, slot_index, i;
 
-	port = &plane->ports[port_index];
+	port = &plane->ports[port_idx];
 	slot_next = port->rx_slot_next;
 
 	for(i = 0; i < buf->count; i++){
@@ -304,9 +304,9 @@ inline void ufp_slot_release(struct ufp_buf *buf,
 }
 
 static inline unsigned long ufp_slot_addr_dma(struct ufp_buf *buf,
-	int slot_index, int port_index)
+	int slot_index, int dev_idx)
 {
-	return buf->addr_dma[port_index] + (buf->buf_size * slot_index);
+	return buf->addr_dma[dev_idx] + (buf->buf_size * slot_index);
 }
 
 inline void *ufp_slot_addr_virt(struct ufp_buf *buf,

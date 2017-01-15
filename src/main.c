@@ -220,8 +220,8 @@ int main(int argc, char **argv)
 			goto err_buf_alloc;
 		}
 
-		threads[i].plane = ufp_plane_alloc(ufpd.ih_array,
-			threads[i].buf, ufpd.num_ports, i, ufpd.cores[i]);
+		threads[i].plane = ufp_plane_alloc(ufpd.devs, ufpd.num_devices,
+			threads[i].buf, i, ufpd.cores[i]);
 		if(!threads[i].plane){
 			ufpd_log(LOG_ERR, "failed to ufp_plane_alloc, idx = %d", i);
 			goto err_plane_alloc;
