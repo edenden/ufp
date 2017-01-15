@@ -600,18 +600,19 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	if(!i40e_iface)
 		goto err_alloc_iface;
 
-	i40e_iface->seid = elem->seid;
-	i40e_iface->id = elem->element_info;
-	i40e_iface->type = VSI_TYPE_MAIN;
-	iface = dev->iface;
-	iface->drv_data = i40e_iface;
+	i40e_iface->seid	= elem->seid;
+	i40e_iface->id		= elem->element_info;
+	i40e_iface->base_qp	= 0;
+	i40e_iface->type	= VSI_TYPE_MAIN;
+	iface			= dev->iface;
+	iface->drv_data		= i40e_iface;
 
 	memcpy(iface->mac_addr, i40e_dev->pf_lan_mac, ETH_ALEN);
-	iface->num_rx_desc = I40E_MAX_NUM_DESCRIPTORS;
-	iface->size_rx_desc = 
+	iface->num_rx_desc	= I40E_MAX_NUM_DESCRIPTORS;
+	iface->size_rx_desc	= 
 		iface->num_rx_desc * sizeof(union i40e_16byte_rx_desc);
-	iface->num_tx_desc = I40E_MAX_NUM_DESCRIPTORS;
-	iface->size_tx_desc =
+	iface->num_tx_desc	= I40E_MAX_NUM_DESCRIPTORS;
+	iface->size_tx_desc	=
 		iface->num_tx_desc * sizeof(union i40e_tx_desc);
 
 	err = i40e_vsi_update(dev, iface);

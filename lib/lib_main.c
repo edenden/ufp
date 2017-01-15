@@ -458,6 +458,7 @@ struct ufp_dev *ufp_open(const char *name)
 	dev->iface = malloc(sizeof(struct ufp_iface));
 	if(!dev->iface)
 		goto err_alloc_iface;
+	dev->iface->next = NULL;
 
 	err = dev->ops->open(dev);
 	if(err < 0)
