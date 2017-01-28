@@ -641,7 +641,7 @@ err_open_proc:
 }
 
 __attribute__((constructor))
-void ufp_initialize()
+static void ufp_initialize()
 {
 	int err;
 
@@ -656,7 +656,7 @@ err_load_lib:
 }
 
 __attribute__((destructor))
-void ufp_finalize()
+static void ufp_finalize()
 {
 	ufp_dev_unload_lib();
 }

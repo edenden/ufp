@@ -123,6 +123,7 @@ void ufp_dev_unregister(struct pci_driver *driver)
 {
 	int i;
 
+	/* TBD: Avoid to unregister another driver's entry */
 	for(i = 0; driver->id_table[i].device_id; i++){
 		ufp_dev_unregister_device(driver, i);
 	}

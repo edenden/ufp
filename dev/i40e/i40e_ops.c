@@ -234,7 +234,7 @@ err_down:
 }
 
 __attribute__((constructor))
-void i40e_ops_load()
+static void i40e_ops_load()
 {
 	int err;
 
@@ -245,11 +245,12 @@ void i40e_ops_load()
 	return;
 
 err_register:
+	/* TBD: Handle when registeration failed */
 	return;
 }
 
 __attribute__((destructor))
-void i40e_ops_unload()
+static void i40e_ops_unload()
 {
 	ufp_dev_unregister(&driver);
 }
