@@ -11,7 +11,24 @@
 #include "i40e_main.h"
 #include "i40e_hmc.h"
 
-int ufp_i40e_hmc_init(struct ufp_dev *dev)
+static int i40e_hmc_configure(struct ufp_dev *dev);
+static void i40e_hmc_shutdown(struct ufp_dev *dev);
+static int i40e_hmc_sd_allocate(struct ufp_dev *dev,
+	struct i40e_hmc_sd_entry *sd_entry, uint32_t sd_index);
+static void i40e_hmc_sd_release(struct ufp_dev *dev,
+	struct i40e_hmc_sd_entry *sd_entry, uint32_t sd_index);
+static void i40e_set_pf_sd_entry(struct ufp_dev *dev, unsigned long pa,
+	uint32_t sd_index,  enum i40e_sd_entry_type type);
+static void i40e_clear_pf_sd_entry(struct ufp_dev *dev,
+	uint32_t sd_index, enum i40e_sd_entry_type type);
+static void *i40e_hmc_va(struct ufp_dev *dev, struct i40e_hmc_obj *obj,
+	uint16_t qp_idx);
+static void i40e_hmc_write(uint8_t *hmc_bits,
+	struct i40e_hmc_ce *ce, uint8_t *host_buf);
+static void i40e_hmc_read(uint8_t *hmc_bits,
+	struct i40e_hmc_ce *ce, uint8_t *host_buf);
+
+int i40e_hmc_init(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_hmc *hmc = &i40e_dev->hmc;

@@ -1,3 +1,6 @@
+#ifndef _I40E_AQ_H__
+#define _I40E_AQ_H__
+
 /* general information */
 #define I40E_AQ_LARGE_BUF       512
 #define I40E_ASQ_CMD_TIMEOUT    250  /* msecs */
@@ -9,7 +12,7 @@ struct i40e_aq_desc {
 	uint16_t retval;
 	uint32_t cookie_high;
 	uint32_t cookie_low;
-	union { 
+	union {
 		struct {
 			uint32_t param0;
 			uint32_t param1;
@@ -78,4 +81,12 @@ enum i40e_admin_queue_opc {
 	i40e_aqc_opc_get_wake_reason    = 0x0121,
 };
 
-#endif /* _I40E_ADMINQ_H_ */
+int i40e_aq_init(struct ufp_dev *dev);
+void i40e_aq_destroy(struct ufp_dev *dev);
+void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
+	void *cmd, uint16_t cmd_size, void *data, uint16_t data_size);
+void i40e_aq_arq_assign(struct ufp_dev *dev);
+void i40e_aq_asq_clean(struct ufp_dev *dev);
+void i40e_aq_arq_clean(struct ufp_dev *dev);
+
+#endif /* _I40E_AQ_H__ */

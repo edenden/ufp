@@ -1,3 +1,6 @@
+#ifndef _I40E_HMC_H__
+#define _I40E_HMC_H__
+
 struct i40e_hmc {
 	/* hmc objects */
 	struct i40e_hmc_obj hmc_tx;
@@ -80,3 +83,11 @@ struct i40e_hmc_ce {
 	offsetof(struct _struct, _ele), \
 	FIELD_SIZEOF(struct _struct, _ele)
 
+int i40e_hmc_init(struct ufp_dev *dev);
+void i40e_hmc_destroy(struct ufp_dev *dev);
+int i40e_hmc_set_ctx_tx(struct ufp_dev *dev, struct i40e_hmc_ctx_tx *ctx,
+	uint16_t qp_idx);
+int i40e_hmc_set_ctx_rx(struct ufp_dev *dev, struct i40e_hmc_ctx_rx *ctx,
+	uint16_t qp_idx);
+
+#endif /* _I40E_HMC_H__ */

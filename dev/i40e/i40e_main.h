@@ -1,27 +1,6 @@
 #ifndef _I40E_MAIN_H__
 #define _I40E_MAIN_H__
 
-#define I40E_DEV_ID_SFP_XL710		0x1572
-#define I40E_DEV_ID_QEMU		0x1574
-#define I40E_DEV_ID_KX_B		0x1580
-#define I40E_DEV_ID_KX_C		0x1581
-#define I40E_DEV_ID_QSFP_A		0x1583
-#define I40E_DEV_ID_QSFP_B		0x1584
-#define I40E_DEV_ID_QSFP_C		0x1585
-#define I40E_DEV_ID_10G_BASE_T		0x1586
-#define I40E_DEV_ID_20G_KR2		0x1587
-#define I40E_DEV_ID_20G_KR2_A		0x1588
-#define I40E_DEV_ID_10G_BASE_T4		0x1589
-#define I40E_DEV_ID_25G_B		0x158A
-#define I40E_DEV_ID_25G_SFP28		0x158B
-#define I40E_DEV_ID_KX_X722		0x37CE
-#define I40E_DEV_ID_QSFP_X722		0x37CF
-#define I40E_DEV_ID_SFP_X722		0x37D0
-#define I40E_DEV_ID_1G_BASE_T_X722	0x37D1
-#define I40E_DEV_ID_10G_BASE_T_X722	0x37D2
-#define I40E_DEV_ID_SFP_I_X722		0x37D3
-#define I40E_DEV_ID_QSFP_I_X722		0x37D4
-
 enum i40e_mac_type {
 	I40E_MAC_UNKNOWN = 0,
 	I40E_MAC_X710,
@@ -81,5 +60,20 @@ struct i40e_iface {
 })
 #define i40e_flush(dev) \
 	UFP_READ32((dev), I40E_GLGEN_STAT)
+
+struct i40e_page *i40e_page_alloc(struct ufp_dev *dev);
+void i40e_page_release(struct ufp_dev *dev, struct i40e_page *page);
+int i40e_wait_cmd(struct ufp_dev *dev);
+int i40e_reset_hw(struct ufp_dev *dev);
+void i40e_clear_hw(struct ufp_dev *dev);
+int i40e_configure_pf(struct ufp_dev *dev);
+int i40e_setup_misc_irq(struct ufp_dev *dev);
+void i40e_shutdown_misc_irq(struct ufp_dev *dev);
+void i40e_start_misc_irq(struct ufp_dev *dev);
+void i40e_stop_misc_irq(struct ufp_dev *dev);
+void i40e_set_mac_type(struct ufp_dev *dev);
+void i40e_set_pf_id(struct ufp_dev *dev);
+void i40e_switchconf_clear(struct ufp_dev *dev);
+int i40e_setup_pf_switch(struct ufp_dev *dev);
 
 #endif /* _I40E_MAIN_H__ */

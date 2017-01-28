@@ -11,7 +11,24 @@
 #include "i40e_main.h"
 #include "i40e_aq.h"
 
-int ufp_i40e_aq_init(struct ufp_dev *dev)
+static int i40e_aq_asq_init(struct ufp_dev *dev);
+static int i40e_aq_arq_init(struct ufp_dev *dev);
+static int i40e_aq_ring_alloc(struct ufp_dev *dev,
+	struct i40e_aq_ring *ring);
+static int i40e_aq_ring_configure(struct ufp_dev *dev,
+	struct i40e_aq_ring *ring);
+static void i40e_aq_asq_shutdown(ufp_dev *dev);
+static void i40e_aq_arq_shutdown(ufp_dev *dev);
+static void i40e_aq_ring_release(struct ufp_dev *dev,
+	struct i40e_aq_ring *ring);
+static uint16_t i40e_aq_desc_unused(struct i40e_aq_ring *ring,
+	uint16_t num_desc);
+static int i40e_aq_asq_process(struct ufp_dev *dev,
+	struct i40e_aq_desc *desc, struct i40e_page *buf);
+static int i40e_aq_arq_process(struct ufp_dev *dev,
+	struct i40e_aq_desc *desc, struct i40e_page *buf);
+
+int i40e_aq_init(struct ufp_dev *dev)
 {
 	int err;
 
@@ -111,7 +128,8 @@ err_alloc_ring:
 	return -1;
 }
 
-static int i40e_aq_ring_alloc(struct ufp_dev *dev, struct ufp_i40e_aq_ring *ring)
+static int i40e_aq_ring_alloc(struct ufp_dev *dev,
+	struct i40e_aq_ring *ring)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	uint64_t size;
@@ -145,7 +163,8 @@ err_already:
 	return -1;
 }
 
-static int i40e_aq_ring_configure(struct ufp_dev *dev, struct ufp_i40e_aq_ring *ring)
+static int i40e_aq_ring_configure(struct ufp_dev *dev,
+	struct i40e_aq_ring *ring)
 {
 	/* Clear Head and Tail */
 	UFP_WRITE32(dev, ring->head, 0);
@@ -214,7 +233,8 @@ static void i40e_aq_arq_shutdown(ufp_dev *dev)
 	return;
 }
 
-static void i40e_aq_ring_release(struct ufp_dev *dev, struct ufp_i40e_aq_ring *ring)
+static void i40e_aq_ring_release(struct ufp_dev *dev,
+	struct i40e_aq_ring *ring)
 {
 	int i;
 
@@ -395,8 +415,8 @@ void i40e_aq_arq_clean(struct ufp_dev *dev)
 	return;
 }
 
-static int i40e_aq_asq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
-	struct i40e_page *buf)
+static int i40e_aq_asq_process(struct ufp_dev *dev,
+	struct i40e_aq_desc *desc, struct i40e_page *buf)
 {
 	uint16_t retval;
 	uint16_t opcode;
@@ -429,8 +449,8 @@ err_retval:
 	return err;
 }
 
-static int i40e_aq_arq_process(struct ufp_dev *dev, struct i40e_aq_desc *desc,
-	struct i40e_page *buf)
+static int i40e_aq_arq_process(struct ufp_dev *dev,
+	struct i40e_aq_desc *desc, struct i40e_page *buf)
 {
 	uint16_t len;
 	uint16_t flags;

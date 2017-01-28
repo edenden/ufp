@@ -17,6 +17,10 @@
 
 static int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops);
 static void i40e_ops_destroy(struct ufp_dev *dev, struct ufp_ops *ops);
+static int i40e_ops_open(struct ufp_dev *dev);
+static int i40e_ops_close(struct ufp_dev *dev);
+static int i40e_ops_up(struct ufp_dev *dev);
+static int i40e_ops_down(struct ufp_dev *dev);
 
 static const struct pci_id device_pci_tbl[] = {
 	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_XL710},

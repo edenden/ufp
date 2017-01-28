@@ -12,6 +12,9 @@
 #include "i40e_aqc.h"
 #include "i40e_io.h"
 
+static void i40e_pre_tx_queue_enable(struct ufp_dev *dev, uint32_t qp_idx);
+static void i40e_pre_tx_queue_disable(struct ufp_dev *dev, uint32_t qp_idx);
+
 int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_aqc_vsi_properties_data data;
@@ -97,8 +100,7 @@ err_set_promisc_mode:
 	return -1;
 }
 
-int i40e_vsi_configure_tx(struct ufp_dev *dev,
-	struct ufp_iface *iface)
+int i40e_vsi_configure_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
@@ -168,8 +170,7 @@ err_set_ctx:
 	return -1;
 }
 
-int i40e_vsi_configure_rx(struct ufp_dev *dev,
-	struct ufp_iface *iface)
+int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
@@ -297,7 +298,7 @@ void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	return;
 }
 
-static void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
+void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
@@ -379,7 +380,7 @@ void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	return;
 }
 
-static void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface)
+void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint16_t irq_idx;
@@ -406,7 +407,7 @@ void i40e_update_enable_itr(void *bar, uint16_t entry_idx)
 	ufp_writel(val, bar + I40E_PFINT_DYN_CTLN(entry_idx - 1));
 }
 
-static int i40e_vsi_start_rx(struct ufp_dev *dev, struct ufp_iface *iface)
+int i40e_vsi_start_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
@@ -449,7 +450,7 @@ err_vsi_start:
 	return -1;
 }
 
-static int i40e_vsi_stop_rx(struct ufp_dev *dev, struct ufp_iface *iface)
+int i40e_vsi_stop_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
@@ -492,7 +493,7 @@ err_vsi_stop:
 	return -1;
 }
 
-static int i40e_vsi_start_tx(struct ufp_dev *dev, struct ufp_iface *iface)
+int i40e_vsi_start_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
@@ -541,7 +542,7 @@ err_vsi_start:
 	return -1;
 }
 
-static int i40e_vsi_stop_tx(struct ufp_dev *dev, struct ufp_iface *iface)
+int i40e_vsi_stop_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
@@ -589,7 +590,7 @@ err_vsi_stop:
 	return -1;
 }
 
-void i40e_pre_tx_queue_enable(struct ufp_dev *dev, uint32_t qp_idx)
+static void i40e_pre_tx_queue_enable(struct ufp_dev *dev, uint32_t qp_idx)
 {
 	uint32_t first_queue;
 	uint32_t abs_queue_idx;
@@ -613,7 +614,7 @@ void i40e_pre_tx_queue_enable(struct ufp_dev *dev, uint32_t qp_idx)
 	return;
 }
 
-void i40e_pre_tx_queue_disable(struct ufp_dev *dev, uint32_t qp_idx)
+static void i40e_pre_tx_queue_disable(struct ufp_dev *dev, uint32_t qp_idx)
 {
 	uint32_t first_queue;
 	uint32_t abs_queue_idx;

@@ -10,9 +10,16 @@
 #include <lib_main.h>
 
 #include "i40e_main.h"
+#include "i40e_ops.h"
 #include "i40e_aqc.h"
 
-void i40e_rxctl_write(struct ufp_dev *dev,
+static void i40e_rxctl_write(struct ufp_dev *dev,
+	uint32_t reg_addr, uint32_t reg_val);
+static int i40e_switchconf_fetch(struct ufp_dev *dev);
+static int i40e_configure_filter(struct ufp_dev *dev);
+static int i40e_configure_rss(struct ufp_dev *dev);
+
+static void i40e_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val)
 {
 	err = i40e_aqc_req_rxctl_write(dev, reg_addr, reg_val);
@@ -426,7 +433,7 @@ void i40e_switchconf_clear(struct ufp_dev *dev)
 	return;
 }
 
-int i40e_switchconf_fetch(struct ufp_dev *dev)
+static int i40e_switchconf_fetch(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_elem *elem, *elem_next;
@@ -451,7 +458,7 @@ err_cmd_xmit_getconf:
 	return -1;
 }
 
-int i40e_configure_filter(struct ufp_dev *dev)
+static int i40e_configure_filter(struct ufp_dev *dev)
 {
 	uint32_t val;
 
@@ -542,7 +549,7 @@ err_hena0_write:
 	return -1;
 }
 
-static int i40e_setup_pf_switch(struct ufp_dev *dev)
+int i40e_setup_pf_switch(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_iface *iface;

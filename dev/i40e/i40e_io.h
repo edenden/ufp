@@ -44,4 +44,26 @@ struct i40e_tx_desc {
 #define I40E_TX_DESC(R, i)                      \
 	(&(((struct i40e_tx_desc *)((R)->addr_virt))[i]))
 
+int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface);
+int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface);
+int i40e_vsi_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface);
+int i40e_vsi_configure_tx(struct ufp_dev *dev, struct ufp_iface *iface);
+int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface);
+void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface);
+void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface);
+void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface);
+void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface);
+void i40e_update_enable_itr(void *bar, uint16_t entry_idx);
+int i40e_vsi_start_rx(struct ufp_dev *dev, struct ufp_iface *iface);
+int i40e_vsi_stop_rx(struct ufp_dev *dev, struct ufp_iface *iface);
+int i40e_vsi_start_tx(struct ufp_dev *dev, struct ufp_iface *iface);
+int i40e_vsi_stop_tx(struct ufp_dev *dev, struct ufp_iface *iface);
+int i40e_rx_desc_fetch(struct ufp_ring *rx_ring, uint16_t index,
+	struct ufp_packet *packet);
+int i40e_tx_desc_fetch(struct ufp_ring *tx_ring, uint16_t index);
+void i40e_rx_desc_fill(struct ufp_ring *rx_ring, uint16_t index,
+	uint64_t addr_dma);
+void i40e_tx_desc_fill(struct ufp_ring *tx_ring, uint16_t index,
+	uint64_t addr_dma, struct ufp_packet *packet);
+
 #endif /* _I40E_IO_H__ */
