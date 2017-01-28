@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <linux/types.h>
 #include <net/ethernet.h>
+#include "lib_list.h"
 
 #define DRIVER_PATH		"../dev/"
 #define ALIGN(x,a)		__ALIGN_MASK(x,(typeof(x))(a)-1)
@@ -89,7 +90,7 @@ struct ufp_iface {
 	uint8_t			mac_addr[ETH_ALEN];
 
 	void			*drv_data;
-	struct ufp_iface	*next;
+	struct list_node	list;
 };
 
 struct ufp_dev {
@@ -99,7 +100,7 @@ struct ufp_dev {
 	char			name[IFNAMSIZ];
 	struct ufp_ops		*ops;
 
-	struct ufp_iface	*iface;
+	struct list_head	iface;
 	uint16_t		num_ifaces;
 	uint32_t		num_misc_irqs;
 	struct ufp_irq_handle	*misc_irqh;

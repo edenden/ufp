@@ -55,6 +55,7 @@ static int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops)
 	if(!i40e_dev)
 		goto err_alloc_drv_data;
 
+	list_init(&i40e_dev->elem);
 	dev->drv_data = i40e_dev;
 
 	/* Configuration related functions*/

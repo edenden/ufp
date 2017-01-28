@@ -46,17 +46,17 @@ struct i40e_elem {
 	uint16_t		seid;
 	uint16_t		seid_uplink;
 	uint16_t		seid_downlink;
-	struct i40e_elem	*next;
+	struct list_node	list;
 };
 
 struct i40e_dev {
-	uint8_t			pf_id;  
+	uint8_t			pf_id;
 	enum i40e_mac_type	mac_type;
 
 	uint8_t			pf_lan_mac[6];
 	struct i40e_aq		aq;
 	struct i40e_hmc		hmc;
-	struct i40e_elem	*elem;
+	struct list_head	elem;
 };
 
 struct i40e_iface {

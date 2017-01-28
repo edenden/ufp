@@ -1,3 +1,6 @@
+#ifndef _LIBUFP_LIST_H
+#define _LIBUFP_LIST_H
+
 #include <stddef.h>
 
 #define container_of(ptr, type, member) ({			\
@@ -207,3 +210,4 @@ static inline void hlist_init(struct hlist_head *head)
 		&& ((temp) = hlist_entry_safe((data)->member.next,	\
 			typeof(*(data)), member)))
 
+#endif /* _LIBUFP_LIST_H */

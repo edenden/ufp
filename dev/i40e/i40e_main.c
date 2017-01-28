@@ -416,13 +416,11 @@ void i40e_set_pf_id(struct ufp_dev *dev)
 void i40e_switchconf_clear(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_elem *elem, *elem_next;
+	struct i40e_elem *elem, *temp;
 
-	elem = i40e_dev->elem;
-	while(elem){
-		elem_next = elem->next;
+	list_for_each_safe(&i40e_dev->elem, elem, list, temp){
+		list_del(&elem->list);
 		free(elem);
-		elem = elem_next;
 	}
 
 	return;
@@ -549,7 +547,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_iface *iface;
 	struct i40e_iface *i40e_iface;
-	struct switch_elem *elem;
+	struct switch_elem *elem, *elem_first_vsi;
 	int err;
 
 	/* Switch Global Configuration */
@@ -584,14 +582,14 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_switchconf_fetch;
 
-	elem = i40e_dev->elem;
-	while(elem)
+	elem_first_vsi = NULL;
+	list_for_each(&i40e_dev->elem, elem, list){
 		if(elem->type == I40E_SWITCH_ELEMENT_TYPE_VSI){
+			elem_first_vsi = elem;
 			break;
 		}
-		elem = elem->next;
 	}
-	if(!elem)
+	if(!elem_first_vsi)
 		goto err_first_vsi;
 
 	/* Set up the PF VSI associated with the PF's main VSI
@@ -601,8 +599,8 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	if(!i40e_iface)
 		goto err_alloc_iface;
 
-	i40e_iface->seid	= elem->seid;
-	i40e_iface->id		= elem->element_info;
+	i40e_iface->seid	= elem_first_vsi->seid;
+	i40e_iface->id		= elem_first_vsi->element_info;
 	i40e_iface->base_qp	= 0;
 	i40e_iface->type	= VSI_TYPE_MAIN;
 	iface			= dev->iface;

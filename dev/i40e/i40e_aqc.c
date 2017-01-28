@@ -112,31 +112,24 @@ int i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_buf_get_swconf_elem *resp_elem;
-	struct i40e_elem *elem, *elem_new;
+	struct i40e_elem *elem;
 
 	num_reported = le16_to_cpu(buf->header.num_reported);
-
-	elem = i40e_dev->elem;
-	while(elem->next){
-		elem = elem->next;
-	}
 
 	resp_elem = buf + sizeof(struct i40e_aq_buf_get_swconf_header);
 
 	for (i = 0; i < num_reported; i++) {
-		elem_new = malloc(sizeof(struct i40e_elem));
-		if(!elem_new)
-			goto err_alloc_elem_new;
+		elem = malloc(sizeof(struct i40e_elem));
+		if(!elem)
+			goto err_alloc_elem;
 
-		elem_new->type = (&resp_elem[i])->element_type;
-		elem_new->seid = le16_to_cpu((&resp_elem[i])->seid);
-		elem_new->seid_uplink = le16_to_cpu((&resp_elem[i])->uplink_seid);
-		elem_new->seid_downlink = le16_to_cpu((&resp_elem[i])->downlink_seid);
-		elem_new->element_info = le16_to_cpu((&resp_elem[i])->element_info);
+		elem->type = (&resp_elem[i])->element_type;
+		elem->seid = le16_to_cpu((&resp_elem[i])->seid);
+		elem->seid_uplink = le16_to_cpu((&resp_elem[i])->uplink_seid);
+		elem->seid_downlink = le16_to_cpu((&resp_elem[i])->downlink_seid);
+		elem->element_info = le16_to_cpu((&resp_elem[i])->element_info);
 
-		elem_new->next = NULL;
-		elem->next = elem_new;
-		elem = elem_new;
+		list_add_last(&i40e_dev->elem, &elem->list);
 	}
 
 	i40e_dev->aq.flag &= ~AQ_GET_CONF;

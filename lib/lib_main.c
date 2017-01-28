@@ -63,8 +63,7 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_dev **devs, int num_devs,
 	}
 
 	for(i = 0; i < num_devs; i++){
-		iface = devs[i]->iface;
-		while(iface){
+		list_for_each(&devs[i]->iface, iface, list){
 			port = &plane->ports[port_idx];
 
 			port->ops		= devs[i]->ops;
@@ -102,7 +101,6 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_dev **devs, int num_devs,
 			}
 
 			port_idx++;
-			iface = iface->next;
 		}
 	}
 
@@ -423,6 +421,7 @@ struct ufp_dev *ufp_open(const char *name)
 	struct ufp_dev *dev;
 	char filename[FILENAME_SIZE];
 	struct ufp_info_req req;
+	struct ufp_iface *iface;
 	int err;
 
 	dev = malloc(sizeof(struct ufp_dev));
@@ -456,10 +455,11 @@ struct ufp_dev *ufp_open(const char *name)
 		goto err_ops_alloc;
 
 	/* dev->ops setup only first iface */
-	dev->iface = malloc(sizeof(struct ufp_iface));
-	if(!dev->iface)
+	list_init(&dev->iface);
+	iface = malloc(sizeof(struct ufp_iface));
+	if(!iface)
 		goto err_alloc_iface;
-	dev->iface->next = NULL;
+	list_add_last(&dev->iface, &iface->list);
 
 	err = dev->ops->open(dev);
 	if(err < 0)
@@ -492,14 +492,12 @@ err_alloc_dev:
 
 void ufp_close(struct ufp_dev *dev)
 {
-	struct ufp_iface *iface, *next;
+	struct ufp_iface *iface, *temp;
 
-	iface = dev->iface;
-	while(iface){
-		next = iface->next;
+	list_for_each_safe(&dev->iface, iface, list, temp){
+		list_del(&iface->list);
 		ufp_release_rings(dev, iface);
 		free(iface);
-		iface = next;
 	}
 
 	dev->ops->close(dev);
@@ -520,16 +518,13 @@ int ufp_up(struct ufp_dev *dev, unsigned int num_qps,
 	int err;
 
 	memset(&req, 0, sizeof(struct ufp_start_req));
-	iface = dev->iface;
-	while(iface){
+	list_for_each(&dev->iface, iface, list){
 		iface->mtu_frame = mtu_frame;
 		iface->promisc = promisc;
 		iface->rx_budget = rx_budget;
 		iface->tx_budget = tx_budget;
 		iface->num_qps = num_qps;
 		req.num_irqs += (iface->num_qps * 2);
-
-		iface = iface->next;
 	}
 	req.num_irqs += dev->num_misc_irqs
 	if(ioctl(dev->fd, UFP_START, (unsigned long)&req) < 0)
