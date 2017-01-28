@@ -7,7 +7,8 @@
 #include <stdint.h>
 #include <time.h>
 
-#include "lib_main.h"
+#include <lib_main.h>
+
 #include "i40e_main.h"
 #include "i40e_aqc.h"
 
@@ -521,7 +522,7 @@ static int i40e_configure_rss(struct ufp_dev *dev)
 
 	err = i40e_rxctl_write(dev, I40E_PFQF_HENA(0), (uint32_t)hena);
 	if(err < 0)
-		goto err_hena0_write; 
+		goto err_hena0_write;
 
 	err = i40e_rxctl_write(dev, I40E_PFQF_HENA(1), (uint32_t)(hena >> 32));
 	if(err < 0)
@@ -609,7 +610,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 
 	memcpy(iface->mac_addr, i40e_dev->pf_lan_mac, ETH_ALEN);
 	iface->num_rx_desc	= I40E_MAX_NUM_DESCRIPTORS;
-	iface->size_rx_desc	= 
+	iface->size_rx_desc	=
 		iface->num_rx_desc * sizeof(union i40e_16byte_rx_desc);
 	iface->num_tx_desc	= I40E_MAX_NUM_DESCRIPTORS;
 	iface->size_tx_desc	=

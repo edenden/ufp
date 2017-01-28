@@ -6,7 +6,8 @@
 #include <errno.h>
 #include <stdint.h>
 
-#include "lib_main.h"
+#include <lib_main.h>
+
 #include "i40e_main.h"
 #include "i40e_aqc.h"
 #include "i40e_io.h"
@@ -366,7 +367,7 @@ void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	for (i = 0; i < iface->num_qps * 2; i++, irq_idx++){
 		/* definitely clear the Pending Interrupt Array(PBA) here,
 		 * as this function is meant to clean out all previous interrupts
-		 * AND enable the interrupt 
+		 * AND enable the interrupt
 		 */
 		val = I40E_PFINT_DYN_CTLN_INTENA_MASK |
 			I40E_PFINT_DYN_CTLN_CLEARPBA_MASK |

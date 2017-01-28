@@ -1,13 +1,11 @@
 CC = gcc
-CFLAGS = -fPIC -Wall -O2 -g -I./driver -I./
-LDFLAGS = -shared -Wl,-soname=libufp.so.1 # linking flags
+CFLAGS = -fPIC -Wall -O2 -g -I./
+LDFLAGS = -shared -ldl -Wl,--export-dynamic,-soname=libufp.so.1
 TARGET_LIB = libufp.so.1.0.0
 LIBDIR = /usr/local/lib/
 
-SRCS = lib_main.c lib_api.c lib_mem.c lib_io.c \
-i40e_aq.c  i40e_aqc.c  i40e_hmc.c  i40e_io.c  i40e_main.c  i40e_ops.c
+SRCS = lib_main.c lib_api.c lib_mem.c lib_io.c lib_dev.c
 OBJS = $(subst .c,.o,$(SRCS))
-VPATH = driver
 
 ${TARGET_LIB}: ${OBJS}
 	$(CC) ${LDFLAGS} -o $@ $^

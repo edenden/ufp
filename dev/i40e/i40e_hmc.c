@@ -6,7 +6,8 @@
 #include <errno.h>
 #include <stdint.h>
 
-#include "lib_main.h"
+#include <lib_main.h>
+
 #include "i40e_main.h"
 #include "i40e_hmc.h"
 
@@ -217,7 +218,7 @@ static void i40e_clear_pf_sd_entry(struct ufp_dev *dev,
 	val2 |= (((type) == I40E_SD_TYPE_PAGED) ? 0 : 1)
 		<< I40E_PFHMC_SDDATALOW_PMSDTYPE_SHIFT;
 
-	val3 = (sd_index) | BIT_ULL(I40E_PFHMC_SDCMD_PMSDWR_SHIFT); 
+	val3 = (sd_index) | BIT_ULL(I40E_PFHMC_SDCMD_PMSDWR_SHIFT);
 
 	UFP_WRITE32(dev, I40E_PFHMC_SDDATAHIGH, 0);
 	UFP_WRITE32(dev, I40E_PFHMC_SDDATALOW, val2);
@@ -286,7 +287,7 @@ int i40e_hmc_set_ctx_tx(struct ufp_dev *dev, struct i40e_hmc_ctx_tx *ctx,
 		{ I40E_HMC_FIELD(i40e_hmc_ctx_tx, rdylist_act),	1,	94 + (7 * 128) },
 		{ 0 }
 	};
-	
+
 	hmc_va = i40e_hmc_va(dev, &hmc->hmc_tx, qp_idx);
 	if(!hmc_va)
 		goto err_hmc_va;

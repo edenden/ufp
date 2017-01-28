@@ -6,26 +6,27 @@
 #include <errno.h>
 #include <stdint.h>
 
-#include "lib_main.h"
+#include <lib_main.h>
+
 #include "i40e_main.h"
 #include "i40e_aq.h"
 
 int ufp_i40e_aq_init(struct ufp_dev *dev)
-{       
+{
 	int err;
 
 	/* allocate the ASQ */
 	err = i40e_aq_asq_init(dev);
 	if(err < 0)
 		goto err_init_asq;
-	
+
 	/* allocate the ARQ */
 	err = i40e_aq_arq_init(dev);
 	if(err < 0)
 		goto err_init_arq;
 
 	dev->num_misc_irqs += 1;
-	
+
 	return 0;
 
 err_init_arq:
@@ -241,7 +242,7 @@ static uint16_t i40e_aq_desc_unused(struct i40e_aq_ring *ring,
 void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 	void *cmd, uint16_t cmd_size, void *data, uint16_t data_size)
 {
-	struct i40e_dev *i40e_dev = dev->drv_data; 
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_ring *ring = i40e_dev->aq.tx_ring;
 	struct i40e_aq_desc *desc;
 	struct i40e_page *buf;
@@ -333,7 +334,7 @@ void i40e_aq_arq_assign(struct ufp_dev *dev)
 		next_to_use = ring->next_to_use + 1;
 		ring->next_to_use =
 			(next_to_use < ring->num_desc) ? next_to_use : 0;
-	
+
 		total_allocated++;
 	}
 

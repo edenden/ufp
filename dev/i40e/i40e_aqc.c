@@ -6,7 +6,8 @@
 #include <errno.h>
 #include <stdint.h>
 
-#include "lib_main.h"
+#include <lib_main.h>
+
 #include "i40e_main.h"
 #include "i40e_aq.h"
 #include "i40e_aqc.h"
@@ -60,7 +61,7 @@ int i40e_aqc_req_clear_pxemode(struct ufp_dev *dev)
 
 	cmd.rx_cnt = 0x2;
 
-	err = i40e_aq_asq_assign(dev, i40e_aq_opc_clear_pxemode, 0, 
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_clear_pxemode, 0,
 		&cmd, sizeof(struct i40e_aq_cmd_clear_pxemode),
 		NULL, 0);
 	if(err < 0)
@@ -134,7 +135,7 @@ int i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
 		elem_new->element_info = le16_to_cpu((&resp_elem[i])->element_info);
 
 		elem_new->next = NULL;
-		elem->next = elem_new; 
+		elem->next = elem_new;
 		elem = elem_new;
 	}
 
@@ -406,7 +407,7 @@ int i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
 			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_PF <<
 			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &
 			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_MASK));
-	}else{  
+	}else{
 		cmd.flags |= htole16((uint16_t)
 			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_VSI <<
 			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &

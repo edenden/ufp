@@ -6,12 +6,46 @@
 #include <errno.h>
 #include <stdint.h>
 
-#include "lib_main.h"
+#include <lib_main.h>
+#include <lib_dev.h>
+
 #include "i40e_main.h"
 #include "i40e_aq.h"
 #include "i40e_hmc.h"
 #include "i40e_io.h"
 #include "i40e_ops.h"
+
+static int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops);
+static void i40e_ops_destroy(struct ufp_dev *dev, struct ufp_ops *ops);
+
+static const struct pci_id device_pci_tbl[] = {
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_XL710},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QEMU},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_B},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_C},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_A},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_B},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_C},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T4},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_20G_KR2},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_20G_KR2_A},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_X722},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_X722},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_X722},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_1G_BASE_T_X722},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T_X722},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_I_X722},
+	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_I_X722},
+	/* required last entry */
+	{0, }
+};
+
+static struct pci_driver driver = {
+	.id_table = device_pci_tbl,
+	.init = i40e_ops_init,
+	.destroy = i40e_ops_destroy
+};
 
 static int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops)
 {
@@ -199,3 +233,23 @@ err_down:
 	return -1;
 }
 
+__attribute__((constructor))
+void i40e_ops_load()
+{
+	int err;
+
+	err = ufp_dev_register(&driver);
+	if(err)
+		goto err_register;
+
+	return;
+
+err_register:
+	return;
+}
+
+__attribute__((destructor))
+void i40e_ops_unload()
+{
+	ufp_dev_unregister(&driver);
+}
