@@ -14,8 +14,9 @@
 #include <pthread.h>
 
 #include "lib_main.h"
+#include "lib_list.h"
+#include "lib_dev.h"
 #include "lib_mem.h"
-#include "i40e_ops.h"
 
 static int ufp_dma_map(struct ufp_dev *dev, void *addr_virt,
 	unsigned long *addr_dma, unsigned long size);
@@ -258,11 +259,11 @@ static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	ring->slot_index = slot_index;
 	return 0;
 
-err_assign:  
+err_assign:
 	ufp_dma_unmap(dev, ring->addr_dma);
-err_dma_map: 
+err_dma_map:
 	ufp_mem_free(addr_virt);
-err_alloc:   
+err_alloc:
 	return -1;
 }
 
@@ -398,37 +399,13 @@ static struct ufp_ops *ufp_ops_alloc(struct ufp_dev *dev)
 		goto err_alloc_ops;
 
 	memset(ops, 0, sizeof(struct ufp_ops));
-
-	switch(dev->device_id){
-	case I40E_DEV_ID_SFP_XL710:
-	case I40E_DEV_ID_QEMU:
-	case I40E_DEV_ID_KX_B:
-	case I40E_DEV_ID_KX_C:
-	case I40E_DEV_ID_QSFP_A:
-	case I40E_DEV_ID_QSFP_B:
-	case I40E_DEV_ID_QSFP_C:
-	case I40E_DEV_ID_10G_BASE_T:
-	case I40E_DEV_ID_20G_KR2:
-	case I40E_DEV_ID_20G_KR2_A:
-	case I40E_DEV_ID_10G_BASE_T4:
-	case I40E_DEV_ID_KX_X722:
-	case I40E_DEV_ID_QSFP_X722:
-	case I40E_DEV_ID_SFP_X722:
-	case I40E_DEV_ID_1G_BASE_T_X722:
-	case I40E_DEV_ID_10G_BASE_T_X722:
-	case I40E_DEV_ID_SFP_I_X722:
-	case I40E_DEV_ID_QSFP_I_X722:
-		err = i40e_ops_init(dev, ops);
-		if(err)
-			goto err_init_device;
-		break;
-	default:
-		goto err_init_device;
-	}
+	err = ufp_dev_init(dev, ops);
+	if(err)
+		goto err_probe_device;
 
 	return ops;
 
-err_init_device:
+err_probe_device:
 	free(ops);
 err_alloc_ops:
 	return NULL;
@@ -436,31 +413,7 @@ err_alloc_ops:
 
 static void ufp_ops_release(struct ufp_dev *dev, struct ufp_ops *ops)
 {
-	switch(ops->device_id){
-	case I40E_DEV_ID_SFP_XL710:
-	case I40E_DEV_ID_QEMU:
-	case I40E_DEV_ID_KX_B:
-	case I40E_DEV_ID_KX_C:
-	case I40E_DEV_ID_QSFP_A:
-	case I40E_DEV_ID_QSFP_B:
-	case I40E_DEV_ID_QSFP_C:
-	case I40E_DEV_ID_10G_BASE_T:
-	case I40E_DEV_ID_20G_KR2:
-	case I40E_DEV_ID_20G_KR2_A:
-	case I40E_DEV_ID_10G_BASE_T4:
-	case I40E_DEV_ID_KX_X722:
-	case I40E_DEV_ID_QSFP_X722:
-	case I40E_DEV_ID_SFP_X722:
-	case I40E_DEV_ID_1G_BASE_T_X722:
-	case I40E_DEV_ID_10G_BASE_T_X722:
-	case I40E_DEV_ID_SFP_I_X722:
-	case I40E_DEV_ID_QSFP_I_X722:
-		i40e_ops_destroy(dev, ops);
-		break;
-	default:
-		break;
-	}
-
+	ufp_dev_destroy(dev, ops);
 	free(ops);
 	return;
 }
@@ -497,6 +450,7 @@ struct ufp_dev *ufp_open(const char *name)
 		goto err_mmap;
 
 	dev->device_id = req.device_id;
+	dev->vendor_id = req.vendor_id;
 	dev->ops = ufp_ops_alloc(dev);
 	if(!dev->ops)
 		goto err_ops_alloc;
@@ -686,3 +640,23 @@ err_open_proc:
 	return -1;
 }
 
+__attribute__((constructor))
+void ufp_initialize()
+{
+	int err;
+
+	err = ufp_dev_load_lib(DRIVER_PATH);
+	if(err)
+		goto err_load_lib;
+
+	return;
+
+err_load_lib:
+	exit(-1);
+}
+
+__attribute__((destructor))
+void ufp_finalize()
+{
+	ufp_dev_unload_lib();
+}

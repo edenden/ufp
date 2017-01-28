@@ -7,28 +7,7 @@
 #include <linux/types.h>
 #include <net/ethernet.h>
 
-/* Device ID for Intel XL710 */
-#define I40E_DEV_ID_SFP_XL710		0x1572
-#define I40E_DEV_ID_QEMU		0x1574
-#define I40E_DEV_ID_KX_B		0x1580
-#define I40E_DEV_ID_KX_C		0x1581
-#define I40E_DEV_ID_QSFP_A		0x1583
-#define I40E_DEV_ID_QSFP_B		0x1584
-#define I40E_DEV_ID_QSFP_C		0x1585
-#define I40E_DEV_ID_10G_BASE_T		0x1586
-#define I40E_DEV_ID_20G_KR2		0x1587
-#define I40E_DEV_ID_20G_KR2_A		0x1588
-#define I40E_DEV_ID_10G_BASE_T4		0x1589
-
-/* Device ID for Intel X722 */
-#define I40E_DEV_ID_KX_X722		0x37CE
-#define I40E_DEV_ID_QSFP_X722		0x37CF
-#define I40E_DEV_ID_SFP_X722		0x37D0
-#define I40E_DEV_ID_1G_BASE_T_X722	0x37D1
-#define I40E_DEV_ID_10G_BASE_T_X722	0x37D2
-#define I40E_DEV_ID_SFP_I_X722		0x37D3
-#define I40E_DEV_ID_QSFP_I_X722		0x37D4
-
+#define DRIVER_PATH		"../dev/"
 #define ALIGN(x,a)		__ALIGN_MASK(x,(typeof(x))(a)-1)
 #define __ALIGN_MASK(x,mask)	(((x)+(mask))&~(mask))
 
@@ -125,6 +104,7 @@ struct ufp_dev {
 	uint32_t		num_misc_irqs;
 	struct ufp_irq_handle	*misc_irqh;
 	uint16_t		device_id;
+	uint16_t		vendor_id;
 
 	void			*drv_data;
 };

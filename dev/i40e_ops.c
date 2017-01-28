@@ -13,7 +13,7 @@
 #include "i40e_io.h"
 #include "i40e_ops.h"
 
-int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops)
+static int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops)
 {
 	struct i40e_dev *i40e_dev;
 
@@ -42,7 +42,7 @@ err_alloc_drv_data:
 	return -1;
 }
 
-void i40e_ops_destroy(struct ufp_dev *dev, struct ufp_ops *ops)
+static void i40e_ops_destroy(struct ufp_dev *dev, struct ufp_ops *ops)
 {
 	free(dev->drv_data);
 	return;
