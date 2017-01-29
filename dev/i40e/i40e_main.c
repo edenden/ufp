@@ -11,13 +11,145 @@
 
 #include "i40e_main.h"
 #include "i40e_ops.h"
+#include "i40e_aq.h"
 #include "i40e_aqc.h"
+#include "i40e_hmc.h"
+#include "i40e_io.h"
 
 static void i40e_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val);
+static int i40e_reset_hw(struct ufp_dev *dev);
+static void i40e_clear_hw(struct ufp_dev *dev);
+static int i40e_configure_pf(struct ufp_dev *dev);
+static void i40e_set_mac_type(struct ufp_dev *dev);
+static void i40e_set_pf_id(struct ufp_dev *dev);
+static void i40e_switchconf_clear(struct ufp_dev *dev);
 static int i40e_switchconf_fetch(struct ufp_dev *dev);
 static int i40e_configure_filter(struct ufp_dev *dev);
 static int i40e_configure_rss(struct ufp_dev *dev);
+static int i40e_setup_pf_switch(struct ufp_dev *dev);
+
+int i40e_open(struct ufp_dev *dev)
+{
+	int err;
+
+	err = i40e_set_mac_type(dev);
+	if(err < 0)
+		goto err_mac_unknown;
+
+	i40e_set_pf_id(dev);
+	i40e_clear_hw(dev);
+
+	err = i40e_reset_hw(dev);
+	if(err < 0)
+		goto err_reset_hw;
+
+	/* adminQ related initialization and depending process */
+	err = i40e_aq_init(dev);
+	if(err < 0)
+		goto err_init_adminq;
+
+	err = i40e_configure_pf(dev);
+	if(err)
+		goto err_configure_pf;
+
+	err = i40e_setup_pf_switch(dev);
+	if (err)
+		goto err_setup_switch;
+
+	err = i40e_hmc_init(dev);
+	if(err < 0)
+		goto err_hmc_init;
+
+	return 0;
+
+err_hmc_init:
+err_setup_switch:
+	i40e_aq_destroy(dev);
+err_configure_pf:
+	return -1;
+}
+
+void i40e_close(struct ufp_dev *dev)
+{
+	i40e_hmc_destroy(dev);
+	i40e_switchconf_clear(dev);
+	i40e_aq_destroy(dev);
+
+	return;
+}
+
+int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	int err;
+
+	err = i40e_vsi_promisc_mode(dev, iface);
+	if(err < 0)
+		goto err_configure_filter;
+
+	err = i40e_vsi_configure_rx(iface);
+	if(err < 0)
+		goto err_configure_rx;
+
+	err = i40e_vsi_configure_tx(iface);
+	if(err < 0)
+		goto err_configure_tx;
+
+	err = i40e_vsi_configure_irq(iface);
+	if(err < 0)
+		goto err_configure_irq;
+
+	err = i40e_vsi_start_rx(dev, iface);
+	if(err < 0)
+		goto err_start_rx;
+
+	err = i40e_vsi_start_tx(dev, iface);
+	if(err < 0)
+		goto err_start_tx;
+
+	err = i40e_vsi_start_irq(dev, iface);
+	if(err < 0)
+		goto err_start_irq;
+
+	return 0;
+
+err_start_irq:
+err_start_tx:
+err_start_rx:
+err_configure_irq:
+err_configure_tx:
+err_configure_rx:
+err_configure_filter:
+	return -1;
+}
+
+int i40e_down(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	int err;
+
+	err = i40e_vsi_stop_irq(dev, iface);
+	if(err < 0)
+		goto err_stop_irq;
+
+	err = i40e_vsi_stop_tx(dev, iface);
+	if(err < 0)
+		goto err_stop_tx;
+
+	err = i40e_vsi_stop_rx(dev, iface);
+	if(err < 0)
+		goto err_stop_rx;
+
+	err = i40e_vsi_shutdown_irq(dev, iface);
+	if(err < 0)
+		goto err_shutdown_irq;
+	return 0;
+
+err_shutdown_irq:
+err_stop_rx:
+err_stop_tx:
+err_stop_irq:
+	return -1;
+}
 
 static void i40e_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val)
@@ -104,7 +236,7 @@ err_timeout:
 	return -1;
 }
 
-int i40e_reset_hw(struct ufp_dev *dev)
+static int i40e_reset_hw(struct ufp_dev *dev)
 {
 	uint32_t grst_del, reg;
 	unsigned int timeout;
@@ -159,7 +291,7 @@ err_grst_in_progress:
 	return -1;
 }
 
-void i40e_clear_hw(struct ufp_dev *dev)
+static void i40e_clear_hw(struct ufp_dev *dev)
 {
 	uint32_t num_queues, base_queue;
 	uint32_t num_pf_int;
@@ -246,7 +378,7 @@ void i40e_clear_hw(struct ufp_dev *dev)
 	return;
 }
 
-int i40e_configure_pf(struct ufp_dev *dev)
+static int i40e_configure_pf(struct ufp_dev *dev)
 {
 	int err;
 
@@ -359,7 +491,7 @@ void i40e_stop_misc_irq(struct ufp_dev *dev)
 	return;
 }
 
-void i40e_set_mac_type(struct ufp_dev *dev)
+static void i40e_set_mac_type(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 
@@ -402,7 +534,7 @@ err_mac_unknown:
 	return -1;
 }
 
-void i40e_set_pf_id(struct ufp_dev *dev)
+static void i40e_set_pf_id(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	uint32_t pci_cap, pci_cap_ari, func_rid;
@@ -420,7 +552,7 @@ void i40e_set_pf_id(struct ufp_dev *dev)
 	return;
 }
 
-void i40e_switchconf_clear(struct ufp_dev *dev)
+static void i40e_switchconf_clear(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_elem *elem, *temp;
@@ -549,7 +681,7 @@ err_hena0_write:
 	return -1;
 }
 
-int i40e_setup_pf_switch(struct ufp_dev *dev)
+static int i40e_setup_pf_switch(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_iface *iface;

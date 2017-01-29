@@ -61,19 +61,16 @@ struct i40e_iface {
 #define i40e_flush(dev) \
 	UFP_READ32((dev), I40E_GLGEN_STAT)
 
+int i40e_open(struct ufp_dev *dev);
+void i40e_close(struct ufp_dev *dev);
+int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface);
+int i40e_down(struct ufp_dev *dev, struct ufp_iface *iface);
 struct i40e_page *i40e_page_alloc(struct ufp_dev *dev);
 void i40e_page_release(struct ufp_dev *dev, struct i40e_page *page);
 int i40e_wait_cmd(struct ufp_dev *dev);
-int i40e_reset_hw(struct ufp_dev *dev);
-void i40e_clear_hw(struct ufp_dev *dev);
-int i40e_configure_pf(struct ufp_dev *dev);
 int i40e_setup_misc_irq(struct ufp_dev *dev);
 void i40e_shutdown_misc_irq(struct ufp_dev *dev);
 void i40e_start_misc_irq(struct ufp_dev *dev);
 void i40e_stop_misc_irq(struct ufp_dev *dev);
-void i40e_set_mac_type(struct ufp_dev *dev);
-void i40e_set_pf_id(struct ufp_dev *dev);
-void i40e_switchconf_clear(struct ufp_dev *dev);
-int i40e_setup_pf_switch(struct ufp_dev *dev);
 
 #endif /* _I40E_MAIN_H__ */
