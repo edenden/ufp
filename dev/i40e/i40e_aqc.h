@@ -11,6 +11,7 @@ enum i40e_admin_queue_opc {
 	/* internal switch commands */
 	i40e_aq_opc_get_swconf		= 0x0200,
 	i40e_aq_opc_set_swconf		= 0x0205,
+	i40e_aq_opc_rxctl_read		= 0x0206,
 	i40e_aq_opc_rxctl_write		= 0x0207,
 	i40e_aq_opc_update_vsi		= 0x0211,
 	i40e_aq_opc_promisc_mode	= 0x0254,
@@ -97,6 +98,7 @@ struct i40e_aq_cmd_set_swconf {
 	uint8_t		reserved[12];
 };
 
+#define i40e_aq_cmd_rxctl_read i40e_aq_cmd_rxctl_write
 struct i40e_aq_cmd_rxctl_write {
 	uint32_t reserved1;
 	uint32_t address;

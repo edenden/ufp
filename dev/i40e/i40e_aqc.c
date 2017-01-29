@@ -91,7 +91,7 @@ int i40e_aqc_req_get_swconf(struct ufp_dev *dev)
 	uint16_t flags;
 	int err;
 
-	cmd.seid_offset = htole16(i40e_dev->aq_seid_offset);
+	cmd.seid_offset = htole16(i40e_dev->aq.seid_offset);
 	flags = I40E_AQ_FLAG_BUF;
 
 	err = i40e_aq_asq_assign(dev, i40e_aq_opc_get_swconf, flags,
@@ -133,7 +133,7 @@ int i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
 	}
 
 	i40e_dev->aq.flag &= ~AQ_GET_CONF;
-	i40e_dev->aq_seid_offset = cmd->seid_offset;
+	i40e_dev->aq.seid_offset = cmd->seid_offset;
 
 	return 0;
 }
@@ -181,7 +181,7 @@ int i40e_aqc_req_rxctl_write(struct ufp_dev *dev,
 	cmd.value = htole32(reg_val);
 
 	err = i40e_aq_asq_assign(dev, i40e_aq_opc_rxctl_write, 0,
-		&cmd, sizeof(struct i40e_aqc_rx_ctl_reg_read_write),
+		&cmd, sizeof(struct i40e_aq_cmd_rxctl_write),
 		NULL, 0);
 	if(err < 0)
 		goto err_xmit;
@@ -198,6 +198,38 @@ int i40e_aqc_resp_rxctl_write(struct ufp_dev *dev)
 	struct i40e_dev *i40e_dev = dev->drv_data;
 
 	i40e_dev->aq.flag &= ~AQ_RXCTL_WRITE;
+	return 0;
+}
+
+int i40e_aqc_req_rxctl_read(struct ufp_dev *dev,
+	uint32_t reg_addr)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_aq_cmd_rxctl_read cmd;
+	int err;
+
+	cmd.address = htole32(reg_addr);
+
+	err = i40e_aq_asq_assign(dev, i40e_aq_opc_rxctl_read, 0,
+		&cmd, sizeof(struct i40e_aq_cmd_rxctl_read),
+		NULL, 0);
+	if(err < 0)
+		goto err_xmit;
+
+	i40e_dev->aq.flag |= AQ_RXCTL_READ;
+	return 0;
+
+err_xmit:
+	return -1;
+}
+
+int i40e_aqc_resp_rxctl_read(struct ufp_dev *dev,
+	struct i40e_aq_cmd_rxctl_read *cmd)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+
+	i40e_dev->aq.flag &= ~AQ_RXCTL_READ;
+	i40e_dev->aq.read_val = le32toh(cmd->value);
 	return 0;
 }
 

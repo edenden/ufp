@@ -49,6 +49,8 @@ struct i40e_aq {
 	struct i40e_aq_ring *tx_ring;
 	struct i40e_aq_ring *rx_ring;
 	uint32_t flag;
+	uint16_t seid_offset;
+	uint32_t read_val;
 };
 
 enum i40e_admin_queue_opc {

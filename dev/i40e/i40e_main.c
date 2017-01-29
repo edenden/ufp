@@ -6,22 +6,25 @@
 #include <errno.h>
 #include <stdint.h>
 #include <time.h>
+#include <sys/mman.h>
 
 #include <lib_main.h>
 
 #include "i40e_main.h"
+#include "i40e_regs.h"
 #include "i40e_ops.h"
 #include "i40e_aq.h"
 #include "i40e_aqc.h"
 #include "i40e_hmc.h"
 #include "i40e_io.h"
 
-static void i40e_rxctl_write(struct ufp_dev *dev,
+static int i40e_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val);
+static int i40e_rxctl_read(struct ufp_dev *dev,
+	uint32_t reg_addr, uint32_t *reg_val);
 static int i40e_reset_hw(struct ufp_dev *dev);
 static void i40e_clear_hw(struct ufp_dev *dev);
 static int i40e_configure_pf(struct ufp_dev *dev);
-static void i40e_set_mac_type(struct ufp_dev *dev);
 static void i40e_set_pf_id(struct ufp_dev *dev);
 static void i40e_switchconf_clear(struct ufp_dev *dev);
 static int i40e_switchconf_fetch(struct ufp_dev *dev);
@@ -33,10 +36,6 @@ int i40e_open(struct ufp_dev *dev)
 {
 	int err;
 
-	err = i40e_set_mac_type(dev);
-	if(err < 0)
-		goto err_mac_unknown;
-
 	i40e_set_pf_id(dev);
 	i40e_clear_hw(dev);
 
@@ -44,10 +43,9 @@ int i40e_open(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_reset_hw;
 
-	/* adminQ related initialization and depending process */
 	err = i40e_aq_init(dev);
 	if(err < 0)
-		goto err_init_adminq;
+		goto err_init_aq;
 
 	err = i40e_configure_pf(dev);
 	if(err)
@@ -55,7 +53,7 @@ int i40e_open(struct ufp_dev *dev)
 
 	err = i40e_setup_pf_switch(dev);
 	if (err)
-		goto err_setup_switch;
+		goto err_setup_pf_switch;
 
 	err = i40e_hmc_init(dev);
 	if(err < 0)
@@ -64,9 +62,11 @@ int i40e_open(struct ufp_dev *dev)
 	return 0;
 
 err_hmc_init:
-err_setup_switch:
-	i40e_aq_destroy(dev);
+err_setup_pf_switch:
 err_configure_pf:
+	i40e_aq_destroy(dev);
+err_init_aq:
+err_reset_hw:
 	return -1;
 }
 
@@ -87,17 +87,15 @@ int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface)
 	if(err < 0)
 		goto err_configure_filter;
 
-	err = i40e_vsi_configure_rx(iface);
+	err = i40e_vsi_configure_rx(dev, iface);
 	if(err < 0)
 		goto err_configure_rx;
 
-	err = i40e_vsi_configure_tx(iface);
+	err = i40e_vsi_configure_tx(dev, iface);
 	if(err < 0)
 		goto err_configure_tx;
 
-	err = i40e_vsi_configure_irq(iface);
-	if(err < 0)
-		goto err_configure_irq;
+	i40e_vsi_configure_irq(dev, iface);
 
 	err = i40e_vsi_start_rx(dev, iface);
 	if(err < 0)
@@ -107,16 +105,12 @@ int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface)
 	if(err < 0)
 		goto err_start_tx;
 
-	err = i40e_vsi_start_irq(dev, iface);
-	if(err < 0)
-		goto err_start_irq;
+	i40e_vsi_start_irq(dev, iface);
 
 	return 0;
 
-err_start_irq:
 err_start_tx:
 err_start_rx:
-err_configure_irq:
 err_configure_tx:
 err_configure_rx:
 err_configure_filter:
@@ -127,9 +121,7 @@ int i40e_down(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	int err;
 
-	err = i40e_vsi_stop_irq(dev, iface);
-	if(err < 0)
-		goto err_stop_irq;
+	i40e_vsi_stop_irq(dev, iface);
 
 	err = i40e_vsi_stop_tx(dev, iface);
 	if(err < 0)
@@ -139,19 +131,15 @@ int i40e_down(struct ufp_dev *dev, struct ufp_iface *iface)
 	if(err < 0)
 		goto err_stop_rx;
 
-	err = i40e_vsi_shutdown_irq(dev, iface);
-	if(err < 0)
-		goto err_shutdown_irq;
+	i40e_vsi_shutdown_irq(dev, iface);
 	return 0;
 
-err_shutdown_irq:
 err_stop_rx:
 err_stop_tx:
-err_stop_irq:
 	return -1;
 }
 
-static void i40e_rxctl_write(struct ufp_dev *dev,
+static int i40e_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val)
 {
 	err = i40e_aqc_req_rxctl_write(dev, reg_addr, reg_val);
@@ -166,6 +154,28 @@ static void i40e_rxctl_write(struct ufp_dev *dev,
 
 err_wait_cmd:
 err_rxctl_write:
+	return -1;
+
+}
+
+static int i40e_rxctl_read(struct ufp_dev *dev,
+	uint32_t reg_addr, uint32_t *reg_val)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+
+	err = i40e_aqc_req_rxctl_read(dev, reg_addr);
+	if(err < 0)
+		goto err_rxctl_read;
+
+	err = i40e_wait_cmd(dev);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	*reg_val = i40e_dev->aq.read_val;
+	return 0;
+
+err_wait_cmd:
+err_rxctl_read:
 	return -1;
 
 }
@@ -382,9 +392,9 @@ static int i40e_configure_pf(struct ufp_dev *dev)
 {
 	int err;
 
-	err = i40e_aq_clear_pxe_mode(dev);
+	err = i40e_aqc_req_clear_pxemode(dev);
 	if(err < 0)
-		goto err_clear_pxe;
+		goto err_clear_pxemode;
 
 	/* Disable LLDP for NICs that have firmware versions lower than v4.3.
 	 * Ignore error return codes because if it was already disabled via
@@ -406,7 +416,7 @@ static int i40e_configure_pf(struct ufp_dev *dev)
 		I40E_AQ_EVENT_MEDIA_NA |
 		I40E_AQ_EVENT_MODULE_QUAL_FAIL));
 	if(err < 0)
-		goto err_aq_set_phy_int_mask;
+		goto err_set_phyintmask;
 
 	err = i40e_wait_cmd(dev);
 	if(err < 0)
@@ -414,10 +424,11 @@ static int i40e_configure_pf(struct ufp_dev *dev)
 
 	return 0;
 
-err_clear_pxe:
-err_init_adminq:
-err_reset_hw:
-err_mac_unknown:
+err_wait_cmd:
+err_set_phyintmask:
+err_macaddr_read:
+err_stop_lldp:
+err_clear_pxemode:
 	return -1;
 }
 
@@ -446,10 +457,10 @@ int i40e_setup_misc_irq(struct ufp_dev *dev)
 	UFP_WRITE32(dev, I40E_PFINT_LNKLST0, I40E_QUEUE_END_OF_LIST);
 	UFP_WRITE32(dev, I40E_PFINT_ITR0(I40E_IDX_ITR0), I40E_ITR_8K);
 
-	i40e_flush(hw);
+	i40e_flush(dev);
 
-	dev->irqh = ufp_irq_open(dev, 0);
-	if(!dev->irqh)
+	dev->misc_irqh = ufp_irq_open(dev, 0);
+	if(!dev->misc_irqh)
 		goto err_open_irq;
 
 	return 0;
@@ -461,16 +472,18 @@ err_open_irq:
 
 void i40e_shutdown_misc_irq(struct ufp_dev *dev)
 {
-	ufp_irq_close(dev->irqh);
+	ufp_irq_close(dev->misc_irqh);
 	/* Disable ICR 0 */
-	UFP_WRITE32(&pf->hw, I40E_PFINT_ICR0_ENA, 0);
+	UFP_WRITE32(dev, I40E_PFINT_ICR0_ENA, 0);
 
-	i40e_flush(&pf->hw);
+	i40e_flush(dev);
 	return;
 }
 
 void i40e_start_misc_irq(struct ufp_dev *dev)
 {
+	uint32_t val;
+
 	/* originally in i40e_irq_dynamic_enable_icr0() */
 	val = I40E_PFINT_DYN_CTL0_INTENA_MASK |
 		I40E_PFINT_DYN_CTL0_CLEARPBA_MASK |
@@ -478,7 +491,7 @@ void i40e_start_misc_irq(struct ufp_dev *dev)
 
 	UFP_WRITE32(dev, I40E_PFINT_DYN_CTL0, val);
 
-	i40e_flush(hw);
+	i40e_flush(dev);
 	return;
 }
 
@@ -487,51 +500,8 @@ void i40e_stop_misc_irq(struct ufp_dev *dev)
 	UFP_WRITE32(dev, I40E_PFINT_DYN_CTL0,
 		I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);
 
-	i40e_flush(hw);
+	i40e_flush(dev);
 	return;
-}
-
-static void i40e_set_mac_type(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-
-	switch(dev->ops->device_id){
-	case I40E_DEV_ID_SFP_XL710:
-	case I40E_DEV_ID_QEMU:
-	case I40E_DEV_ID_KX_B:
-	case I40E_DEV_ID_KX_C:
-	case I40E_DEV_ID_QSFP_A:
-	case I40E_DEV_ID_QSFP_B:
-	case I40E_DEV_ID_QSFP_C:
-	case I40E_DEV_ID_10G_BASE_T:
-	case I40E_DEV_ID_10G_BASE_T4:
-	case I40E_DEV_ID_20G_KR2:
-	case I40E_DEV_ID_20G_KR2_A:
-	case I40E_DEV_ID_25G_B:
-	case I40E_DEV_ID_25G_SFP28:
-		i40e_dev->mac_type = I40E_MAC_XL710;
-		break;
-	case I40E_DEV_ID_KX_X722:
-	case I40E_DEV_ID_QSFP_X722:
-	case I40E_DEV_ID_SFP_X722:
-	case I40E_DEV_ID_1G_BASE_T_X722:
-	case I40E_DEV_ID_10G_BASE_T_X722:
-	case I40E_DEV_ID_SFP_I_X722:
-	case I40E_DEV_ID_QSFP_I_X722:
-		i40e_dev->mac_type = I40E_MAC_X722;
-		break;
-	default:
-		i40e_dev->mac_type = I40E_MAC_GENERIC;
-		break;
-	}
-
-	if(i40e_dev->mac_type == I40E_MAC_GENERIC)
-		goto err_mac_unknown;
-
-	return 0;
-
-err_mac_unknown:
-	return -1;
 }
 
 static void i40e_set_pf_id(struct ufp_dev *dev)
@@ -539,10 +509,10 @@ static void i40e_set_pf_id(struct ufp_dev *dev)
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	uint32_t pci_cap, pci_cap_ari, func_rid;
 
-	pci_cap = UFP_READ32(hw, I40E_GLPCI_CAPSUP);
+	pci_cap = UFP_READ32(dev, I40E_GLPCI_CAPSUP);
 	pci_cap_ari = (pci_cap & I40E_GLPCI_CAPSUP_ARI_EN_MASK) >>
 		I40E_GLPCI_CAPSUP_ARI_EN_SHIFT;
-	func_rid = UFP_READ32(hw, I40E_PF_FUNC_RID);
+	func_rid = UFP_READ32(dev, I40E_PF_FUNC_RID);
 
 	if (pci_cap_ari)
 		i40e_dev->pf_id = (uint8_t)(func_rid & 0xff);
@@ -568,34 +538,37 @@ static void i40e_switchconf_clear(struct ufp_dev *dev)
 static int i40e_switchconf_fetch(struct ufp_dev *dev)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_elem *elem, *elem_next;
 	int err;
 
-	i40e_dev->aq_seid_offset = 0;
+	i40e_dev->aq.seid_offset = 0;
 	i40e_switchconf_clear(dev);
 
 	do{
-		err = i40e_aq_cmd_xmit_getconf(dev);
+		err = i40e_aqc_req_get_swconf(dev);
 		if(err < 0)
-			goto err_cmd_xmit_getconf;
+			goto err_get_swconf;
 
 		err = i40e_wait_cmd(dev);
 		if(err < 0)
 			goto err_wait_cmd;
-	}while(i40e_dev->aq_seid_offset);
+	}while(i40e_dev->aq.seid_offset);
 
 	return 0;
 
-err_cmd_xmit_getconf:
+err_wait_cmd:
+err_get_swconf:
 	return -1;
 }
 
 static int i40e_configure_filter(struct ufp_dev *dev)
 {
+	int err;
 	uint32_t val;
 
 	/* Read the PF Queue Filter control register */
-	val = i40e_read_rx_ctl(hw, I40E_PFQF_CTL_0);
+	err = i40e_rxctl_read(hw, I40E_PFQF_CTL_0, &val);
+	if(err < 0)
+		goto err_pfqfctl0_read;
 
 	/* Program required PE hash buckets for the PF */
 	val &= ~I40E_PFQF_CTL_0_PEHSIZE_MASK;
@@ -634,6 +607,7 @@ static int i40e_configure_filter(struct ufp_dev *dev)
 	return 0;
 
 err_pfqfctl0_write:
+err_pfqfctl0_read:
 	return -1;
 }
 

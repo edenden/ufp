@@ -18,14 +18,8 @@
 #include "lib_dev.h"
 #include "lib_mem.h"
 
-static int ufp_dma_map(struct ufp_dev *dev, void *addr_virt,
-	unsigned long *addr_dma, unsigned long size);
-static int ufp_dma_unmap(struct ufp_dev *dev, unsigned long addr_dma);
 static struct ufp_ops *ufp_ops_alloc(struct ufp_dev *dev);
 static void ufp_ops_release(struct ufp_dev *dev, struct ufp_ops *ops);
-static struct ufp_irq_handle *ufp_irq_open(struct ufp_dev *dev,
-	unsigned int entry_idx);
-static void ufp_irq_close(struct ufp_irq_handle *irqh);
 static int ufp_irq_setaffinity(unsigned int vector, unsigned int core_id);
 
 inline uint32_t ufp_readl(const volatile void *addr)
@@ -358,7 +352,7 @@ void ufp_release_buf(struct ufp_dev **devs, int num_devs,
 	return;
 }
 
-static int ufp_dma_map(struct ufp_dev *dev, void *addr_virt,
+int ufp_dma_map(struct ufp_dev *dev, void *addr_virt,
 	unsigned long *addr_dma, unsigned long size)
 {
 	struct ufp_map_req req_map;
@@ -375,7 +369,7 @@ static int ufp_dma_map(struct ufp_dev *dev, void *addr_virt,
 	return 0;
 }
 
-static int ufp_dma_unmap(struct ufp_dev *dev, unsigned long addr_dma)
+int ufp_dma_unmap(struct ufp_dev *dev, unsigned long addr_dma)
 {
 	struct ufp_unmap_req req_unmap;
 
@@ -558,7 +552,7 @@ err_stop_adapter:
 	return;
 }
 
-static struct ufp_irq_handle *ufp_irq_open(struct ufp_dev *dev,
+struct ufp_irq_handle *ufp_irq_open(struct ufp_dev *dev,
 	unsigned int entry_idx)
 {
 	struct ufp_irq_handle *irqh;
@@ -594,7 +588,7 @@ err_open_efd:
 	return NULL;
 }
 
-static void ufp_irq_close(struct ufp_irq_handle *irqh)
+void ufp_irq_close(struct ufp_irq_handle *irqh)
 {
 	close(irqh->fd);
 	free(irqh);
