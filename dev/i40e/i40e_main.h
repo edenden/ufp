@@ -102,6 +102,9 @@ enum i40e_filter_pctype {
 /* RSS Hash Table Size */
 #define I40E_PFQF_CTL_0_HASHLUTSIZE_512	0x00010000
 
+#define I40E_PFQF_HKEY_MAX_INDEX 12
+#define I40E_PFQF_HLUT_MAX_INDEX 127
+
 struct i40e_elem {
 	uint8_t			type;
 	uint16_t		seid;

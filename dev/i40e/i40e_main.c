@@ -142,6 +142,8 @@ err_stop_tx:
 static int i40e_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val)
 {
+	int err;
+
 	err = i40e_aqc_req_rxctl_write(dev, reg_addr, reg_val);
 	if(err < 0)
 		goto err_rxctl_write;
@@ -162,6 +164,7 @@ static int i40e_rxctl_read(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t *reg_val)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
+	int err;
 
 	err = i40e_aqc_req_rxctl_read(dev, reg_addr);
 	if(err < 0)

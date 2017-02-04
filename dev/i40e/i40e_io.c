@@ -10,6 +10,8 @@
 
 #include "i40e_main.h"
 #include "i40e_aqc.h"
+#include "i40e_hmc.h"
+#include "i40e_regs.h"
 #include "i40e_io.h"
 
 static void i40e_pre_tx_queue_enable(struct ufp_dev *dev, uint32_t qp_idx);
@@ -17,13 +19,13 @@ static void i40e_pre_tx_queue_disable(struct ufp_dev *dev, uint32_t qp_idx);
 
 int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 {
-	struct i40e_aqc_vsi_properties_data data;
-	i40e_status ret;
+	struct i40e_aq_buf_vsi_data data;
+	int err;
 
 	/* Turn off vlan stripping for the VSI */
-	data.valid_sections = cpu_to_le16(I40E_AQ_VSI_PROP_VLAN_VALID);
-	data.port_vlan_flags = I40E_AQ_VSI_PVLAN_MODE_ALL |
-				    I40E_AQ_VSI_PVLAN_EMOD_NOTHING;
+	data.valid_sections = htole16(I40E_AQ_VSI_PROP_VLAN_VALID);
+	data.port_vlan_flags = I40E_AQ_VSI_PVLAN_MODE_ALL
+		| I40E_AQ_VSI_PVLAN_EMOD_NOTHING;
 
 	err = i40e_aqc_req_update_vsi(dev, iface, &data);
 	if(err < 0)
@@ -42,6 +44,8 @@ err_req_update:
 
 int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface)
 {
+	int i, err;
+
 	/* Default seed is retrieved from DPDK i40e PMD */
 	uint32_t seed[I40E_PFQF_HKEY_MAX_INDEX + 1] = {
 		0x6b793944, 0x23504cb5, 0x5bea75b6, 0x309f4f12,
@@ -51,18 +55,18 @@ int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface)
 	};
 	uint32_t lut[I40E_PFQF_HLUT_MAX_INDEX + 1];
 
-	err = i40e_aq_cmd_xmit_setrsskey(dev, iface,
-		seed, sizeof(seed));
+	err = i40e_aqc_req_set_rsskey(dev, iface,
+		(uint8_t *)seed, sizeof(seed));
 	if(err < 0)
 		goto err_set_rss_key;
 
 	/* LUT (Look Up Table) configuration */
 	for (i = 0; i < sizeof(lut); i++) {
-		((uint8_t *)lut)[i] = i % dev->num_qp;
+		((uint8_t *)lut)[i] = i % iface->num_qps;
 	}
 
-	err = i40e_aq_cmd_xmit_setrsslut(dev, iface,
-		lut, sizeof(lut));
+	err = i40e_aqc_req_set_rsskey(dev, iface,
+		(uint8_t *)lut, sizeof(lut));
 	if(err < 0)
 		goto err_set_rss_lut;
 
@@ -132,7 +136,8 @@ int i40e_vsi_configure_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 		ctx.tphrpacket_ena = 1;
 
 		/*
-		 * This flag selects between Head WB and transmit descriptor WB:
+		 * This flag selects between Head WB and
+		 * transmit descriptor WB:
 		 * 0b - Descriptor Write Back
 		 * 1b - Head Write Back
 		 */
@@ -140,12 +145,13 @@ int i40e_vsi_configure_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 
 		/*
 		 * See 1.1.4 - Transmit scheduler
-		 * The XL710 provides management interfaces that allow
-		 * each LAN transmit queue to be placed into a queue set.
-		 * A queue set is a list of transmit queues that belong to the same TC
-		 * and are treated equally by the XL710 transmit scheduler.
+		 * The XL710 provides management interfaces that allow each
+		 * LAN transmit queue to be placed into a queue set.
+		 * A queue set is a list of transmit queues that belong to
+		 * the same TC and are treated equally
+		 * by the XL710 transmit scheduler.
 		 */
-		ctx.rdylist = le16_to_cpu(i40e_iface->qs_handle[0]);
+		ctx.rdylist = le16toh(i40e_iface->qs_handles[0]);
 		ctx.rdylist_act = 0;
 
 		/* set the context in the HMC */
@@ -155,8 +161,9 @@ int i40e_vsi_configure_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 
 		/* Now associate this queue with this PCI function */
 		qtx_ctl = I40E_QTX_CTL_PF_QUEUE;
-		qtx_ctl |= ((i40e_dev->pf_id << I40E_QTX_CTL_PF_INDX_SHIFT) &
-			I40E_QTX_CTL_PF_INDX_MASK);
+		qtx_ctl |= (
+			(i40e_dev->pf_id << I40E_QTX_CTL_PF_INDX_SHIFT)
+			& I40E_QTX_CTL_PF_INDX_MASK);
 		UFP_WRITE32(dev, I40E_QTX_CTL(qp_idx), qtx_ctl);
 		i40e_flush(dev);
 
@@ -172,12 +179,10 @@ err_set_ctx:
 
 int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 {
-	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
 	struct ufp_ring *ring;
 	struct i40e_hmc_ctx_rx ctx;
 	uint16_t qp_idx;
-	uint32_t qtx_ctl;
 	int i, err;
 
 	for (i = 0; i < iface->num_qps; i++){
@@ -211,9 +216,15 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		ctx.lrxqthresh = 2;
 		ctx.crcstrip = 1;
 		ctx.l2tsel = 1;
-		/* this controls whether VLAN is stripped from inner headers */
+		/*
+		 * this controls whether VLAN is
+		 * stripped from inner headers
+		 */
 		ctx.showiv = 0;
-		/* set the prefena field to 1 because the manual says to */
+		/*
+		 * set the prefena field to 1
+		 * because the manual says to
+		 */
 		ctx.prefena = 1;
 
 		/* set the context in the HMC */
@@ -221,7 +232,10 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		if(err < 0)
 			goto err_set_ctx;
 
-		/* cache tail for quicker writes, and clear the reg before use */
+		/*
+		 * cache tail for quicker writes,
+		 * and clear the reg before use
+		 */
 		ring->tail = dev->bar + I40E_QRX_TAIL(qp_idx);
 		ufp_writel(0, ring->tail);
 	}
@@ -244,10 +258,13 @@ void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	for (i = 0; i < iface->num_qps; i++, irq_idx++){
 		qp_idx = i40e_iface->base_qp + i;
 
-		/* In Intel x710 document, "ITR" term just means "Interrupt Throttling"
+		/*
+		 * In Intel x710 document,
+		 * "ITR" term just means "Interrupt Throttling".
 		 * x710 supports 3 ITR values per IRQ, but we use only ITR0
-		 * because we use 1 IRQ per queue(not queue-pair like vanilla driver)
-		*/
+		 * because we use 1 IRQ per queue
+		 * (not queue-pair like vanilla driver).
+		 */
 		UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
 		     ITR_TO_REG(I40E_ITR_20K));
 

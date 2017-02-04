@@ -326,6 +326,10 @@ int i40e_aqc_resp_set_swconf(struct ufp_dev *dev,
 int i40e_aqc_req_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val);
 int i40e_aqc_resp_rxctl_write(struct ufp_dev *dev);
+int i40e_aqc_req_rxctl_read(struct ufp_dev *dev,
+	uint32_t reg_addr);
+int i40e_aqc_resp_rxctl_read(struct ufp_dev *dev,
+	struct i40e_aq_cmd_rxctl_read *cmd);
 int i40e_aqc_req_update_vsi(struct ufp_dev *dev, struct ufp_iface *iface,
 	struct i40e_aq_buf_vsi_data *data);
 int i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
