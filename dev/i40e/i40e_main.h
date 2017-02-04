@@ -20,21 +20,86 @@
  * register but instead is a special value meaning "don't update" ITR0/1/2.
  */
 enum i40e_dyn_idx_t {
-	I40E_IDX_ITR0 = 0,
-	I40E_IDX_ITR1 = 1,
-	I40E_IDX_ITR2 = 2,
-	I40E_ITR_NONE = 3	/* ITR_NONE must not be used as an index */
+	I40E_IDX_ITR0			= 0,
+	I40E_IDX_ITR1			= 1,
+	I40E_IDX_ITR2			= 2,
+	/* ITR_NONE must not be used as an index */
+	I40E_ITR_NONE			= 3
 };
 
-enum i40e_mac_type {
-	I40E_MAC_UNKNOWN = 0,
-	I40E_MAC_X710,
-	I40E_MAC_XL710,
-	I40E_MAC_VF,
-	I40E_MAC_X722,
-	I40E_MAC_X722_VF,
-	I40E_MAC_GENERIC,
+/* Filter context base size is 1K */
+#define I40E_HASH_FILTER_BASE_SIZE	1024
+/* Supported Hash filter values */
+enum i40e_hash_filter_size {
+	I40E_HASH_FILTER_SIZE_1K	= 0,
+	I40E_HASH_FILTER_SIZE_2K	= 1,
+	I40E_HASH_FILTER_SIZE_4K	= 2,
+	I40E_HASH_FILTER_SIZE_8K	= 3,
+	I40E_HASH_FILTER_SIZE_16K	= 4,
+	I40E_HASH_FILTER_SIZE_32K	= 5,
+	I40E_HASH_FILTER_SIZE_64K	= 6,
+	I40E_HASH_FILTER_SIZE_128K	= 7,
+	I40E_HASH_FILTER_SIZE_256K	= 8,
+	I40E_HASH_FILTER_SIZE_512K	= 9,
+	I40E_HASH_FILTER_SIZE_1M	= 10,
 };
+
+/* DMA context base size is 0.5K */
+#define I40E_DMA_CNTX_BASE_SIZE		512
+/* Supported DMA context values */
+enum i40e_dma_cntx_size {
+	I40E_DMA_CNTX_SIZE_512		= 0,
+	I40E_DMA_CNTX_SIZE_1K		= 1,
+	I40E_DMA_CNTX_SIZE_2K		= 2,
+	I40E_DMA_CNTX_SIZE_4K		= 3,
+	I40E_DMA_CNTX_SIZE_8K		= 4,
+	I40E_DMA_CNTX_SIZE_16K		= 5,
+	I40E_DMA_CNTX_SIZE_32K		= 6,
+	I40E_DMA_CNTX_SIZE_64K		= 7,
+	I40E_DMA_CNTX_SIZE_128K		= 8,
+	I40E_DMA_CNTX_SIZE_256K		= 9,
+};
+
+/* Supported Hash look up table (LUT) sizes */
+enum i40e_hash_lut_size {
+	I40E_HASH_LUT_SIZE_128		= 0,
+	I40E_HASH_LUT_SIZE_512		= 1,
+};
+
+/* Packet Classifier Types for filters */
+enum i40e_filter_pctype {
+	/* Note: Values 0-28 are reserved for future use.
+	 * Value 29, 30, 32 are not supported on XL710 and X710.
+	 */
+	I40E_FILTER_PCTYPE_NONF_UNICAST_IPV4_UDP	= 29,
+	I40E_FILTER_PCTYPE_NONF_MULTICAST_IPV4_UDP	= 30,
+	I40E_FILTER_PCTYPE_NONF_IPV4_UDP		= 31,
+	I40E_FILTER_PCTYPE_NONF_IPV4_TCP_SYN_NO_ACK	= 32,
+	I40E_FILTER_PCTYPE_NONF_IPV4_TCP		= 33,
+	I40E_FILTER_PCTYPE_NONF_IPV4_SCTP		= 34,
+	I40E_FILTER_PCTYPE_NONF_IPV4_OTHER		= 35,
+	I40E_FILTER_PCTYPE_FRAG_IPV4			= 36,
+	/* Note: Values 37-38 are reserved for future use.
+	 * Value 39, 40, 42 are not supported on XL710 and X710.
+	 */
+	I40E_FILTER_PCTYPE_NONF_UNICAST_IPV6_UDP	= 39,
+	I40E_FILTER_PCTYPE_NONF_MULTICAST_IPV6_UDP	= 40,
+	I40E_FILTER_PCTYPE_NONF_IPV6_UDP		= 41,
+	I40E_FILTER_PCTYPE_NONF_IPV6_TCP_SYN_NO_ACK	= 42,
+	I40E_FILTER_PCTYPE_NONF_IPV6_TCP		= 43,
+	I40E_FILTER_PCTYPE_NONF_IPV6_SCTP		= 44,
+	I40E_FILTER_PCTYPE_NONF_IPV6_OTHER		= 45,
+	I40E_FILTER_PCTYPE_FRAG_IPV6			= 46,
+	/* Note: Value 47 is reserved for future use */
+	I40E_FILTER_PCTYPE_FCOE_OX			= 48,
+	I40E_FILTER_PCTYPE_FCOE_RX			= 49,
+	I40E_FILTER_PCTYPE_FCOE_OTHER			= 50,
+	/* Note: Values 51-62 are reserved for future use */
+	I40E_FILTER_PCTYPE_L2_PAYLOAD			= 63,
+};
+
+/* RSS Hash Table Size */
+#define I40E_PFQF_CTL_0_HASHLUTSIZE_512	0x00010000
 
 struct i40e_elem {
 	uint8_t			type;
@@ -55,8 +120,6 @@ struct i40e_elem {
 
 struct i40e_dev {
 	uint8_t			pf_id;
-	enum i40e_mac_type	mac_type;
-
 	uint8_t			pf_lan_mac[6];
 	struct i40e_aq		aq;
 	struct i40e_hmc		hmc;
@@ -88,6 +151,7 @@ struct i40e_page {
 	ts.tv_nsec = ((n) * 1000);	\
 	nanosleep(&ts, NULL);		\
 })
+#define BIT_ULL(n) (1ULL << (n))
 #define i40e_flush(dev) \
 	UFP_READ32((dev), I40E_GLGEN_STAT)
 
