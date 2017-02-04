@@ -1,6 +1,7 @@
 #ifndef _I40E_MAIN_H__
 #define _I40E_MAIN_H__
 
+#define I40E_MAX_NUM_DESCRIPTORS	4096
 #define I40E_PF_RESET_WAIT_COUNT	200
 #define I40E_QUEUE_END_OF_LIST		0x7FF
 
@@ -103,18 +104,10 @@ enum i40e_filter_pctype {
 
 struct i40e_elem {
 	uint8_t			type;
-#define I40E_AQ_SW_ELEM_TYPE_MAC	1
-#define I40E_AQ_SW_ELEM_TYPE_PF		2
-#define I40E_AQ_SW_ELEM_TYPE_VF		3
-#define I40E_AQ_SW_ELEM_TYPE_EMP	4
-#define I40E_AQ_SW_ELEM_TYPE_BMC	5
-#define I40E_AQ_SW_ELEM_TYPE_PV		16
-#define I40E_AQ_SW_ELEM_TYPE_VEB	17
-#define I40E_AQ_SW_ELEM_TYPE_PA		18
-#define I40E_AQ_SW_ELEM_TYPE_VSI	19
 	uint16_t		seid;
 	uint16_t		seid_uplink;
 	uint16_t		seid_downlink;
+	uint16_t		element_info;
 	struct list_node	list;
 };
 
@@ -124,6 +117,18 @@ struct i40e_dev {
 	struct i40e_aq		aq;
 	struct i40e_hmc		hmc;
 	struct list_head	elem;
+};
+
+enum i40e_vsi_type {
+	I40E_VSI_MAIN	= 0,
+	I40E_VSI_VMDQ1	= 1,
+	I40E_VSI_VMDQ2	= 2,
+	I40E_VSI_CTRL	= 3,
+	I40E_VSI_FCOE	= 4,
+	I40E_VSI_MIRROR	= 5,
+	I40E_VSI_SRIOV	= 6,
+	I40E_VSI_FDIR	= 7,
+	I40E_VSI_TYPE_UNKNOWN
 };
 
 struct i40e_iface {

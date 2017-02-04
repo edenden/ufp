@@ -682,7 +682,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_iface *iface;
 	struct i40e_iface *i40e_iface;
-	struct switch_elem *elem, *elem_first_vsi;
+	struct i40e_elem *elem, *elem_first_vsi;
 	int err;
 
 	/* Switch Global Configuration */
@@ -691,10 +691,10 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 		 * Packets are forwarded according to promiscuous filter
 		 * even if matching an exact match filter.
 		 */
-		err = i40e_aq_cmd_xmit_setconf(dev,
+		err = i40e_aqc_req_set_swconf(dev,
 			0, I40E_AQ_SET_SWITCH_CFG_PROMISC);
 		if(err < 0)
-			goto err_switch_setconf;
+			goto err_set_swconf;
 
 		err = i40e_wait_cmd(dev);
 		if(err < 0)
@@ -704,7 +704,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	/* Setup static PF queue filter control settings */
 	err = i40e_configure_filter(dev);
 	if(err < 0)
-		goto err_set_filter_ctrl;
+		goto err_configure_filter;
 
 	/* enable RSS in the HW, even for only one queue, as the stack can use
 	 * the hash
@@ -719,7 +719,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 
 	elem_first_vsi = NULL;
 	list_for_each(&i40e_dev->elem, elem, list){
-		if(elem->type == I40E_SWITCH_ELEMENT_TYPE_VSI){
+		if(elem->type == I40E_AQ_SW_ELEM_TYPE_VSI){
 			elem_first_vsi = elem;
 			break;
 		}
@@ -737,17 +737,18 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	i40e_iface->seid	= elem_first_vsi->seid;
 	i40e_iface->id		= elem_first_vsi->element_info;
 	i40e_iface->base_qp	= 0;
-	i40e_iface->type	= VSI_TYPE_MAIN;
-	iface			= dev->iface;
+	i40e_iface->type	= I40E_VSI_MAIN;
+
+	iface = list_first_entry(&dev->iface, struct ufp_iface, list);
 	iface->drv_data		= i40e_iface;
 
 	memcpy(iface->mac_addr, i40e_dev->pf_lan_mac, ETH_ALEN);
 	iface->num_rx_desc	= I40E_MAX_NUM_DESCRIPTORS;
 	iface->size_rx_desc	=
-		iface->num_rx_desc * sizeof(union i40e_16byte_rx_desc);
+		iface->num_rx_desc * sizeof(struct i40e_rx_desc);
 	iface->num_tx_desc	= I40E_MAX_NUM_DESCRIPTORS;
 	iface->size_tx_desc	=
-		iface->num_tx_desc * sizeof(union i40e_tx_desc);
+		iface->num_tx_desc * sizeof(struct i40e_tx_desc);
 
 	err = i40e_vsi_update(dev, iface);
 	if(err < 0)
@@ -759,14 +760,16 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 
 	return 0;
 
-err_vsi_update:
 err_vsi_rss_config:
-err_set_filter_ctrl:
-err_switch_setconf:
+err_vsi_update:
 	free(i40e_iface);
 err_alloc_iface:
 err_first_vsi:
 err_switchconf_fetch:
+err_configure_rss:
+err_configure_filter:
+err_wait_cmd:
+err_set_swconf:
 	return -1;
 }
 

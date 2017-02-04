@@ -95,6 +95,10 @@ static inline void list_init(struct list_head *head)
 #define list_entry(ptr, type, member)					\
 	container_of(ptr, type, member)
 
+#define list_first_entry(head, type, member)				\
+	!list_empty(head) ? list_entry((head)->node.next, type, member)	\
+	: NULL
+
 #define list_for_each(head, data, member)				\
 	list_for_each_dir(head, data, member, next)
 
@@ -190,6 +194,10 @@ static inline void hlist_init(struct hlist_head *head)
 
 #define hlist_entry_safe(ptr, type, member)				\
 	(ptr) ? hlist_entry(ptr, type, member) : NULL
+
+#define hlist_first_entry(head, type, member)				\
+	!hlist_empty(head) ? hlist_entry((head)->first, type, member)	\
+	: NULL
 
 #define hlist_for_each(head, data, member)				\
 	for(	(data) = hlist_entry_safe((head)->first,		\

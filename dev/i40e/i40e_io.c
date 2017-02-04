@@ -642,11 +642,14 @@ static void i40e_pre_tx_queue_disable(struct ufp_dev *dev, uint32_t qp_idx)
 int i40e_rx_desc_fetch(struct ufp_ring *rx_ring, uint16_t index,
 	struct ufp_packet *packet)
 {
-	union ufp_i40e_rx_desc *rx_desc;
+	struct i40e_rx_desc *rx_desc;
+	struct i40e_rx_desc_wb *rx_desc_wb;
 	uint64_t qword1;
 
 	rx_desc = I40E_RX_DESC(rx_ring, index);
-	qword1 = le64_to_cpu(rx_desc->wb.qword1.status_error_len);
+	rx_desc_wb = (struct i40e_rx_desc_wb *)rx_desc;
+
+	qword1 = le64toh(rx_desc_wb->qword1.status_error_len);
 
 	if (!(qword1 & BIT(I40E_RX_DESC_STATUS_DD_SHIFT)))
 		goto not_received;
@@ -676,7 +679,7 @@ not_received:
 
 int i40e_tx_desc_fetch(struct ufp_ring *tx_ring, uint16_t index)
 {
-	union ufp_i40e_tx_desc *tx_desc;
+	struct ufp_i40e_tx_desc *tx_desc;
 	uint64_t qword1;
 
 	tx_desc = I40E_TX_DESC(tx_ring, index);
@@ -695,15 +698,17 @@ not_sent:
 void i40e_rx_desc_fill(struct ufp_ring *rx_ring, uint16_t index,
 	uint64_t addr_dma)
 {
-	union ufp_i40e_rx_desc *rx_desc;
+	struct i40e_rx_desc *rx_desc;
+	struct i40e_rx_desc_wb *rx_desc_wb;
 
 	rx_desc = I40E_RX_DESC(rx_ring, index);
+	rx_desc_wb = (struct i40e_rx_desc_wb *)rx_desc;
 
-	rx_desc->read.pkt_addr = htole64(addr_dma);
-	rx_desc->read.hdr_addr = 0;
+	rx_desc->pkt_addr = htole64(addr_dma);
+	rx_desc->hdr_addr = 0;
 
 	/* clear the status bits for the next_to_use descriptor */
-	rx_desc->wb.qword1.status_error_len = 0;
+	rx_desc_wb->qword1.status_error_len = 0;
 
 	return;
 }
@@ -711,7 +716,7 @@ void i40e_rx_desc_fill(struct ufp_ring *rx_ring, uint16_t index,
 void i40e_tx_desc_fill(struct ufp_ring *tx_ring, uint16_t index,
 	uint64_t addr_dma, struct ufp_packet *packet)
 {
-	union ufp_i40e_tx_desc *tx_desc;
+	struct ufp_i40e_tx_desc *tx_desc;
 	uint32_t tx_cmd = 0;
 	uint32_t tx_offset = 0;
 	uint32_t tx_tag = 0;
