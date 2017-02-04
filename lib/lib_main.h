@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <linux/types.h>
 #include <net/ethernet.h>
+#include <time.h>
 #include "lib_list.h"
 
 #define DRIVER_PATH		"../dev/"
@@ -20,12 +21,29 @@
 	typeof(y) _min2 = (y);			\
 	(void) (&_min1 == &_min2);		\
 	_min1 < _min2 ? _min1 : _min2; })
-
 #define max(x, y) ({				\
 	typeof(x) _max1 = (x);			\
 	typeof(y) _max2 = (y);			\
 	(void) (&_max1 == &_max2);		\
 	_max1 > _max2 ? _max1 : _max2; })
+
+#define msleep(n) ({			\
+	struct timespec ts;		\
+	ts.tv_sec = 0;			\
+	ts.tv_nsec = ((n) * 1000000);	\
+	nanosleep(&ts, NULL);		\
+})
+#define usleep(n) ({			\
+	struct timespec ts;		\
+	ts.tv_sec = 0;			\
+	ts.tv_nsec = ((n) * 1000);	\
+	nanosleep(&ts, NULL);		\
+})
+
+#define BIT(nr) \
+	(1UL << (nr))
+#define BIT_ULL(n) \
+	(1ULL << (n))
 
 #define CONFIG_X86_L1_CACHE_SHIFT \
 				(6)

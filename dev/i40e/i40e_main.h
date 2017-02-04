@@ -3,30 +3,6 @@
 
 #define I40E_MAX_NUM_DESCRIPTORS	4096
 #define I40E_PF_RESET_WAIT_COUNT	200
-#define I40E_QUEUE_END_OF_LIST		0x7FF
-
-/* Interrupt Throttling and Rate Limiting Goodies */
-#define I40E_MAX_ITR			0x0FF0  /* reg uses 2 usec resolution */
-#define I40E_MIN_ITR			0x0001  /* reg uses 2 usec resolution */
-#define I40E_ITR_100K			0x0005
-#define I40E_ITR_50K			0x000A
-#define I40E_ITR_20K			0x0019
-#define I40E_ITR_18K			0x001B
-#define I40E_ITR_8K			0x003E
-#define I40E_ITR_4K			0x007A
-
-/* this enum matches hardware bits and is meant to be used by DYN_CTLN
- * registers and QINT registers or more generally anywhere in the manual
- * mentioning ITR_INDX, ITR_NONE cannot be used as an index 'n' into any
- * register but instead is a special value meaning "don't update" ITR0/1/2.
- */
-enum i40e_dyn_idx_t {
-	I40E_IDX_ITR0			= 0,
-	I40E_IDX_ITR1			= 1,
-	I40E_IDX_ITR2			= 2,
-	/* ITR_NONE must not be used as an index */
-	I40E_ITR_NONE			= 3
-};
 
 /* Filter context base size is 1K */
 #define I40E_HASH_FILTER_BASE_SIZE	1024
@@ -147,19 +123,6 @@ struct i40e_page {
 	unsigned long		addr_dma;
 };
 
-#define msleep(n) ({			\
-	struct timespec ts;		\
-	ts.tv_sec = 0;			\
-	ts.tv_nsec = ((n) * 1000000);	\
-	nanosleep(&ts, NULL);		\
-})
-#define usleep(n) ({			\
-	struct timespec ts;		\
-	ts.tv_sec = 0;			\
-	ts.tv_nsec = ((n) * 1000);	\
-	nanosleep(&ts, NULL);		\
-})
-#define BIT_ULL(n) (1ULL << (n))
 #define i40e_flush(dev) \
 	UFP_READ32((dev), I40E_GLGEN_STAT)
 
