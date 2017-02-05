@@ -28,10 +28,7 @@ int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 	data.port_vlan_flags = I40E_AQ_VSI_PVLAN_MODE_ALL
 		| I40E_AQ_VSI_PVLAN_EMOD_NOTHING;
 
-	err = i40e_aqc_req_update_vsi(dev, iface, &data);
-	if(err < 0)
-		goto err_req_update;
-
+	i40e_aqc_req_update_vsi(dev, iface, &data);
 	err = i40e_wait_cmd(dev);
 	if(err < 0)
 		goto err_wait_cmd;
@@ -39,7 +36,6 @@ int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 	return 0;
 
 err_wait_cmd:
-err_req_update:
 	return -1;
 }
 
@@ -56,21 +52,14 @@ int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface)
 	};
 	uint32_t lut[I40E_PFQF_HLUT_MAX_INDEX + 1];
 
-	err = i40e_aqc_req_set_rsskey(dev, iface,
-		(uint8_t *)seed, sizeof(seed));
-	if(err < 0)
-		goto err_set_rss_key;
+	i40e_aqc_req_set_rsskey(dev, iface, (uint8_t *)seed, sizeof(seed));
 
 	/* LUT (Look Up Table) configuration */
 	for (i = 0; i < sizeof(lut); i++) {
 		((uint8_t *)lut)[i] = i % iface->num_qps;
 	}
 
-	err = i40e_aqc_req_set_rsskey(dev, iface,
-		(uint8_t *)lut, sizeof(lut));
-	if(err < 0)
-		goto err_set_rss_lut;
-
+	i40e_aqc_req_set_rsskey(dev, iface, (uint8_t *)lut, sizeof(lut));
 	err = i40e_wait_cmd(dev);
 	if(err < 0)
 		goto err_wait_cmd;
@@ -78,8 +67,6 @@ int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface)
 	return 0;
 
 err_wait_cmd:
-err_set_rss_lut:
-err_set_rss_key:
 	return -1;
 }
 
@@ -95,13 +82,14 @@ int i40e_vsi_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface)
 		promisc_flags |= I40E_AQC_SET_VSI_PROMISC_UNICAST;
 	}
 
-	err = i40e_aqc_req_promisc_mode(dev, iface, promisc_flags);
+	i40e_aqc_req_promisc_mode(dev, iface, promisc_flags);
+	err = i40e_wait_cmd(dev);
 	if(err < 0)
-		goto err_set_promisc_mode;
+		goto err_wait_cmd;
 
 	return 0;
 
-err_set_promisc_mode:
+err_wait_cmd:
 	return -1;
 }
 

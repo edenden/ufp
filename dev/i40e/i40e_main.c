@@ -144,10 +144,7 @@ static int i40e_rxctl_write(struct ufp_dev *dev,
 {
 	int err;
 
-	err = i40e_aqc_req_rxctl_write(dev, reg_addr, reg_val);
-	if(err < 0)
-		goto err_rxctl_write;
-
+	i40e_aqc_req_rxctl_write(dev, reg_addr, reg_val);
 	err = i40e_wait_cmd(dev);
 	if(err < 0)
 		goto err_wait_cmd;
@@ -155,7 +152,6 @@ static int i40e_rxctl_write(struct ufp_dev *dev,
 	return 0;
 
 err_wait_cmd:
-err_rxctl_write:
 	return -1;
 
 }
@@ -166,10 +162,7 @@ static int i40e_rxctl_read(struct ufp_dev *dev,
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	int err;
 
-	err = i40e_aqc_req_rxctl_read(dev, reg_addr);
-	if(err < 0)
-		goto err_rxctl_read;
-
+	i40e_aqc_req_rxctl_read(dev, reg_addr);
 	err = i40e_wait_cmd(dev);
 	if(err < 0)
 		goto err_wait_cmd;
@@ -178,7 +171,6 @@ static int i40e_rxctl_read(struct ufp_dev *dev,
 	return 0;
 
 err_wait_cmd:
-err_rxctl_read:
 	return -1;
 
 }
@@ -395,32 +387,20 @@ static int i40e_configure_pf(struct ufp_dev *dev)
 {
 	int err;
 
-	err = i40e_aqc_req_clear_pxemode(dev);
-	if(err < 0)
-		goto err_clear_pxemode;
-
+	i40e_aqc_req_clear_pxemode(dev);
 	/* Disable LLDP for NICs that have firmware versions lower than v4.3.
 	 * Ignore error return codes because if it was already disabled via
 	 * hardware settings this will fail
 	 */
-	err = i40e_aqc_req_stop_lldp(dev);
-	if(err < 0)
-		goto err_stop_lldp;
-
-	err = i40e_aqc_req_macaddr_read(dev);
-	if(err < 0)
-		goto err_macaddr_read;
-
+	i40e_aqc_req_stop_lldp(dev);
+	i40e_aqc_req_macaddr_read(dev);
 	/* The driver only wants link up/down and module qualification
 	 * reports from firmware.  Note the negative logic.
 	 */
-	err = i40e_aqc_req_set_phyintmask(dev,
+	i40e_aqc_req_set_phyintmask(dev,
 		~(I40E_AQ_EVENT_LINK_UPDOWN |
 		I40E_AQ_EVENT_MEDIA_NA |
 		I40E_AQ_EVENT_MODULE_QUAL_FAIL));
-	if(err < 0)
-		goto err_set_phyintmask;
-
 	err = i40e_wait_cmd(dev);
 	if(err < 0)
 		goto err_wait_cmd;
@@ -428,10 +408,6 @@ static int i40e_configure_pf(struct ufp_dev *dev)
 	return 0;
 
 err_wait_cmd:
-err_set_phyintmask:
-err_macaddr_read:
-err_stop_lldp:
-err_clear_pxemode:
 	return -1;
 }
 
@@ -547,10 +523,7 @@ static int i40e_switchconf_fetch(struct ufp_dev *dev)
 	i40e_switchconf_clear(dev);
 
 	do{
-		err = i40e_aqc_req_get_swconf(dev);
-		if(err < 0)
-			goto err_get_swconf;
-
+		i40e_aqc_req_get_swconf(dev);
 		err = i40e_wait_cmd(dev);
 		if(err < 0)
 			goto err_wait_cmd;
@@ -559,7 +532,6 @@ static int i40e_switchconf_fetch(struct ufp_dev *dev)
 	return 0;
 
 err_wait_cmd:
-err_get_swconf:
 	return -1;
 }
 
@@ -694,11 +666,8 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 		 * Packets are forwarded according to promiscuous filter
 		 * even if matching an exact match filter.
 		 */
-		err = i40e_aqc_req_set_swconf(dev,
+		i40e_aqc_req_set_swconf(dev,
 			0, I40E_AQ_SET_SWITCH_CFG_PROMISC);
-		if(err < 0)
-			goto err_set_swconf;
-
 		err = i40e_wait_cmd(dev);
 		if(err < 0)
 			goto err_wait_cmd;
@@ -772,7 +741,6 @@ err_switchconf_fetch:
 err_configure_rss:
 err_configure_filter:
 err_wait_cmd:
-err_set_swconf:
 	return -1;
 }
 
