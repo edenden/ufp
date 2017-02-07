@@ -211,15 +211,13 @@ static void i40e_set_pf_sd_entry(struct ufp_dev *dev, unsigned long pa,
 {
 	uint32_t val1, val2, val3;
 
-	val1 = (uint32_t)(upper_32_bits(pa));
-
-	val2 = (uint32_t)(pa);
+	val1 = ((uint32_t *)&(pa))[1];
+	val2 = ((uint32_t *)&(pa))[0];
 	val2 |= I40E_HMC_MAX_BP_COUNT
 		<< I40E_PFHMC_SDDATALOW_PMSDBPCOUNT_SHIFT;
 	val2 |= (((type) == I40E_SD_TYPE_PAGED) ? 0 : 1)
 		<< I40E_PFHMC_SDDATALOW_PMSDTYPE_SHIFT;
 	val2 |= BIT(I40E_PFHMC_SDDATALOW_PMSDVALID_SHIFT);
-
 	val3 = (sd_index) | BIT_ULL(I40E_PFHMC_SDCMD_PMSDWR_SHIFT);
 
 	UFP_WRITE32(dev, I40E_PFHMC_SDDATAHIGH, val1);

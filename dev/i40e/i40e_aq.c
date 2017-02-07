@@ -184,12 +184,12 @@ static int i40e_aq_ring_configure(struct ufp_dev *dev,
 
 	/* set starting point */
 	UFP_WRITE32(dev, ring->len, (ring->num_desc | I40E_MASK(0x1, 31)));
-	UFP_WRITE32(dev, ring->bal, lower_32_bits(ring->desc->addr_dma));
-	UFP_WRITE32(dev, ring->bah, upper_32_bits(ring->desc->addr_dma));
+	UFP_WRITE32(dev, ring->bal, ((uint32_t *)&(ring->desc->addr_dma))[0]);
+	UFP_WRITE32(dev, ring->bah, ((uint32_t *)&(ring->desc->addr_dma))[1]);
 
 	/* Check one register to verify that config was applied */
 	reg = UFP_READ32(dev, ring->bal);
-	if (reg != lower_32_bits(ring->desc->addr_dma))
+	if (reg != ((uint32_t *)&(ring->desc->addr_dma))[0])
 		goto err_init_ring;
 
 	return 0;
@@ -309,9 +309,9 @@ void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 		 * for respective buffer
 		 */
 		desc->params.external.addr_high =
-			htole32(upper_32_bits(buf->addr_dma));
+			htole32(((uint32_t *)&(buf->addr_dma))[1]);
 		desc->params.external.addr_low =
-			htole32(lower_32_bits(buf->addr_dma));
+			htole32(((uint32_t *)&(buf->addr_dma))[0]);
 	}
 
 	next_to_use = ring->next_to_use + 1;
@@ -354,9 +354,9 @@ void i40e_aq_arq_assign(struct ufp_dev *dev)
 		desc->cookie_high = 0;
 		desc->cookie_low = 0;
 		desc->params.external.addr_high =
-			htole32(upper_32_bits(buf->addr_dma));
+			htole32(((uint32_t *)&(buf->addr_dma))[1]);
 		desc->params.external.addr_low =
-			htole32(lower_32_bits(buf->addr_dma));
+			htole32(((uint32_t *)&(buf->addr_dma))[0]);
 		desc->params.external.param0 = 0;
 		desc->params.external.param1 = 0;
 
