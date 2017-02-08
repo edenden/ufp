@@ -120,9 +120,9 @@ int i40e_vsi_configure_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 		/* XXX: Does it work? Is ctx.cpuid set by hardware correctly
 		 * when socket id is not equeal 0?
 		 */
-		ctx.tphrdesc_ena = 1;
-		ctx.tphwdesc_ena = 1;
-		ctx.tphrpacket_ena = 1;
+		ctx.tphrdesc_en = 1;
+		ctx.tphwdesc_en = 1;
+		ctx.tphrpkt_en = 1;
 
 		/*
 		 * This flag selects between Head WB and
@@ -130,7 +130,7 @@ int i40e_vsi_configure_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 		 * 0b - Descriptor Write Back
 		 * 1b - Head Write Back
 		 */
-		ctx.head_wb_ena = 0;
+		ctx.head_wb_en = 0;
 
 		/*
 		 * See 1.1.4 - Transmit scheduler
@@ -197,10 +197,10 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		/* XXX: Does it work? Is ctx.cpuid set by hardware correctly
 		 * when socket id is not equeal 0?
 		 */
-		ctx.tphrdesc_ena = 1;
-		ctx.tphwdesc_ena = 1;
-		ctx.tphdata_ena = 1;
-		ctx.tphhead_ena = 0;
+		ctx.tphrdesc_en = 1;
+		ctx.tphwdesc_en = 1;
+		ctx.tphdata_en = 1;
+		ctx.tphhead_en = 0;
 
 		ctx.lrxqthresh = 2;
 		ctx.crcstrip = 1;
@@ -214,7 +214,7 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		 * set the prefena field to 1
 		 * because the manual says to
 		 */
-		ctx.prefena = 1;
+		ctx.pref_en = 1;
 
 		/* set the context in the HMC */
 		err = i40e_hmc_set_ctx_rx(dev, &ctx, qp_idx);
@@ -272,7 +272,8 @@ void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 				<< I40E_QINT_RQCTL_NEXTQ_INDX_SHIFT);
 		UFP_WRITE32(dev, I40E_QINT_RQCTL(qp_idx), val);
 
-		iface->rx_irq[i] = ufp_irq_open(dev, irq_idx + 1);
+		iface->rx_irq[i] = ufp_irq_open(dev,
+			irq_idx + dev->num_misc_irqs);
 		if(!iface->rx_irq[i])
 			goto err_rx_irqh;
 	}
@@ -298,7 +299,8 @@ void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 				<< I40E_QINT_TQCTL_NEXTQ_INDX_SHIFT);
 		UFP_WRITE32(dev, I40E_QINT_TQCTL(qp_idx), val);
 
-		iface->tx_irq[i] = ufp_irq_open(dev, irq_idx + 1);
+		iface->tx_irq[i] = ufp_irq_open(dev,
+			irq_idx + dev->num_misc_irqs);
 		if(!iface->tx_irq[i])
 			goto err_tx_irqh;
 	}

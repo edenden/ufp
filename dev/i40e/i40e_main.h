@@ -3,6 +3,7 @@
 
 #define I40E_MAX_NUM_DESCRIPTORS	4096
 #define I40E_PF_RESET_WAIT_COUNT	200
+#define I40E_MAX_TRAFFIC_CLASS		8
 
 /* Filter context base size is 1K */
 #define I40E_HASH_FILTER_BASE_SIZE	1024

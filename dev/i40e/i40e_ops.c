@@ -59,6 +59,7 @@ static int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops)
 
 	list_init(&i40e_dev->elem);
 	dev->drv_data = i40e_dev;
+	dev->num_misc_irqs = 0;
 
 	/* Configuration related functions*/
 	ops->open		= i40e_ops_open;
@@ -110,20 +111,20 @@ static int i40e_ops_up(struct ufp_dev *dev)
 	struct ufp_iface *iface;
 	int err;
 
+	err = i40e_setup_misc_irq(dev);
+	if(err < 0)
+		goto err_setup_misc_irq;
+	i40e_start_misc_irq(dev);
+
 	list_for_each(&dev->iface, iface, list){
 		err = i40e_up(dev, iface);
 		if(err < 0)
 			goto err_up;
 	}
-
-	err = i40e_setup_misc_irq(dev);
-	if(err < 0)
-		goto err_setup_misc_irq;
-	i40e_start_misc_irq(dev);
 	return 0;
 
-err_setup_misc_irq:
 err_up:
+err_setup_misc_irq:
 	return -1;
 }
 
@@ -132,14 +133,14 @@ static int i40e_ops_down(struct ufp_dev *dev)
 	struct ufp_iface *iface;
 	int err;
 
-	i40e_stop_misc_irq(dev);
-	i40e_shutdown_misc_irq(dev);
-
 	list_for_each(&dev->iface, iface, list){
 		err = i40e_down(dev, iface);
 		if(err < 0)
 			goto err_down;
 	}
+
+	i40e_stop_misc_irq(dev);
+	i40e_shutdown_misc_irq(dev);
 	return 0;
 
 err_down:

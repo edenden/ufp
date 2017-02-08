@@ -36,7 +36,7 @@ struct i40e_aq_cmd_queue_shutdown {
 	uint8_t		reserved[12];
 };
 
-struct i40e_aq_cmd_macaddr {
+struct i40e_aq_cmd_macaddr_read {
 	uint16_t	command_flags;
 #define I40E_AQC_LAN_ADDR_VALID		0x10
 #define I40E_AQC_SAN_ADDR_VALID		0x20
@@ -49,7 +49,7 @@ struct i40e_aq_cmd_macaddr {
 	uint32_t	addr_low;
 };
 
-struct i40e_aq_buf_mac_addr {
+struct i40e_aq_buf_macaddr_read {
 	uint8_t		pf_lan_mac[6];
 	uint8_t		pf_san_mac[6];
 	uint8_t		port_mac[6];
@@ -322,34 +322,35 @@ struct  i40e_aq_cmd_set_rsslut {
 
 void i40e_aqc_req_queue_shutdown(struct ufp_dev *dev);
 int i40e_aqc_resp_queue_shutdown(struct ufp_dev *dev,
-	struct i40e_aq_cmd_queue_shutdown *cmd);
+	void *cmd_ptr);
 void i40e_aqc_req_macaddr_read(struct ufp_dev *dev);
 int i40e_aqc_resp_macaddr_read(struct ufp_dev *dev,
-	struct i40e_aq_cmd_macaddr_read *cmd, void *buf);
+	void *cmd_ptr, void *buf_ptr);
 void i40e_aqc_req_clear_pxemode(struct ufp_dev *dev);
 int i40e_aqc_resp_clear_pxemode(struct ufp_dev *dev);
 void i40e_aqc_req_get_swconf(struct ufp_dev *dev);
 int i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
-	struct i40e_aq_cmd_get_swconf *cmd, void *buf);
+	void *cmd_ptr, void *buf_ptr);
 void i40e_aqc_req_set_swconf(struct ufp_dev *dev,
 	uint16_t flags, uint16_t valid_flags);
 int i40e_aqc_resp_set_swconf(struct ufp_dev *dev,
-	struct i40e_aq_cmd_set_swconf *cmd);
+	void *cmd_ptr);
 void i40e_aqc_req_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val);
 int i40e_aqc_resp_rxctl_write(struct ufp_dev *dev);
 void i40e_aqc_req_rxctl_read(struct ufp_dev *dev,
 	uint32_t reg_addr);
 int i40e_aqc_resp_rxctl_read(struct ufp_dev *dev,
-	struct i40e_aq_cmd_rxctl_read *cmd);
-void i40e_aqc_req_update_vsi(struct ufp_dev *dev, struct ufp_iface *iface,
-	struct i40e_aq_buf_vsi_data *data);
+	void *cmd_ptr);
+void i40e_aqc_req_update_vsi(struct ufp_dev *dev,
+	struct ufp_iface *iface, struct i40e_aq_buf_vsi_data *buf);
 int i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
-	struct i40e_aq_cmd_update_vsi_resp *cmd);
-void i40e_aqc_req_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface,
-	uint16_t promisc_flags);
+	void *cmd_ptr, void *buf_ptr);
+void i40e_aqc_req_promisc_mode(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint16_t promisc_flags);
 int i40e_aqc_resp_promisc_mode(struct ufp_dev *dev);
-void i40e_aqc_req_set_phyintmask(struct ufp_dev *dev, uint16_t mask);
+void i40e_aqc_req_set_phyintmask(struct ufp_dev *dev,
+	uint16_t mask);
 int i40e_aqc_resp_set_phyintmask(struct ufp_dev *dev);
 void i40e_aqc_req_stop_lldp(struct ufp_dev *dev);
 int i40e_aqc_resp_stop_lldp(struct ufp_dev *dev);

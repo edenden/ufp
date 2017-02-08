@@ -43,9 +43,6 @@ int i40e_aq_init(struct ufp_dev *dev)
 	err = i40e_aq_arq_init(dev);
 	if(err < 0)
 		goto err_init_arq;
-
-	dev->num_misc_irqs += 1;
-
 	return 0;
 
 err_init_arq:
@@ -427,7 +424,7 @@ static int i40e_aq_asq_process(struct ufp_dev *dev,
 {
 	uint16_t retval;
 	uint16_t opcode;
-	int err = -1;
+	int err;
 
 	retval = le16toh(desc->retval);
 	opcode = le16toh(desc->opcode);
@@ -436,24 +433,63 @@ static int i40e_aq_asq_process(struct ufp_dev *dev,
 		goto err_retval;
 
 	switch(opcode){
-	case i40e_aqc_opc_mac_addr:
-		err = i40e_aq_cmd_clean_macaddr(dev,
+	case i40e_aq_opc_queue_shutdown:
+		err = i40e_aqc_resp_queue_shutdown(dev,
+			&desc->params);
+		break;
+	case i40e_aq_opc_macaddr_read:
+		err = i40e_aqc_resp_macaddr_read(dev,
 			&desc->params, buf->addr_virt);
 		break;
-	case i40e_aqc_opc_clear_pxe:
-		err = i40e_aq_cmd_clean_clearpxe(dev,
+	case i40e_aq_opc_clear_pxemode:
+		err = i40e_aqc_resp_clear_pxemode(dev);
+		break;
+	case i40e_aq_opc_get_swconf:
+		err = i40e_aqc_resp_get_swconf(dev,
+			&desc->params, buf->addr_virt);
+		break;
+	case i40e_aq_opc_set_swconf:
+		err = i40e_aqc_resp_set_swconf(dev,
 			&desc->params);
 		break;
-	case i40e_aqc_opc_add_vsi:
-		err = i40e_aq_cmd_clean_addvsi(dev,
+	case i40e_aq_opc_rxctl_read:
+		err = i40e_aqc_resp_rxctl_write(dev);
+		break;
+	case i40e_aq_opc_rxctl_write:
+		err = i40e_aqc_resp_rxctl_read(dev,
 			&desc->params);
+		break;
+	case i40e_aq_opc_update_vsi:
+		err = i40e_aqc_resp_update_vsi(dev,
+			&desc->params, buf->addr_virt);
+		break;
+	case i40e_aq_opc_promisc_mode:
+		err = i40e_aqc_resp_promisc_mode(dev);
+		break;
+	case i40e_aq_opc_set_phyintmask:
+		err = i40e_aqc_resp_set_phyintmask(dev);
+		break;
+	case i40e_aq_opc_stop_lldp:
+		err = i40e_aqc_resp_stop_lldp(dev);
+		break;
+	case i40e_aq_opc_set_rsskey:
+		err = i40e_aqc_resp_set_rsskey(dev);
+		break;
+	case i40e_aq_opc_set_rsslut:
+		err = i40e_aqc_resp_set_rsslut(dev);
 		break;
 	default:
+		err = -1;
 		break;
 	}
+	if(err < 0)
+		goto err_resp;
 
+	return 0;
+
+err_resp:
 err_retval:
-	return err;
+	return -1;
 }
 
 static int i40e_aq_arq_process(struct ufp_dev *dev,

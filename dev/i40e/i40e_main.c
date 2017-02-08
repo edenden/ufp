@@ -438,9 +438,10 @@ int i40e_setup_misc_irq(struct ufp_dev *dev)
 
 	i40e_flush(dev);
 
-	dev->misc_irqh = ufp_irq_open(dev, 0);
+	dev->misc_irqh = ufp_irq_open(dev, dev->num_misc_irqs);
 	if(!dev->misc_irqh)
 		goto err_open_irq;
+	dev->num_misc_irqs += 1;
 
 	return 0;
 
