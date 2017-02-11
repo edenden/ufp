@@ -20,6 +20,14 @@ static int i40e_set_rsskey(struct ufp_dev *dev,
 	struct ufp_iface *iface, uint8_t *key, uint16_t key_size);
 static int i40e_set_rsslut(struct ufp_dev *dev,
 	struct ufp_iface *iface, uint8_t *lut, uint16_t lut_size);
+static void i40e_vsi_configure_irq_rx(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint16_t qp_idx, uint16_t irq_idx);
+static void i40e_vsi_configure_irq_tx(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint16_t qp_idx, uint16_t irq_idx);
+static void i40e_vsi_shutdown_irq_rx(struct ufp_dev *dev,
+	uint16_t qp_idx, uint16_t irq_idx);
+static void i40e_vsi_shutdown_irq_tx(struct ufp_dev *dev,
+	uint16_t qp_idx, uint16_t irq_idx);
 static void i40e_pre_tx_queue_enable(struct ufp_dev *dev, uint32_t qp_idx);
 static void i40e_pre_tx_queue_disable(struct ufp_dev *dev, uint32_t qp_idx);
 
@@ -305,132 +313,194 @@ err_set_ctx:
 	return -1;
 }
 
-void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
+static void i40e_vsi_configure_irq_rx(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint16_t qp_idx, uint16_t irq_idx)
+{
+	uint32_t val;
+
+	/*
+	 * In Intel x710 document,
+	 * "ITR" term just means "Interrupt Throttling".
+	 * x710 supports 3 ITR values per IRQ, but we use only ITR0
+	 * because we use 1 IRQ per queue
+	 * (not queue-pair like vanilla driver).
+	 */
+	UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
+		ITR_TO_REG(I40E_ITR_20K));
+
+	UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx),
+		INTRL_USEC_TO_REG(iface->irq_rate));
+
+	/* Linked list for the queuepairs assigned to this IRQ */
+	val =	qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT
+		| I40E_QUEUE_TYPE_RX
+			<< I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+
+	val =	I40E_QINT_RQCTL_CAUSE_ENA_MASK
+		| (I40E_IDX_ITR0 << I40E_QINT_RQCTL_ITR_INDX_SHIFT)
+		| (irq_idx << I40E_QINT_RQCTL_MSIX_INDX_SHIFT)
+		| (I40E_QUEUE_END_OF_LIST
+			<< I40E_QINT_RQCTL_NEXTQ_INDX_SHIFT);
+	UFP_WRITE32(dev, I40E_QINT_RQCTL(qp_idx), val);
+	return;
+}
+
+static void i40e_vsi_configure_irq_tx(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint16_t qp_idx, uint16_t irq_idx)
+{
+	uint32_t val;
+
+	UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
+		ITR_TO_REG(I40E_ITR_20K));
+
+	UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx),
+		INTRL_USEC_TO_REG(iface->irq_rate));
+
+	val =	qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT
+		| I40E_QUEUE_TYPE_TX
+			<< I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+
+	val =	I40E_QINT_TQCTL_CAUSE_ENA_MASK
+		| (I40E_IDX_ITR0 << I40E_QINT_TQCTL_ITR_INDX_SHIFT)
+		| (irq_idx << I40E_QINT_TQCTL_MSIX_INDX_SHIFT)
+		| (I40E_QUEUE_END_OF_LIST
+			<< I40E_QINT_TQCTL_NEXTQ_INDX_SHIFT);
+	UFP_WRITE32(dev, I40E_QINT_TQCTL(qp_idx), val);
+	return;
+}
+
+static void i40e_vsi_shutdown_irq_rx(struct ufp_dev *dev,
+	uint16_t qp_idx, uint16_t irq_idx)
+{
+	uint32_t val;
+
+	val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx));
+	val |= I40E_QUEUE_END_OF_LIST
+		<< I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT;
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+
+	val = UFP_READ32(dev, I40E_QINT_RQCTL(qp_idx));
+
+	val &= ~(I40E_QINT_RQCTL_MSIX_INDX_MASK
+		| I40E_QINT_RQCTL_MSIX0_INDX_MASK
+		| I40E_QINT_RQCTL_CAUSE_ENA_MASK
+		| I40E_QINT_RQCTL_INTEVENT_MASK);
+
+	val |= (I40E_QINT_RQCTL_ITR_INDX_MASK
+		| I40E_QINT_RQCTL_NEXTQ_INDX_MASK);
+
+	UFP_WRITE32(dev, I40E_QINT_RQCTL(qp_idx), val);
+	return;
+}
+
+static void i40e_vsi_shutdown_irq_tx(struct ufp_dev *dev,
+	uint16_t qp_idx, uint16_t irq_idx)
+{
+	uint32_t val;
+
+	val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx));
+	val |= I40E_QUEUE_END_OF_LIST
+		<< I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT;
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+
+	val = UFP_READ32(dev, I40E_QINT_TQCTL(qp_idx));
+
+	val &= ~(I40E_QINT_TQCTL_MSIX_INDX_MASK
+		| I40E_QINT_TQCTL_MSIX0_INDX_MASK
+		| I40E_QINT_TQCTL_CAUSE_ENA_MASK
+		| I40E_QINT_TQCTL_INTEVENT_MASK);
+
+	val |= (I40E_QINT_TQCTL_ITR_INDX_MASK
+		| I40E_QINT_TQCTL_NEXTQ_INDX_MASK);
+
+	UFP_WRITE32(dev, I40E_QINT_TQCTL(qp_idx), val);
+	return;
+}
+
+int i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_iface *i40e_iface = iface->drv_data;
-	uint16_t qp_idx, irq_idx;
-	uint32_t val;
+	uint16_t qp_idx, irq_idx, rx_done = 0, tx_done = 0;
 	int i;
 
 	irq_idx = i40e_iface->base_qp * 2;
-	for (i = 0; i < iface->num_qps; i++, irq_idx++){
+	for (i = 0; i < iface->num_qps; i++, irq_idx++, rx_done++){
 		qp_idx = i40e_iface->base_qp + i;
-
-		/*
-		 * In Intel x710 document,
-		 * "ITR" term just means "Interrupt Throttling".
-		 * x710 supports 3 ITR values per IRQ, but we use only ITR0
-		 * because we use 1 IRQ per queue
-		 * (not queue-pair like vanilla driver).
-		 */
-		UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
-			ITR_TO_REG(I40E_ITR_20K));
-
-		UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx),
-			INTRL_USEC_TO_REG(iface->irq_rate));
-
-		/* Linked list for the queuepairs assigned to this IRQ */
-		val =	qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT
-			| I40E_QUEUE_TYPE_RX
-				<< I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
-		UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
-
-		val =	I40E_QINT_RQCTL_CAUSE_ENA_MASK
-			| (I40E_IDX_ITR0 << I40E_QINT_RQCTL_ITR_INDX_SHIFT)
-			| (irq_idx << I40E_QINT_RQCTL_MSIX_INDX_SHIFT)
-			| (I40E_QUEUE_END_OF_LIST
-				<< I40E_QINT_RQCTL_NEXTQ_INDX_SHIFT);
-		UFP_WRITE32(dev, I40E_QINT_RQCTL(qp_idx), val);
+		i40e_vsi_configure_irq_rx(dev,
+			iface, qp_idx, irq_idx);
 
 		iface->rx_irq[i] = ufp_irq_open(dev,
 			irq_idx + dev->num_misc_irqs);
 		if(!iface->rx_irq[i])
 			goto err_rx_irqh;
+
+		continue;
+
+err_rx_irqh:
+		i40e_vsi_shutdown_irq_rx(dev, qp_idx, irq_idx);
+		goto err_rx_irq;
+
 	}
 
-	for (i = 0; i < iface->num_qps; i++, irq_idx++){
+	for (i = 0; i < iface->num_qps; i++, irq_idx++, tx_done++){
 		qp_idx = i40e_iface->base_qp + i;
-
-		UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
-			ITR_TO_REG(I40E_ITR_20K));
-
-		UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx),
-			INTRL_USEC_TO_REG(iface->irq_rate));
-
-		val =	qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT
-			| I40E_QUEUE_TYPE_TX
-				<< I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
-		UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
-
-		val =	I40E_QINT_TQCTL_CAUSE_ENA_MASK
-			| (I40E_IDX_ITR0 << I40E_QINT_TQCTL_ITR_INDX_SHIFT)
-			| (irq_idx << I40E_QINT_TQCTL_MSIX_INDX_SHIFT)
-			| (I40E_QUEUE_END_OF_LIST
-				<< I40E_QINT_TQCTL_NEXTQ_INDX_SHIFT);
-		UFP_WRITE32(dev, I40E_QINT_TQCTL(qp_idx), val);
+		i40e_vsi_configure_irq_tx(dev,
+			iface, qp_idx, irq_idx);
 
 		iface->tx_irq[i] = ufp_irq_open(dev,
 			irq_idx + dev->num_misc_irqs);
 		if(!iface->tx_irq[i])
 			goto err_tx_irqh;
+
+		continue;
+
+err_tx_irqh:
+		i40e_vsi_shutdown_irq_tx(dev, qp_idx, irq_idx);
+		goto err_tx_irq;
 	}
 
 	i40e_flush(dev);
-	return;
+	return 0;
+
+err_tx_irq:
+	for(i = 0; i < tx_done; i++){
+		ufp_irq_close(iface->tx_irq[i]);
+		qp_idx = i40e_iface->base_qp + i;
+		irq_idx = i40e_iface->base_qp * 2 + i + rx_done;
+		i40e_vsi_shutdown_irq_tx(dev, qp_idx, irq_idx);
+	}
+err_rx_irq:
+	for(i = 0; i < rx_done; i++){
+		ufp_irq_close(iface->rx_irq[i]);
+		qp_idx = i40e_iface->base_qp + i;
+		irq_idx = i40e_iface->base_qp * 2 + i;
+		i40e_vsi_shutdown_irq_rx(dev, qp_idx, irq_idx);
+	}
+	i40e_flush(dev);
+	return -1;
 }
 
 void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint16_t qp_idx, irq_idx;
-	uint32_t val;
 	int i;
 
 	irq_idx = i40e_iface->base_qp * 2;
 	for (i = 0; i < iface->num_qps; i++, irq_idx++){
-		qp_idx = i40e_iface->base_qp + i;
-
 		ufp_irq_close(iface->rx_irq[i]);
 
-		val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx));
-		val |= I40E_QUEUE_END_OF_LIST
-			<< I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT;
-		UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
-
-		val = UFP_READ32(dev, I40E_QINT_RQCTL(qp_idx));
-
-		val &= ~(I40E_QINT_RQCTL_MSIX_INDX_MASK
-			| I40E_QINT_RQCTL_MSIX0_INDX_MASK
-			| I40E_QINT_RQCTL_CAUSE_ENA_MASK
-			| I40E_QINT_RQCTL_INTEVENT_MASK);
-
-		val |= (I40E_QINT_RQCTL_ITR_INDX_MASK
-			| I40E_QINT_RQCTL_NEXTQ_INDX_MASK);
-
-		UFP_WRITE32(dev, I40E_QINT_RQCTL(qp_idx), val);
+		qp_idx = i40e_iface->base_qp + i;
+		i40e_vsi_shutdown_irq_rx(dev, qp_idx, irq_idx);
 	}
 
 	for(i = 0; i < iface->num_qps; i++, irq_idx++){
-		qp_idx = i40e_iface->base_qp + i;
-
 		ufp_irq_close(iface->tx_irq[i]);
 
-		val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx));
-		val |= I40E_QUEUE_END_OF_LIST
-			<< I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT;
-		UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
-
-		val = UFP_READ32(dev, I40E_QINT_TQCTL(qp_idx));
-
-		val &= ~(I40E_QINT_TQCTL_MSIX_INDX_MASK
-			| I40E_QINT_TQCTL_MSIX0_INDX_MASK
-			| I40E_QINT_TQCTL_CAUSE_ENA_MASK
-			| I40E_QINT_TQCTL_INTEVENT_MASK);
-
-		val |= (I40E_QINT_TQCTL_ITR_INDX_MASK
-			| I40E_QINT_TQCTL_NEXTQ_INDX_MASK);
-
-		UFP_WRITE32(dev, I40E_QINT_TQCTL(qp_idx), val);
+		qp_idx = i40e_iface->base_qp + i;
+		i40e_vsi_shutdown_irq_tx(dev, qp_idx, irq_idx);
 	}
 
 	i40e_flush(dev);
