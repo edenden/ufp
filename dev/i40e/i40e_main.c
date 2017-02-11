@@ -22,12 +22,19 @@ static int i40e_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val);
 static int i40e_rxctl_read(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t *reg_val);
+static int i40e_clear_pxemode(struct ufp_dev *dev);
+static int i40e_stop_lldp(struct ufp_dev *dev);
+static int i40e_macaddr_read(struct ufp_dev *dev);
+static int i40e_set_phyintmask(struct ufp_dev *dev,
+	uint16_t mask);
+static int i40e_set_swconf(struct ufp_dev *dev,
+	uint16_t flags, uint16_t valid_flags);
+static void i40e_clear_swconf(struct ufp_dev *dev);
+static int i40e_get_swconf(struct ufp_dev *dev);
 static int i40e_reset_hw(struct ufp_dev *dev);
 static void i40e_clear_hw(struct ufp_dev *dev);
 static int i40e_configure_pf(struct ufp_dev *dev);
 static void i40e_set_pf_id(struct ufp_dev *dev);
-static void i40e_switchconf_clear(struct ufp_dev *dev);
-static int i40e_switchconf_fetch(struct ufp_dev *dev);
 static int i40e_configure_filter(struct ufp_dev *dev);
 static int i40e_configure_rss(struct ufp_dev *dev);
 static int i40e_setup_pf_switch(struct ufp_dev *dev);
@@ -73,7 +80,7 @@ err_reset_hw:
 void i40e_close(struct ufp_dev *dev)
 {
 	i40e_hmc_destroy(dev);
-	i40e_switchconf_clear(dev);
+	i40e_clear_swconf(dev);
 	i40e_aq_destroy(dev);
 
 	return;
@@ -142,16 +149,24 @@ err_stop_tx:
 static int i40e_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val)
 {
+	struct i40e_aq_session *session;
 	int err;
 
-	i40e_aqc_req_rxctl_write(dev, reg_addr, reg_val);
-	err = i40e_wait_cmd(dev);
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_rxctl_write(dev, reg_addr, reg_val, session);
+	err = i40e_aqc_wait_cmd(dev, session);
 	if(err < 0)
 		goto err_wait_cmd;
 
+	i40e_aq_session_delete(session);
 	return 0;
 
 err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
 	return -1;
 
 }
@@ -159,20 +174,191 @@ err_wait_cmd:
 static int i40e_rxctl_read(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t *reg_val)
 {
-	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_aq_session *session;
 	int err;
 
-	i40e_aqc_req_rxctl_read(dev, reg_addr);
-	err = i40e_wait_cmd(dev);
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_rxctl_read(dev, reg_addr, session);
+	err = i40e_aqc_wait_cmd(dev, session);
 	if(err < 0)
 		goto err_wait_cmd;
 
-	*reg_val = i40e_dev->aq.read_val;
+	*reg_val = session->data.read_val;
+	i40e_aq_session_delete(session);
 	return 0;
 
 err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
 	return -1;
 
+}
+
+static int i40e_clear_pxemode(struct ufp_dev *dev)
+{
+	struct i40e_aq_session *session;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_clear_pxemode(dev, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
+}
+
+static int i40e_stop_lldp(struct ufp_dev *dev)
+{
+	struct i40e_aq_session *session;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_stop_lldp(dev, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
+}
+
+static int i40e_macaddr_read(struct ufp_dev *dev)
+{
+	struct i40e_aq_session *session;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_macaddr_read(dev, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
+}
+
+static int i40e_set_phyintmask(struct ufp_dev *dev,
+	uint16_t mask)
+{
+	struct i40e_aq_session *session;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_set_phyintmask(dev, mask, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
+}
+
+static int i40e_set_swconf(struct ufp_dev *dev,
+	uint16_t flags, uint16_t valid_flags)
+{
+	struct i40e_aq_session *session;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_set_swconf(dev, flags, valid_flags, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
+}
+
+static void i40e_clear_swconf(struct ufp_dev *dev)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_elem *elem, *temp;
+
+	list_for_each_safe(&i40e_dev->elem, elem, list, temp){
+		list_del(&elem->list);
+		free(elem);
+	}
+
+	return;
+}
+
+static int i40e_get_swconf(struct ufp_dev *dev)
+{
+	struct i40e_aq_session *session;
+	uint16_t seid_offset;
+	int err;
+
+	i40e_clear_swconf(dev);
+	do{
+		session = i40e_aq_session_create(dev);
+		if(!session)
+			goto err_session_create;
+
+		i40e_aqc_req_get_swconf(dev, session);
+		err = i40e_aqc_wait_cmd(dev, session);
+		if(err < 0)
+			goto err_wait_cmd;
+
+		seid_offset = session->data.seid_offset;
+		i40e_aq_session_delete(session);
+		continue;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_session_create:
+	goto err_fetch;
+
+	}while(seid_offset);
+
+	return 0;
+
+err_fetch:
+	return -1;
 }
 
 struct i40e_page *i40e_page_alloc(struct ufp_dev *dev)
@@ -218,27 +404,6 @@ void i40e_page_release(struct ufp_dev *dev, struct i40e_page *page)
 	munmap(page->addr_virt, sysconf(_SC_PAGESIZE));
 	free(page);
 	return;
-}
-
-int i40e_wait_cmd(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	unsigned int timeout;
-
-	timeout = I40E_ASQ_CMD_TIMEOUT;
-	do{
-		usleep(1000);
-		i40e_aq_asq_clean(dev);
-		if(!i40e_dev->aq.flag)
-			break;
-	}while(--timeout);
-	if(!timeout)
-		goto err_timeout;
-
-	return 0;
-
-err_timeout:
-	return -1;
 }
 
 static int i40e_reset_hw(struct ufp_dev *dev)
@@ -387,27 +552,38 @@ static int i40e_configure_pf(struct ufp_dev *dev)
 {
 	int err;
 
-	i40e_aqc_req_clear_pxemode(dev);
+	err = i40e_clear_pxemode(dev);
+	if(err < 0)
+		goto err_clear_pxemode;
+
 	/* Disable LLDP for NICs that have firmware versions lower than v4.3.
 	 * Ignore error return codes because if it was already disabled via
 	 * hardware settings this will fail
 	 */
-	i40e_aqc_req_stop_lldp(dev);
-	i40e_aqc_req_macaddr_read(dev);
+	err = i40e_stop_lldp(dev);
+	if(err < 0)
+		goto err_stop_lldp;
+
+	err = i40e_macaddr_read(dev);
+	if(err < 0)
+		goto err_macaddr_read;
+
 	/* The driver only wants link up/down and module qualification
 	 * reports from firmware.  Note the negative logic.
 	 */
-	i40e_aqc_req_set_phyintmask(dev,
+	err = i40e_set_phyintmask(dev,
 		~(I40E_AQ_EVENT_LINK_UPDOWN |
 		I40E_AQ_EVENT_MEDIA_NA |
 		I40E_AQ_EVENT_MODULE_QUAL_FAIL));
-	err = i40e_wait_cmd(dev);
 	if(err < 0)
-		goto err_wait_cmd;
+		goto err_set_phyintmask;
 
 	return 0;
 
-err_wait_cmd:
+err_set_phyintmask:
+err_macaddr_read:
+err_stop_lldp:
+err_clear_pxemode:
 	return -1;
 }
 
@@ -500,40 +676,6 @@ static void i40e_set_pf_id(struct ufp_dev *dev)
 		i40e_dev->pf_id = (uint8_t)(func_rid & 0x7);
 
 	return;
-}
-
-static void i40e_switchconf_clear(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_elem *elem, *temp;
-
-	list_for_each_safe(&i40e_dev->elem, elem, list, temp){
-		list_del(&elem->list);
-		free(elem);
-	}
-
-	return;
-}
-
-static int i40e_switchconf_fetch(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	int err;
-
-	i40e_dev->aq.seid_offset = 0;
-	i40e_switchconf_clear(dev);
-
-	do{
-		i40e_aqc_req_get_swconf(dev);
-		err = i40e_wait_cmd(dev);
-		if(err < 0)
-			goto err_wait_cmd;
-	}while(i40e_dev->aq.seid_offset);
-
-	return 0;
-
-err_wait_cmd:
-	return -1;
 }
 
 static int i40e_configure_filter(struct ufp_dev *dev)
@@ -667,9 +809,8 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 		 * Packets are forwarded according to promiscuous filter
 		 * even if matching an exact match filter.
 		 */
-		i40e_aqc_req_set_swconf(dev,
+		err = i40e_set_swconf(dev,
 			0, I40E_AQ_SET_SWITCH_CFG_PROMISC);
-		err = i40e_wait_cmd(dev);
 		if(err < 0)
 			goto err_wait_cmd;
 	}
@@ -686,9 +827,9 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_configure_rss;
 
-	err = i40e_switchconf_fetch(dev);
+	err = i40e_get_swconf(dev);
 	if(err < 0)
-		goto err_switchconf_fetch;
+		goto err_get_swconf;
 
 	elem_first_vsi = NULL;
 	list_for_each(&i40e_dev->elem, elem, list){
@@ -738,7 +879,7 @@ err_vsi_update:
 	free(i40e_iface);
 err_alloc_iface:
 err_first_vsi:
-err_switchconf_fetch:
+err_get_swconf:
 err_configure_rss:
 err_configure_filter:
 err_wait_cmd:

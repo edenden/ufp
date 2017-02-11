@@ -320,45 +320,64 @@ struct  i40e_aq_cmd_set_rsslut {
 	uint32_t	addr_low;
 };
 
-void i40e_aqc_req_queue_shutdown(struct ufp_dev *dev);
-int i40e_aqc_resp_queue_shutdown(struct ufp_dev *dev,
+int i40e_aqc_wait_cmd(struct ufp_dev *dev,
+	struct i40e_aq_session *session);
+void i40e_aqc_req_queue_shutdown(struct ufp_dev *dev,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_queue_shutdown(struct ufp_dev *dev,
 	void *cmd_ptr);
-void i40e_aqc_req_macaddr_read(struct ufp_dev *dev);
-int i40e_aqc_resp_macaddr_read(struct ufp_dev *dev,
-	void *cmd_ptr, void *buf_ptr);
-void i40e_aqc_req_clear_pxemode(struct ufp_dev *dev);
-int i40e_aqc_resp_clear_pxemode(struct ufp_dev *dev);
-void i40e_aqc_req_get_swconf(struct ufp_dev *dev);
-int i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
-	void *cmd_ptr, void *buf_ptr);
+void i40e_aqc_req_macaddr_read(struct ufp_dev *dev,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_macaddr_read(struct ufp_dev *dev,
+	void *cmd_ptr, void *buf_ptr,
+	struct i40e_aq_session *session);
+void i40e_aqc_req_clear_pxemode(struct ufp_dev *dev,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_clear_pxemode(struct ufp_dev *dev);
+void i40e_aqc_req_get_swconf(struct ufp_dev *dev,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
+	void *cmd_ptr, void *buf_ptr,
+	struct i40e_aq_session *session);
 void i40e_aqc_req_set_swconf(struct ufp_dev *dev,
-	uint16_t flags, uint16_t valid_flags);
-int i40e_aqc_resp_set_swconf(struct ufp_dev *dev,
+	uint16_t flags, uint16_t valid_flags,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_set_swconf(struct ufp_dev *dev,
 	void *cmd_ptr);
 void i40e_aqc_req_rxctl_write(struct ufp_dev *dev,
-	uint32_t reg_addr, uint32_t reg_val);
-int i40e_aqc_resp_rxctl_write(struct ufp_dev *dev);
+	uint32_t reg_addr, uint32_t reg_val,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_rxctl_write(struct ufp_dev *dev);
 void i40e_aqc_req_rxctl_read(struct ufp_dev *dev,
-	uint32_t reg_addr);
-int i40e_aqc_resp_rxctl_read(struct ufp_dev *dev,
-	void *cmd_ptr);
+	uint32_t reg_addr,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_rxctl_read(struct ufp_dev *dev,
+	void *cmd_ptr,
+	struct i40e_aq_session *session);
 void i40e_aqc_req_update_vsi(struct ufp_dev *dev,
-	struct ufp_iface *iface, struct i40e_aq_buf_vsi_data *buf);
-int i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
-	void *cmd_ptr, void *buf_ptr);
+	struct ufp_iface *iface, struct i40e_aq_buf_vsi_data *buf,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
+	void *cmd_ptr, void *buf_ptr,
+	struct i40e_aq_session *session);
 void i40e_aqc_req_promisc_mode(struct ufp_dev *dev,
-	struct ufp_iface *iface, uint16_t promisc_flags);
-int i40e_aqc_resp_promisc_mode(struct ufp_dev *dev);
+	struct ufp_iface *iface, uint16_t promisc_flags,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_promisc_mode(struct ufp_dev *dev);
 void i40e_aqc_req_set_phyintmask(struct ufp_dev *dev,
-	uint16_t mask);
-int i40e_aqc_resp_set_phyintmask(struct ufp_dev *dev);
-void i40e_aqc_req_stop_lldp(struct ufp_dev *dev);
-int i40e_aqc_resp_stop_lldp(struct ufp_dev *dev);
+	uint16_t mask,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_set_phyintmask(struct ufp_dev *dev);
+void i40e_aqc_req_stop_lldp(struct ufp_dev *dev,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_stop_lldp(struct ufp_dev *dev);
 void i40e_aqc_req_set_rsskey(struct ufp_dev *dev,
-	struct ufp_iface *iface, uint8_t *key, uint16_t key_size);
-int i40e_aqc_resp_set_rsskey(struct ufp_dev *dev);
+	struct ufp_iface *iface, uint8_t *key, uint16_t key_size,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_set_rsskey(struct ufp_dev *dev);
 void i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
-	struct ufp_iface *iface, uint8_t *lut, uint16_t lut_size);
-int i40e_aqc_resp_set_rsslut(struct ufp_dev *dev);
+	struct ufp_iface *iface, uint8_t *lut, uint16_t lut_size,
+	struct i40e_aq_session *session);
+void i40e_aqc_resp_set_rsslut(struct ufp_dev *dev);
 
 #endif /* _I40E_AQC_H__ */

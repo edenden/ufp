@@ -133,7 +133,6 @@ int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface);
 int i40e_down(struct ufp_dev *dev, struct ufp_iface *iface);
 struct i40e_page *i40e_page_alloc(struct ufp_dev *dev);
 void i40e_page_release(struct ufp_dev *dev, struct i40e_page *page);
-int i40e_wait_cmd(struct ufp_dev *dev);
 int i40e_setup_misc_irq(struct ufp_dev *dev);
 void i40e_shutdown_misc_irq(struct ufp_dev *dev);
 void i40e_start_misc_irq(struct ufp_dev *dev);

@@ -10,32 +10,123 @@
 #include <lib_io.h>
 
 #include "i40e_main.h"
+#include "i40e_aq.h"
 #include "i40e_aqc.h"
 #include "i40e_hmc.h"
 #include "i40e_regs.h"
 #include "i40e_io.h"
 
+static int i40e_set_rsskey(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint8_t *key, uint16_t key_size);
+static int i40e_set_rsslut(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint8_t *lut, uint16_t lut_size);
 static void i40e_pre_tx_queue_enable(struct ufp_dev *dev, uint32_t qp_idx);
 static void i40e_pre_tx_queue_disable(struct ufp_dev *dev, uint32_t qp_idx);
 
+static int i40e_set_rsskey(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint8_t *key, uint16_t key_size)
+{
+	struct i40e_aq_session *session;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_set_rsskey(dev, iface, key, key_size, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
+}
+
+static int i40e_set_rsslut(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint8_t *lut, uint16_t lut_size)
+{
+	struct i40e_aq_session *session;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_set_rsslut(dev, iface, lut, lut_size, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
+}
+
 int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 {
+	struct i40e_aq_session *session;
 	struct i40e_aq_buf_vsi_data data;
 	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
 
 	/* Turn off vlan stripping for the VSI */
 	data.valid_sections = htole16(I40E_AQ_VSI_PROP_VLAN_VALID);
 	data.port_vlan_flags = I40E_AQ_VSI_PVLAN_MODE_ALL
 		| I40E_AQ_VSI_PVLAN_EMOD_NOTHING;
 
-	i40e_aqc_req_update_vsi(dev, iface, &data);
-	err = i40e_wait_cmd(dev);
+	i40e_aqc_req_update_vsi(dev, iface, &data, session);
+	err = i40e_aqc_wait_cmd(dev, session);
 	if(err < 0)
 		goto err_wait_cmd;
-
+	i40e_aq_session_delete(session);
 	return 0;
 
 err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
+}
+
+int i40e_vsi_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	struct i40e_aq_session *session;
+	uint16_t promisc_flags;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_session_create;
+
+	promisc_flags = I40E_AQC_SET_VSI_PROMISC_MULTICAST |
+		I40E_AQC_SET_VSI_PROMISC_BROADCAST;
+
+	if(iface->promisc){
+		promisc_flags |= I40E_AQC_SET_VSI_PROMISC_UNICAST;
+	}
+
+	i40e_aqc_req_promisc_mode(dev, iface, promisc_flags, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_session_create:
 	return -1;
 }
 
@@ -52,44 +143,23 @@ int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface)
 	};
 	uint32_t lut[I40E_PFQF_HLUT_MAX_INDEX + 1];
 
-	i40e_aqc_req_set_rsskey(dev, iface, (uint8_t *)seed, sizeof(seed));
+	err = i40e_set_rsskey(dev, iface, (uint8_t *)seed, sizeof(seed));
+	if(err < 0)
+		goto err_set_rsskey;
 
 	/* LUT (Look Up Table) configuration */
 	for (i = 0; i < sizeof(lut); i++) {
 		((uint8_t *)lut)[i] = i % iface->num_qps;
 	}
 
-	i40e_aqc_req_set_rsskey(dev, iface, (uint8_t *)lut, sizeof(lut));
-	err = i40e_wait_cmd(dev);
+	err = i40e_set_rsslut(dev, iface, (uint8_t *)lut, sizeof(lut));
 	if(err < 0)
-		goto err_wait_cmd;
+		goto err_set_rsslut;
 
 	return 0;
 
-err_wait_cmd:
-	return -1;
-}
-
-int i40e_vsi_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface)
-{
-	uint16_t promisc_flags;
-	int err;
-
-	promisc_flags = I40E_AQC_SET_VSI_PROMISC_MULTICAST |
-		I40E_AQC_SET_VSI_PROMISC_BROADCAST;
-
-	if(iface->promisc){
-		promisc_flags |= I40E_AQC_SET_VSI_PROMISC_UNICAST;
-	}
-
-	i40e_aqc_req_promisc_mode(dev, iface, promisc_flags);
-	err = i40e_wait_cmd(dev);
-	if(err < 0)
-		goto err_wait_cmd;
-
-	return 0;
-
-err_wait_cmd:
+err_set_rsslut:
+err_set_rsskey:
 	return -1;
 }
 

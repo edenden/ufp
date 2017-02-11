@@ -10,8 +10,8 @@
 
 #include "i40e_main.h"
 #include "i40e_regs.h"
-#include "i40e_aqc.h"
 #include "i40e_aq.h"
+#include "i40e_aqc.h"
 
 static int i40e_aq_asq_init(struct ufp_dev *dev);
 static int i40e_aq_arq_init(struct ufp_dev *dev);
@@ -25,13 +25,15 @@ static void i40e_aq_ring_release(struct ufp_dev *dev,
 	struct i40e_aq_ring *ring);
 static uint16_t i40e_aq_desc_unused(struct i40e_aq_ring *ring,
 	uint16_t num_desc);
-static int i40e_aq_asq_process(struct ufp_dev *dev,
-	struct i40e_aq_desc *desc, struct i40e_page *buf);
+static void i40e_aq_asq_process(struct ufp_dev *dev,
+	struct i40e_aq_desc *desc, struct i40e_page *buf,
+	struct i40e_aq_session *session);
 static int i40e_aq_arq_process(struct ufp_dev *dev,
 	struct i40e_aq_desc *desc, struct i40e_page *buf);
 
 int i40e_aq_init(struct ufp_dev *dev)
 {
+	struct i40e_dev *i40e_dev = dev->drv_data;
 	int err;
 
 	/* allocate the ASQ */
@@ -43,6 +45,8 @@ int i40e_aq_init(struct ufp_dev *dev)
 	err = i40e_aq_arq_init(dev);
 	if(err < 0)
 		goto err_init_arq;
+
+	list_init(&i40e_dev->aq.session);
 	return 0;
 
 err_init_arq:
@@ -180,9 +184,12 @@ static int i40e_aq_ring_configure(struct ufp_dev *dev,
 	UFP_WRITE32(dev, ring->tail, 0);
 
 	/* set starting point */
-	UFP_WRITE32(dev, ring->len, (ring->num_desc | I40E_MASK(0x1, 31)));
-	UFP_WRITE32(dev, ring->bal, ((uint32_t *)&(ring->desc->addr_dma))[0]);
-	UFP_WRITE32(dev, ring->bah, ((uint32_t *)&(ring->desc->addr_dma))[1]);
+	UFP_WRITE32(dev, ring->len,
+		(ring->num_desc | I40E_MASK(0x1, 31)));
+	UFP_WRITE32(dev, ring->bal,
+		((uint32_t *)&(ring->desc->addr_dma))[0]);
+	UFP_WRITE32(dev, ring->bah,
+		((uint32_t *)&(ring->desc->addr_dma))[1]);
 
 	/* Check one register to verify that config was applied */
 	reg = UFP_READ32(dev, ring->bal);
@@ -197,9 +204,23 @@ err_init_ring:
 
 void i40e_aq_destroy(struct ufp_dev *dev)
 {
-	i40e_aqc_req_queue_shutdown(dev);
-	i40e_wait_cmd(dev);
+	struct i40e_aq_session *session;
+	int err;
 
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_session_create;
+
+	i40e_aqc_req_queue_shutdown(dev, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_session_create:
+
+	/* Shutdown ASQ/ARQ anyway */
 	i40e_aq_asq_shutdown(dev);
 	i40e_aq_arq_shutdown(dev);
 
@@ -258,6 +279,30 @@ static void i40e_aq_ring_release(struct ufp_dev *dev,
 	return;
 }
 
+struct i40e_aq_session *i40e_aq_session_create(struct ufp_dev *dev)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_aq_session *session;
+
+	session = malloc(sizeof(struct i40e_aq_session));
+	if(!session)
+		goto err_alloc_session;
+
+	session->retval = 0xffff;
+	list_add_last(&i40e_dev->aq.session, &session->list);
+	return session;
+
+err_alloc_session:
+	return NULL;
+}
+
+void i40e_aq_session_delete(struct i40e_aq_session *session)
+{
+	list_del(&session->list);
+	free(session);
+	return;
+}
+
 static uint16_t i40e_aq_desc_unused(struct i40e_aq_ring *ring,
 	uint16_t num_desc)
 {
@@ -270,7 +315,8 @@ static uint16_t i40e_aq_desc_unused(struct i40e_aq_ring *ring,
 }
 
 void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
-	void *cmd, uint16_t cmd_size, void *data, uint16_t data_size)
+	void *cmd, uint16_t cmd_size, void *data, uint16_t data_size,
+	uint64_t cookie)
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_ring *ring = i40e_dev->aq.tx_ring;
@@ -310,6 +356,9 @@ void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 		desc->params.external.addr_low =
 			htole32(((uint32_t *)&(buf->addr_dma))[0]);
 	}
+
+	desc->cookie_low = htole32(((uint32_t *)&cookie)[0]);
+	desc->cookie_high = htole32(((uint32_t *)&cookie)[1]);
 
 	next_to_use = ring->next_to_use + 1;
 	ring->next_to_use =
@@ -376,6 +425,8 @@ void i40e_aq_asq_clean(struct ufp_dev *dev)
 	struct i40e_aq_ring *ring = i40e_dev->aq.tx_ring;
 	struct i40e_aq_desc *desc;
 	struct i40e_page *buf;
+	struct i40e_aq_session *_session, *session;
+	uint64_t cookie;
 	uint16_t next_to_clean;
 
 	/* AQ designers suggest use of head for better
@@ -385,7 +436,20 @@ void i40e_aq_asq_clean(struct ufp_dev *dev)
 		desc = &((struct i40e_aq_desc *)
 			ring->desc->addr_virt)[ring->next_to_clean];
 		buf = ring->bufs[ring->next_to_clean];
-		i40e_aq_asq_process(dev, desc, buf);
+		session = NULL;
+
+		((uint32_t *)&cookie)[0] = le32toh(desc->cookie_low);
+		((uint32_t *)&cookie)[1] = le32toh(desc->cookie_high);
+		if(cookie){
+			list_for_each(&i40e_dev->aq.session, _session, list){
+				if(_session == (void *)cookie){
+					session = _session;
+					break;
+				}
+			}
+		}
+
+		i40e_aq_asq_process(dev, desc, buf, session);
 
 		next_to_clean = ring->next_to_clean + 1;
 		ring->next_to_clean =
@@ -409,6 +473,7 @@ void i40e_aq_arq_clean(struct ufp_dev *dev)
 		desc = &((struct i40e_aq_desc *)
 			ring->desc->addr_virt)[ring->next_to_clean];
 		buf = ring->bufs[ring->next_to_clean];
+
 		i40e_aq_arq_process(dev, desc, buf);
 
 		next_to_clean = ring->next_to_clean + 1;
@@ -419,12 +484,12 @@ void i40e_aq_arq_clean(struct ufp_dev *dev)
 	return;
 }
 
-static int i40e_aq_asq_process(struct ufp_dev *dev,
-	struct i40e_aq_desc *desc, struct i40e_page *buf)
+static void i40e_aq_asq_process(struct ufp_dev *dev,
+	struct i40e_aq_desc *desc, struct i40e_page *buf,
+	struct i40e_aq_session *session)
 {
 	uint16_t retval;
 	uint16_t opcode;
-	int err;
 
 	retval = le16toh(desc->retval);
 	opcode = le16toh(desc->opcode);
@@ -432,64 +497,64 @@ static int i40e_aq_asq_process(struct ufp_dev *dev,
 	if(retval != 0)
 		goto err_retval;
 
+	if(session)
+		session->retval = 0;
+
 	switch(opcode){
 	case i40e_aq_opc_queue_shutdown:
-		err = i40e_aqc_resp_queue_shutdown(dev,
-			&desc->params);
+		i40e_aqc_resp_queue_shutdown(dev, &desc->params);
 		break;
 	case i40e_aq_opc_macaddr_read:
-		err = i40e_aqc_resp_macaddr_read(dev,
-			&desc->params, buf->addr_virt);
+		i40e_aqc_resp_macaddr_read(dev, &desc->params,
+			buf->addr_virt, session);
 		break;
 	case i40e_aq_opc_clear_pxemode:
-		err = i40e_aqc_resp_clear_pxemode(dev);
+		i40e_aqc_resp_clear_pxemode(dev);
 		break;
 	case i40e_aq_opc_get_swconf:
-		err = i40e_aqc_resp_get_swconf(dev,
-			&desc->params, buf->addr_virt);
+		i40e_aqc_resp_get_swconf(dev, &desc->params,
+			buf->addr_virt, session);
 		break;
 	case i40e_aq_opc_set_swconf:
-		err = i40e_aqc_resp_set_swconf(dev,
-			&desc->params);
+		i40e_aqc_resp_set_swconf(dev, &desc->params);
 		break;
 	case i40e_aq_opc_rxctl_read:
-		err = i40e_aqc_resp_rxctl_write(dev);
+		i40e_aqc_resp_rxctl_read(dev, &desc->params,
+			session);
 		break;
 	case i40e_aq_opc_rxctl_write:
-		err = i40e_aqc_resp_rxctl_read(dev,
-			&desc->params);
+		i40e_aqc_resp_rxctl_write(dev);
 		break;
 	case i40e_aq_opc_update_vsi:
-		err = i40e_aqc_resp_update_vsi(dev,
-			&desc->params, buf->addr_virt);
+		i40e_aqc_resp_update_vsi(dev, &desc->params,
+			buf->addr_virt, session);
 		break;
 	case i40e_aq_opc_promisc_mode:
-		err = i40e_aqc_resp_promisc_mode(dev);
+		i40e_aqc_resp_promisc_mode(dev);
 		break;
 	case i40e_aq_opc_set_phyintmask:
-		err = i40e_aqc_resp_set_phyintmask(dev);
+		i40e_aqc_resp_set_phyintmask(dev);
 		break;
 	case i40e_aq_opc_stop_lldp:
-		err = i40e_aqc_resp_stop_lldp(dev);
+		i40e_aqc_resp_stop_lldp(dev);
 		break;
 	case i40e_aq_opc_set_rsskey:
-		err = i40e_aqc_resp_set_rsskey(dev);
+		i40e_aqc_resp_set_rsskey(dev);
 		break;
 	case i40e_aq_opc_set_rsslut:
-		err = i40e_aqc_resp_set_rsslut(dev);
+		i40e_aqc_resp_set_rsslut(dev);
 		break;
 	default:
-		err = -1;
+		goto err_opcode;
 		break;
 	}
-	if(err < 0)
-		goto err_resp;
+	return;
 
-	return 0;
-
-err_resp:
+err_opcode:
 err_retval:
-	return -1;
+	if(session)
+		session->retval = -1;
+	return;
 }
 
 static int i40e_aq_arq_process(struct ufp_dev *dev,

@@ -76,9 +76,16 @@ struct i40e_aq_ring {
 struct i40e_aq {
 	struct i40e_aq_ring *tx_ring;
 	struct i40e_aq_ring *rx_ring;
-	uint32_t flag;
-	uint16_t seid_offset;
-	uint32_t read_val;
+	struct list_head session;
+};
+
+struct i40e_aq_session {
+	struct list_node list;
+	int retval;
+	union {
+		uint16_t seid_offset;
+		uint32_t read_val;
+	} data;
 };
 
 enum i40e_admin_queue_opc {
@@ -113,8 +120,11 @@ enum i40e_admin_queue_opc {
 
 int i40e_aq_init(struct ufp_dev *dev);
 void i40e_aq_destroy(struct ufp_dev *dev);
+struct i40e_aq_session *i40e_aq_session_create(struct ufp_dev *dev);
+void i40e_aq_session_delete(struct i40e_aq_session *session);
 void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
-	void *cmd, uint16_t cmd_size, void *data, uint16_t data_size);
+	void *cmd, uint16_t cmd_size, void *data, uint16_t data_size,
+	uint64_t cookie);
 void i40e_aq_arq_assign(struct ufp_dev *dev);
 void i40e_aq_asq_clean(struct ufp_dev *dev);
 void i40e_aq_arq_clean(struct ufp_dev *dev);
