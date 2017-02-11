@@ -45,6 +45,9 @@
 #define BIT_ULL(n) \
 	(1ULL << (n))
 
+#define upper32(n) ((uint32_t)(((n) >> 16) >> 16))
+#define lower32(n) ((uint32_t)(n))
+
 #define CONFIG_X86_L1_CACHE_SHIFT \
 				(6)
 #define L1_CACHE_SHIFT		(CONFIG_X86_L1_CACHE_SHIFT)

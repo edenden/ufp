@@ -739,21 +739,21 @@ err_pfqfctl0_read:
 
 static int i40e_configure_rss(struct ufp_dev *dev)
 {
-	uint32_t reg_val;
+	uint32_t reg_val, hena_low, hena_high;
 	uint64_t hena;
 	int err;
 
 	/* By default we enable TCP/UDP with IPv4/IPv6 ptypes */
-	err = i40e_rxctl_read(dev, I40E_PFQF_HENA(0),
-		&(((uint32_t *)&hena)[0]));
+	err = i40e_rxctl_read(dev, I40E_PFQF_HENA(0), &hena_low);
 	if(err < 0)
 		goto err_hena0_read;
 
-	err = i40e_rxctl_read(dev, I40E_PFQF_HENA(1),
-		&(((uint32_t *)&hena)[1]));
+	err = i40e_rxctl_read(dev, I40E_PFQF_HENA(1), &hena_high);
 	if(err < 0)
 		goto err_hena1_read;
 
+	hena = ((uint64_t)hena_low)
+		| (((uint64_t)hena_high) << 32);
 	hena |=	BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_UDP) |
 		BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_SCTP) |
 		BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_TCP) |
@@ -766,13 +766,13 @@ static int i40e_configure_rss(struct ufp_dev *dev)
 		BIT_ULL(I40E_FILTER_PCTYPE_FRAG_IPV6) |
 		BIT_ULL(I40E_FILTER_PCTYPE_L2_PAYLOAD);
 
-	err = i40e_rxctl_write(dev, I40E_PFQF_HENA(0),
-		((uint32_t *)&hena)[0]);
+	hena_low = lower32(hena);
+	err = i40e_rxctl_write(dev, I40E_PFQF_HENA(0), hena_low);
 	if(err < 0)
 		goto err_hena0_write;
 
-	err = i40e_rxctl_write(dev, I40E_PFQF_HENA(1),
-		((uint32_t *)&hena)[1]);
+	hena_high = upper32(hena);
+	err = i40e_rxctl_write(dev, I40E_PFQF_HENA(1), hena_high);
 	if(err < 0)
 		goto err_hena1_write;
 

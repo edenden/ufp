@@ -9,9 +9,8 @@
 #include <lib_main.h>
 
 #include "i40e_regs.h"
-#include "i40e_aq.h"
-#include "i40e_hmc.h"
 #include "i40e_main.h"
+#include "i40e_aq.h"
 #include "i40e_aqc.h"
 
 static int i40e_aq_asq_init(struct ufp_dev *dev);
@@ -187,14 +186,12 @@ static int i40e_aq_ring_configure(struct ufp_dev *dev,
 	/* set starting point */
 	UFP_WRITE32(dev, ring->len,
 		(ring->num_desc | I40E_MASK(0x1, 31)));
-	UFP_WRITE32(dev, ring->bal,
-		((uint32_t *)&(ring->desc->addr_dma))[0]);
-	UFP_WRITE32(dev, ring->bah,
-		((uint32_t *)&(ring->desc->addr_dma))[1]);
+	UFP_WRITE32(dev, ring->bal, lower32(ring->desc->addr_dma));
+	UFP_WRITE32(dev, ring->bah, upper32(ring->desc->addr_dma));
 
 	/* Check one register to verify that config was applied */
 	reg = UFP_READ32(dev, ring->bal);
-	if (reg != ((uint32_t *)&(ring->desc->addr_dma))[0])
+	if (reg != lower32(ring->desc->addr_dma))
 		goto err_init_ring;
 
 	return 0;
@@ -353,13 +350,14 @@ void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 		 * for respective buffer
 		 */
 		desc->params.external.addr_high =
-			htole32(((uint32_t *)&(buf->addr_dma))[1]);
+			htole32(upper32(buf->addr_dma));
 		desc->params.external.addr_low =
-			htole32(((uint32_t *)&(buf->addr_dma))[0]);
+			htole32(lower32(buf->addr_dma));
 	}
 
-	desc->cookie_low = htole32(((uint32_t *)&cookie)[0]);
-	desc->cookie_high = htole32(((uint32_t *)&cookie)[1]);
+
+	desc->cookie_high = htole32(upper32(cookie));
+	desc->cookie_low = htole32(lower32(cookie));
 
 	next_to_use = ring->next_to_use + 1;
 	ring->next_to_use =
@@ -401,9 +399,9 @@ void i40e_aq_arq_assign(struct ufp_dev *dev)
 		desc->cookie_high = 0;
 		desc->cookie_low = 0;
 		desc->params.external.addr_high =
-			htole32(((uint32_t *)&(buf->addr_dma))[1]);
+			htole32(upper32(buf->addr_dma));
 		desc->params.external.addr_low =
-			htole32(((uint32_t *)&(buf->addr_dma))[0]);
+			htole32(lower32(buf->addr_dma));
 		desc->params.external.param0 = 0;
 		desc->params.external.param1 = 0;
 
@@ -439,8 +437,8 @@ void i40e_aq_asq_clean(struct ufp_dev *dev)
 		buf = ring->bufs[ring->next_to_clean];
 		session = NULL;
 
-		((uint32_t *)&cookie)[0] = le32toh(desc->cookie_low);
-		((uint32_t *)&cookie)[1] = le32toh(desc->cookie_high);
+		cookie = ((uint64_t)le32toh(desc->cookie_low))
+			| (((uint64_t)le32toh(desc->cookie_high)) << 32);
 		if(cookie){
 			list_for_each(&i40e_dev->aq.session, _session, list){
 				if(_session == (void *)cookie){

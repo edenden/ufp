@@ -96,7 +96,7 @@ static int i40e_hmc_configure(struct ufp_dev *dev)
 	int i, err;
 
 	for (i = 0; i < hmc->sd_table.sd_count; i++, sd_allocated++){
-		sd_entry = hmc->sd_table.sd_entry[i];
+		sd_entry = &hmc->sd_table.sd_entry[i];
 
 		err = i40e_hmc_sd_allocate(dev, sd_entry, i);
 		if(err < 0)
@@ -211,8 +211,8 @@ static void i40e_set_pf_sd_entry(struct ufp_dev *dev, unsigned long pa,
 {
 	uint32_t val1, val2, val3;
 
-	val1 = ((uint32_t *)&(pa))[1];
-	val2 = ((uint32_t *)&(pa))[0];
+	val1 = upper32(pa);
+	val2 = lower32(pa);
 	val2 |= I40E_HMC_MAX_BP_COUNT
 		<< I40E_PFHMC_SDDATALOW_PMSDBPCOUNT_SHIFT;
 	val2 |= (((type) == I40E_SD_TYPE_PAGED) ? 0 : 1)
@@ -371,6 +371,7 @@ static void i40e_hmc_write(uint8_t *hmc_bits,
 	return;
 }
 
+__attribute__((unused))
 static void i40e_hmc_read(uint8_t *hmc_bits,
 	struct i40e_hmc_ce *ce, uint8_t *host_buf)
 {

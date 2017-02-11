@@ -6,18 +6,15 @@
 #define I40E_HMC_PAGED_BP_SIZE		4096
 #define I40E_HMC_L2OBJ_BASE_ALIGNMENT	512
 
-struct i40e_hmc {
-	/* hmc objects */
-	struct i40e_hmc_obj obj_tx;
-	struct i40e_hmc_obj obj_rx;
-
-	struct i40e_hmc_sd_table sd_table;
-};
-
 struct i40e_hmc_obj {
 	uint64_t base;	/* base addr in FPM */
 	uint32_t count;	/* maximum count of objects */
 	uint64_t size;	/* size in bytes of one object */
+};
+
+struct i40e_hmc_sd_entry {
+	struct i40e_page *pd_addrs;
+	struct i40e_page *pd[I40E_HMC_MAX_BP_COUNT];
 };
 
 struct i40e_hmc_sd_table {
@@ -25,9 +22,12 @@ struct i40e_hmc_sd_table {
 	struct i40e_hmc_sd_entry *sd_entry;
 };
 
-struct i40e_hmc_sd_entry {
-	struct i40e_page *pd_addrs;
-	struct i40e_page *pd[I40E_HMC_MAX_BP_COUNT];
+struct i40e_hmc {
+	/* hmc objects */
+	struct i40e_hmc_obj obj_tx;
+	struct i40e_hmc_obj obj_rx;
+
+	struct i40e_hmc_sd_table sd_table;
 };
 
 enum i40e_sd_entry_type {

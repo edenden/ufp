@@ -1,6 +1,9 @@
 #ifndef _I40E_MAIN_H__
 #define _I40E_MAIN_H__
 
+#include "i40e_aq.h"
+#include "i40e_hmc.h"
+
 #define I40E_MAX_NUM_DESCRIPTORS	4096
 #define I40E_PF_RESET_WAIT_COUNT	200
 #define I40E_MAX_TRAFFIC_CLASS		8
