@@ -333,7 +333,7 @@ static void i40e_clear_swconf(struct ufp_dev *dev)
 static int i40e_get_swconf(struct ufp_dev *dev)
 {
 	struct i40e_aq_session *session;
-	uint16_t seid_offset;
+	uint16_t seid_offset = 0;
 	int err;
 
 	i40e_clear_swconf(dev);
@@ -342,6 +342,7 @@ static int i40e_get_swconf(struct ufp_dev *dev)
 		if(!session)
 			goto err_session_create;
 
+		session->data.seid_offset = seid_offset;
 		i40e_aqc_req_get_swconf(dev, session);
 		err = i40e_aqc_wait_cmd(dev, session);
 		if(err < 0)
@@ -352,10 +353,9 @@ static int i40e_get_swconf(struct ufp_dev *dev)
 		continue;
 
 err_wait_cmd:
-	i40e_aq_session_delete(session);
+		i40e_aq_session_delete(session);
 err_session_create:
-	goto err_fetch;
-
+		goto err_fetch;
 	}while(seid_offset);
 
 	return 0;

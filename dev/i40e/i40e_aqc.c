@@ -46,14 +46,6 @@ void i40e_aqc_req_queue_shutdown(struct ufp_dev *dev,
 	return;
 }
 
-void i40e_aqc_resp_queue_shutdown(struct ufp_dev *dev,
-	void *cmd_ptr)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aq_cmd_queue_shutdown *cmd = cmd_ptr;
-	return;
-}
-
 void i40e_aqc_req_macaddr_read(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
@@ -65,6 +57,200 @@ void i40e_aqc_req_macaddr_read(struct ufp_dev *dev,
 	i40e_aq_asq_assign(dev, i40e_aq_opc_macaddr_read, flags,
 		&cmd, sizeof(struct i40e_aq_cmd_macaddr_read),
 		NULL, 0, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_clear_pxemode(struct ufp_dev *dev,
+	struct i40e_aq_session *session)
+{
+	struct i40e_aq_cmd_clear_pxemode cmd;
+
+	cmd.rx_cnt = 0x2;
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_clear_pxemode, 0,
+		&cmd, sizeof(struct i40e_aq_cmd_clear_pxemode),
+		NULL, 0, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_get_swconf(struct ufp_dev *dev,
+	struct i40e_aq_session *session)
+{
+	struct i40e_aq_cmd_get_swconf cmd;
+	uint16_t flags;
+
+	if(session)
+		cmd.seid_offset = htole16(session->data.seid_offset);
+	else
+		cmd.seid_offset = 0;
+
+	flags = I40E_AQ_FLAG_BUF;
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_get_swconf, flags,
+		&cmd, sizeof(struct i40e_aq_cmd_get_swconf),
+		NULL, 0, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_set_swconf(struct ufp_dev *dev,
+	uint16_t flags, uint16_t valid_flags,
+	struct i40e_aq_session *session)
+{
+	struct i40e_aq_cmd_set_swconf cmd;
+
+	cmd.flags = htole16(flags);
+	cmd.valid_flags = htole16(valid_flags);
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_set_swconf, 0,
+		&cmd, sizeof(struct i40e_aq_cmd_set_swconf),
+		NULL, 0, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_rxctl_write(struct ufp_dev *dev,
+	uint32_t reg_addr, uint32_t reg_val,
+	struct i40e_aq_session *session)
+{
+	struct i40e_aq_cmd_rxctl_write cmd;
+
+	cmd.address = htole32(reg_addr);
+	cmd.value = htole32(reg_val);
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_rxctl_write, 0,
+		&cmd, sizeof(struct i40e_aq_cmd_rxctl_write),
+		NULL, 0, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_rxctl_read(struct ufp_dev *dev,
+	uint32_t reg_addr,
+	struct i40e_aq_session *session)
+{
+	struct i40e_aq_cmd_rxctl_read cmd;
+
+	cmd.address = htole32(reg_addr);
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_rxctl_read, 0,
+		&cmd, sizeof(struct i40e_aq_cmd_rxctl_read),
+		NULL, 0, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_update_vsi(struct ufp_dev *dev,
+	struct ufp_iface *iface, struct i40e_aq_buf_vsi_data *buf,
+	struct i40e_aq_session *session)
+{
+	struct i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_aq_cmd_update_vsi cmd;
+	uint16_t flags;
+
+	cmd.uplink_seid = htole16(i40e_iface->seid);
+	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_update_vsi, flags,
+		&cmd, sizeof(struct i40e_aq_cmd_update_vsi),
+		buf, sizeof(struct i40e_aq_buf_vsi_data),
+		(uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_promisc_mode(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint16_t promisc_flags,
+	struct i40e_aq_session *session)
+{
+	struct i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_aq_cmd_promisc_mode cmd;
+
+	cmd.promiscuous_flags = htole16(promisc_flags);
+	cmd.valid_flags = htole16(
+		I40E_AQC_SET_VSI_PROMISC_UNICAST |
+		I40E_AQC_SET_VSI_PROMISC_MULTICAST |
+		I40E_AQC_SET_VSI_PROMISC_BROADCAST);
+	cmd.seid = htole16(i40e_iface->seid);
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_promisc_mode, 0,
+		&cmd, sizeof(struct i40e_aq_cmd_promisc_mode),
+		NULL, 0, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_set_phyintmask(struct ufp_dev *dev,
+	uint16_t mask,
+	struct i40e_aq_session *session)
+{
+	struct i40e_aq_cmd_set_phyintmask cmd;
+
+	cmd.event_mask = htole16(mask);
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_set_phyintmask, 0,
+		&cmd, sizeof(struct i40e_aq_cmd_set_phyintmask),
+		NULL, 0, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_stop_lldp(struct ufp_dev *dev,
+	struct i40e_aq_session *session)
+{
+	struct i40e_aq_cmd_stop_lldp cmd;
+
+	cmd.command |= I40E_AQ_LLDP_AGENT_SHUTDOWN;
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_stop_lldp, 0,
+		&cmd, sizeof(struct i40e_aq_cmd_stop_lldp),
+		NULL, 0, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_set_rsskey(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint8_t *key, uint16_t key_size,
+	struct i40e_aq_session *session)
+{
+	struct i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_aq_cmd_set_rsskey cmd;
+	uint16_t flags;
+
+	cmd.vsi_id = htole16((uint16_t)
+		((i40e_iface->id << I40E_AQC_SET_RSS_KEY_VSI_ID_SHIFT) &
+		I40E_AQC_SET_RSS_KEY_VSI_ID_MASK));
+	cmd.vsi_id |= htole16((uint16_t)I40E_AQC_SET_RSS_KEY_VSI_VALID);
+	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_set_rsskey, flags,
+		&cmd, sizeof(struct i40e_aq_cmd_set_rsskey),
+		key, key_size, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
+	struct ufp_iface *iface, uint8_t *lut, uint16_t lut_size,
+	struct i40e_aq_session *session)
+{
+	struct i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_aq_cmd_set_rsslut cmd;
+	uint16_t flags;
+
+	cmd.vsi_id = htole16((uint16_t)
+		((i40e_iface->id << I40E_AQC_SET_RSS_LUT_VSI_ID_SHIFT) &
+		I40E_AQC_SET_RSS_LUT_VSI_ID_MASK));
+	cmd.vsi_id |= htole16((uint16_t)I40E_AQC_SET_RSS_LUT_VSI_VALID);
+
+	if(i40e_iface->type == I40E_VSI_MAIN){
+		cmd.flags |= htole16((uint16_t)
+			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_PF <<
+			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &
+			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_MASK));
+	}else{
+		cmd.flags |= htole16((uint16_t)
+			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_VSI <<
+			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &
+			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_MASK));
+	}
+
+	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_set_rsslut, flags,
+		&cmd, sizeof(struct i40e_aq_cmd_set_rsslut),
+		lut, lut_size, (uint64_t)session);
 	return;
 }
 
@@ -88,43 +274,9 @@ err_invalid:
 	return;
 }
 
-void i40e_aqc_req_clear_pxemode(struct ufp_dev *dev,
-	struct i40e_aq_session *session)
-{
-	struct i40e_aq_cmd_clear_pxemode cmd;
-
-	cmd.rx_cnt = 0x2;
-
-	i40e_aq_asq_assign(dev, i40e_aq_opc_clear_pxemode, 0,
-		&cmd, sizeof(struct i40e_aq_cmd_clear_pxemode),
-		NULL, 0, (uint64_t)session);
-	return;
-}
-
 void i40e_aqc_resp_clear_pxemode(struct ufp_dev *dev)
 {
-	struct i40e_dev *i40e_dev = dev->drv_data;
-
 	UFP_WRITE32(dev, I40E_GLLAN_RCTL_0, 0x1);
-	return;
-}
-
-void i40e_aqc_req_get_swconf(struct ufp_dev *dev,
-	struct i40e_aq_session *session)
-{
-	struct i40e_aq_cmd_get_swconf cmd;
-	uint16_t flags;
-
-	if(session)
-		cmd.seid_offset = htole16(session->data.seid_offset);
-	else
-		cmd.seid_offset = 0;
-
-	flags = I40E_AQ_FLAG_BUF;
-
-	i40e_aq_asq_assign(dev, i40e_aq_opc_get_swconf, flags,
-		&cmd, sizeof(struct i40e_aq_cmd_get_swconf),
-		NULL, 0, (uint64_t)session);
 	return;
 }
 
@@ -162,63 +314,10 @@ void i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
 	if(session)
 		session->data.seid_offset = cmd->seid_offset;
 	return;
-}
 
-void i40e_aqc_req_set_swconf(struct ufp_dev *dev,
-	uint16_t flags, uint16_t valid_flags,
-	struct i40e_aq_session *session)
-{
-	struct i40e_aq_cmd_set_swconf cmd;
-
-	cmd.flags = htole16(flags);
-	cmd.valid_flags = htole16(valid_flags);
-
-	i40e_aq_asq_assign(dev, i40e_aq_opc_set_swconf, 0,
-		&cmd, sizeof(struct i40e_aq_cmd_set_swconf),
-		NULL, 0, (uint64_t)session);
-	return;
-}
-
-void i40e_aqc_resp_set_swconf(struct ufp_dev *dev,
-	void *cmd_ptr)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_aq_cmd_set_swconf *cmd = cmd_ptr;
-	return;
-}
-
-void i40e_aqc_req_rxctl_write(struct ufp_dev *dev,
-	uint32_t reg_addr, uint32_t reg_val,
-	struct i40e_aq_session *session)
-{
-	struct i40e_aq_cmd_rxctl_write cmd;
-
-	cmd.address = htole32(reg_addr);
-	cmd.value = htole32(reg_val);
-
-	i40e_aq_asq_assign(dev, i40e_aq_opc_rxctl_write, 0,
-		&cmd, sizeof(struct i40e_aq_cmd_rxctl_write),
-		NULL, 0, (uint64_t)session);
-	return;
-}
-
-void i40e_aqc_resp_rxctl_write(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	return;
-}
-
-void i40e_aqc_req_rxctl_read(struct ufp_dev *dev,
-	uint32_t reg_addr,
-	struct i40e_aq_session *session)
-{
-	struct i40e_aq_cmd_rxctl_read cmd;
-
-	cmd.address = htole32(reg_addr);
-
-	i40e_aq_asq_assign(dev, i40e_aq_opc_rxctl_read, 0,
-		&cmd, sizeof(struct i40e_aq_cmd_rxctl_read),
-		NULL, 0, (uint64_t)session);
+err_alloc_elem:
+	if(session)
+		session->retval = -1;
 	return;
 }
 
@@ -226,30 +325,10 @@ void i40e_aqc_resp_rxctl_read(struct ufp_dev *dev,
 	void *cmd_ptr,
 	struct i40e_aq_session *session)
 {
-	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_cmd_rxctl_read *cmd = cmd_ptr;
 
 	if(session)
 		session->data.read_val = le32toh(cmd->value);
-
-	return;
-}
-
-void i40e_aqc_req_update_vsi(struct ufp_dev *dev,
-	struct ufp_iface *iface, struct i40e_aq_buf_vsi_data *buf,
-	struct i40e_aq_session *session)
-{
-	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aq_cmd_update_vsi cmd;
-	uint16_t flags;
-
-	cmd.uplink_seid = htole16(i40e_iface->seid);
-	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
-
-	i40e_aq_asq_assign(dev, i40e_aq_opc_update_vsi, flags,
-		&cmd, sizeof(struct i40e_aq_cmd_update_vsi),
-		buf, sizeof(struct i40e_aq_buf_vsi_data),
-		(uint64_t)session);
 	return;
 }
 
@@ -257,7 +336,6 @@ void i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
 	void *cmd_ptr, void *buf_ptr,
 	struct i40e_aq_session *session)
 {
-	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_iface *iface;
 	struct i40e_iface *i40e_iface, *_i40e_iface;
 	struct i40e_aq_cmd_update_vsi_resp *cmd = cmd_ptr;
@@ -285,133 +363,3 @@ err_notfound:
 	return;
 }
 
-void i40e_aqc_req_promisc_mode(struct ufp_dev *dev,
-	struct ufp_iface *iface, uint16_t promisc_flags,
-	struct i40e_aq_session *session)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aq_cmd_promisc_mode cmd;
-
-	cmd.promiscuous_flags = htole16(promisc_flags);
-	cmd.valid_flags = htole16(
-		I40E_AQC_SET_VSI_PROMISC_UNICAST |
-		I40E_AQC_SET_VSI_PROMISC_MULTICAST |
-		I40E_AQC_SET_VSI_PROMISC_BROADCAST);
-	cmd.seid = htole16(i40e_iface->seid);
-
-	i40e_aq_asq_assign(dev, i40e_aq_opc_promisc_mode, 0,
-		&cmd, sizeof(struct i40e_aq_cmd_promisc_mode),
-		NULL, 0, (uint64_t)session);
-	return;
-}
-
-void i40e_aqc_resp_promisc_mode(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	return;
-}
-
-void i40e_aqc_req_set_phyintmask(struct ufp_dev *dev,
-	uint16_t mask,
-	struct i40e_aq_session *session)
-{
-	struct i40e_aq_cmd_set_phyintmask cmd;
-
-	cmd.event_mask = htole16(mask);
-
-	i40e_aq_asq_assign(dev, i40e_aq_opc_set_phyintmask, 0,
-		&cmd, sizeof(struct i40e_aq_cmd_set_phyintmask),
-		NULL, 0, (uint64_t)session);
-	return;
-}
-
-void i40e_aqc_resp_set_phyintmask(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	return;
-}
-
-void i40e_aqc_req_stop_lldp(struct ufp_dev *dev,
-	struct i40e_aq_session *session)
-{
-	struct i40e_aq_cmd_stop_lldp cmd;
-
-	cmd.command |= I40E_AQ_LLDP_AGENT_SHUTDOWN;
-
-	i40e_aq_asq_assign(dev, i40e_aq_opc_stop_lldp, 0,
-		&cmd, sizeof(struct i40e_aq_cmd_stop_lldp),
-		NULL, 0, (uint64_t)session);
-	return;
-}
-
-void i40e_aqc_resp_stop_lldp(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	return;
-}
-
-void i40e_aqc_req_set_rsskey(struct ufp_dev *dev,
-	struct ufp_iface *iface, uint8_t *key, uint16_t key_size,
-	struct i40e_aq_session *session)
-{
-	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aq_cmd_set_rsskey cmd;
-	uint16_t flags;
-
-	cmd.vsi_id = htole16((uint16_t)
-		((i40e_iface->id << I40E_AQC_SET_RSS_KEY_VSI_ID_SHIFT) &
-		I40E_AQC_SET_RSS_KEY_VSI_ID_MASK));
-	cmd.vsi_id |= htole16((uint16_t)I40E_AQC_SET_RSS_KEY_VSI_VALID);
-	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
-
-	i40e_aq_asq_assign(dev, i40e_aq_opc_set_rsskey, flags,
-		&cmd, sizeof(struct i40e_aq_cmd_set_rsskey),
-		key, key_size, (uint64_t)session);
-	return;
-}
-
-void i40e_aqc_resp_set_rsskey(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	return;
-}
-
-void i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
-	struct ufp_iface *iface, uint8_t *lut, uint16_t lut_size,
-	struct i40e_aq_session *session)
-{
-	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aq_cmd_set_rsslut cmd;
-	uint16_t flags;
-
-	cmd.vsi_id = htole16((uint16_t)
-		((i40e_iface->id << I40E_AQC_SET_RSS_LUT_VSI_ID_SHIFT) &
-		I40E_AQC_SET_RSS_LUT_VSI_ID_MASK));
-	cmd.vsi_id |= htole16((uint16_t)I40E_AQC_SET_RSS_LUT_VSI_VALID);
-
-	if(i40e_iface->type == I40E_VSI_MAIN){
-		cmd.flags |= htole16((uint16_t)
-			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_PF <<
-			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &
-			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_MASK));
-	}else{
-		cmd.flags |= htole16((uint16_t)
-			((I40E_AQC_SET_RSS_LUT_TABLE_TYPE_VSI <<
-			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_SHIFT) &
-			I40E_AQC_SET_RSS_LUT_TABLE_TYPE_MASK));
-	}
-
-	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
-
-	i40e_aq_asq_assign(dev, i40e_aq_opc_set_rsslut, flags,
-		&cmd, sizeof(struct i40e_aq_cmd_set_rsslut),
-		lut, lut_size, (uint64_t)session);
-	return;
-}
-
-void i40e_aqc_resp_set_rsslut(struct ufp_dev *dev)
-{
-	struct i40e_dev *i40e_dev = dev->drv_data;
-	return;
-}

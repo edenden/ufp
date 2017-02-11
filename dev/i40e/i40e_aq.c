@@ -8,9 +8,10 @@
 
 #include <lib_main.h>
 
-#include "i40e_main.h"
 #include "i40e_regs.h"
 #include "i40e_aq.h"
+#include "i40e_hmc.h"
+#include "i40e_main.h"
 #include "i40e_aqc.h"
 
 static int i40e_aq_asq_init(struct ufp_dev *dev);
@@ -28,7 +29,7 @@ static uint16_t i40e_aq_desc_unused(struct i40e_aq_ring *ring,
 static void i40e_aq_asq_process(struct ufp_dev *dev,
 	struct i40e_aq_desc *desc, struct i40e_page *buf,
 	struct i40e_aq_session *session);
-static int i40e_aq_arq_process(struct ufp_dev *dev,
+static void i40e_aq_arq_process(struct ufp_dev *dev,
 	struct i40e_aq_desc *desc, struct i40e_page *buf);
 
 int i40e_aq_init(struct ufp_dev *dev)
@@ -501,9 +502,6 @@ static void i40e_aq_asq_process(struct ufp_dev *dev,
 		session->retval = 0;
 
 	switch(opcode){
-	case i40e_aq_opc_queue_shutdown:
-		i40e_aqc_resp_queue_shutdown(dev, &desc->params);
-		break;
 	case i40e_aq_opc_macaddr_read:
 		i40e_aqc_resp_macaddr_read(dev, &desc->params,
 			buf->addr_virt, session);
@@ -515,34 +513,13 @@ static void i40e_aq_asq_process(struct ufp_dev *dev,
 		i40e_aqc_resp_get_swconf(dev, &desc->params,
 			buf->addr_virt, session);
 		break;
-	case i40e_aq_opc_set_swconf:
-		i40e_aqc_resp_set_swconf(dev, &desc->params);
-		break;
 	case i40e_aq_opc_rxctl_read:
 		i40e_aqc_resp_rxctl_read(dev, &desc->params,
 			session);
 		break;
-	case i40e_aq_opc_rxctl_write:
-		i40e_aqc_resp_rxctl_write(dev);
-		break;
 	case i40e_aq_opc_update_vsi:
 		i40e_aqc_resp_update_vsi(dev, &desc->params,
 			buf->addr_virt, session);
-		break;
-	case i40e_aq_opc_promisc_mode:
-		i40e_aqc_resp_promisc_mode(dev);
-		break;
-	case i40e_aq_opc_set_phyintmask:
-		i40e_aqc_resp_set_phyintmask(dev);
-		break;
-	case i40e_aq_opc_stop_lldp:
-		i40e_aqc_resp_stop_lldp(dev);
-		break;
-	case i40e_aq_opc_set_rsskey:
-		i40e_aqc_resp_set_rsskey(dev);
-		break;
-	case i40e_aq_opc_set_rsslut:
-		i40e_aqc_resp_set_rsslut(dev);
 		break;
 	default:
 		goto err_opcode;
@@ -557,30 +534,27 @@ err_retval:
 	return;
 }
 
-static int i40e_aq_arq_process(struct ufp_dev *dev,
+static void i40e_aq_arq_process(struct ufp_dev *dev,
 	struct i40e_aq_desc *desc, struct i40e_page *buf)
 {
-	uint16_t len;
-	uint16_t flags;
 	uint16_t opcode;
-	int err = -1;
+	uint16_t flags;
 
-	len = le16toh(desc->datalen);
-	flags = le16toh(desc->flags);
 	opcode = le16toh(desc->opcode);
+	flags = le16toh(desc->flags);
 
 	if (flags & I40E_AQ_FLAG_ERR) {
 		goto err_flag;
 	}
 
 	switch(opcode){
-	case :
-		err = ;
-		break;
 	default:
+		goto err_opcode;
 		break;
 	}
+	return;
 
+err_opcode:
 err_flag:
-	return err;
+	return;
 }
