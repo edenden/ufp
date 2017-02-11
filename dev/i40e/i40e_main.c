@@ -800,7 +800,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_iface *iface;
 	struct i40e_iface *i40e_iface;
-	struct i40e_elem *elem, *elem_first_vsi;
+	struct i40e_elem *elem, *_elem;
 	int err;
 
 	/* Switch Global Configuration */
@@ -831,14 +831,14 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_get_swconf;
 
-	elem_first_vsi = NULL;
-	list_for_each(&i40e_dev->elem, elem, list){
+	elem = NULL;
+	list_for_each(&i40e_dev->elem, _elem, list){
 		if(elem->type == I40E_AQ_SW_ELEM_TYPE_VSI){
-			elem_first_vsi = elem;
+			elem = _elem;
 			break;
 		}
 	}
-	if(!elem_first_vsi)
+	if(!elem)
 		goto err_first_vsi;
 
 	/* Set up the PF VSI associated with the PF's main VSI
@@ -848,8 +848,8 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	if(!i40e_iface)
 		goto err_alloc_iface;
 
-	i40e_iface->seid	= elem_first_vsi->seid;
-	i40e_iface->id		= elem_first_vsi->element_info;
+	i40e_iface->seid	= elem->seid;
+	i40e_iface->id		= elem->element_info;
 	i40e_iface->base_qp	= 0;
 	i40e_iface->type	= I40E_VSI_MAIN;
 

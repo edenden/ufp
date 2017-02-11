@@ -259,24 +259,24 @@ void i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
 {
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct ufp_iface *iface;
-	struct i40e_iface *i40e_iface, *i40e_iface_target;
+	struct i40e_iface *i40e_iface, *_i40e_iface;
 	struct i40e_aq_cmd_update_vsi_resp *cmd = cmd_ptr;
 	struct i40e_aq_buf_vsi_data *buf = buf_ptr;
 	int i;
 
-	i40e_iface_target = NULL;
+	i40e_iface = NULL;
 	list_for_each(&dev->iface, iface, list){
-		i40e_iface = iface->drv_data;
-		if(i40e_iface->seid == cmd->seid){
-			i40e_iface_target = i40e_iface;
+		_i40e_iface = iface->drv_data;
+		if(_i40e_iface->seid == cmd->seid){
+			i40e_iface = _i40e_iface;
 			break;
 		}
 	}
-	if(!i40e_iface_target)
+	if(!i40e_iface)
 		goto err_notfound;
 
 	for(i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++)
-		i40e_iface_target->qs_handles[i] = buf->qs_handle[i];
+		i40e_iface->qs_handles[i] = buf->qs_handle[i];
 	return;
 
 err_notfound:
