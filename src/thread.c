@@ -58,7 +58,7 @@ void *thread_process_interrupt(void *data)
 		sizeof(struct neigh *) * thread->num_ports);
 	if(!thread->neigh_inet)
 		goto err_neigh_table_inet;
-	
+
 	thread->neigh_inet6 = ufp_mem_alloc(thread->mpool,
 		sizeof(struct neigh *) * thread->num_ports);
 	if(!thread->neigh_inet6)
@@ -146,7 +146,7 @@ static int thread_wait(struct ufpd_thread *thread,
 
 		for(i = 0; i < num_fd; i++){
 			ep_desc = (struct epoll_desc *)events[i].data.ptr;
-			
+
 			switch(ep_desc->type){
 			case EPOLL_IRQ_RX:
 				port_index = ep_desc->port_index;
@@ -166,7 +166,7 @@ static int thread_wait(struct ufpd_thread *thread,
 					goto err_read;
 
 				ufp_irq_unmask_queues(thread->plane, port_index,
-					(struct ufp_irq_handle *)ep_desc->data);
+					(struct ufp_irq *)ep_desc->data);
 				break;
 			case EPOLL_IRQ_TX:
 				port_index = ep_desc->port_index;
@@ -182,7 +182,7 @@ static int thread_wait(struct ufpd_thread *thread,
 					goto err_read;
 
 				ufp_irq_unmask_queues(thread->plane, port_index,
-					(struct ufp_irq_handle *)ep_desc->data);
+					(struct ufp_irq *)ep_desc->data);
 				break;
 			case EPOLL_TUN:
 				port_index = ep_desc->port_index;

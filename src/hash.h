@@ -1,7 +1,7 @@
 #ifndef _UFPD_HASH_H
 #define _UFPD_HASH_H
 
-#include "linux/list.h"
+#include <ufp.h>
 #include "main.h"
 
 #define HASH_BIT 16

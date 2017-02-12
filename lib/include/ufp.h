@@ -1,7 +1,7 @@
 #ifndef _UFP_H
 #define _UFP_H
 
-#include "ufp_list.h"
+#include <ufp_list.h>
 
 struct ufp_mpool;
 struct ufp_dev;
@@ -36,10 +36,11 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 void ufp_release_buf(struct ufp_dev **devs, int num_devs,
 	struct ufp_buf *buf);
 struct ufp_dev *ufp_open(const char *name);
-void ufp_close(struct ufp_dev *dev)
-int ufp_up(struct ufp_dev *dev, unsigned int num_qps,
-	unsigned int mtu_frame, unsigned int promisc,
-	unsigned int rx_budget, unsigned int tx_budget);
+void ufp_close(struct ufp_dev *dev);
+int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
+	unsigned int num_qps, unsigned int mtu_frame,
+	unsigned int promisc, unsigned int rx_budget,
+	unsigned int tx_budget);
 void ufp_down(struct ufp_dev *dev);
 
 /* MEM */

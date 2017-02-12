@@ -17,7 +17,6 @@
 #include <syslog.h>
 #include <ufp.h>
 
-#include "linux/list.h"
 #include "main.h"
 #include "thread.h"
 
@@ -57,8 +56,9 @@ int main(int argc, char **argv)
 	int			ret, i, signal, opt;
 	int			threads_assigned = 0,
 				devices_assigned = 0,
-				ports_up = 0,
-				tun_assigned = 0;
+				devices_up = 0,
+				tun_assigned = 0,
+				mpool_assigned = 0;
 	sigset_t		sigset;
 	char			strbuf[1024];
 
@@ -139,7 +139,7 @@ int main(int argc, char **argv)
 		ret = -1;
 		goto err_arg;
 	}
-	
+
 	if(!ufpd.num_threads){
 		printf("You must specify CPU cores to use.\n");
 		ret = -1;
@@ -152,16 +152,22 @@ int main(int argc, char **argv)
 	if(ret < 0)
 		goto err_set_mempolicy;
 
-	ufpd.ih_array = malloc(sizeof(struct ufp_handle *) * ufpd.num_devices);
-	if(!ufpd.ih_array){
+	ufpd.devs = malloc(sizeof(struct ufp_dev *) * ufpd.num_devices);
+	if(!ufpd.devs){
 		ret = -1;
-		goto err_ih_array;
+		goto err_devs;
 	}
 
-	ufpd.tunh_array = malloc(sizeof(struct tun_handle *) * ufpd.num_devices);
-	if(!ufpd.tunh_array){
+	ufpd.tunhs = malloc(sizeof(struct tun_handle *) * ufpd.num_devices);
+	if(!ufpd.tunhs){
 		ret = -1;
-		goto err_tunh_array;
+		goto err_tunhs;
+	}
+
+	ufpd.mpools = malloc(sizeof(struct ufp_mpool *) * ufpd.num_threads);
+	if(!ufpd.mpools){
+		ret = -1;
+		goto err_mpools;
 	}
 
 	threads = malloc(sizeof(struct ufpd_thread) * ufpd.num_threads);
@@ -170,17 +176,17 @@ int main(int argc, char **argv)
 		goto err_alloc_threads;
 	}
 
-	for(i = 0; i < ufpd.num_threads; i++, mnode_assigned++){
-		threads[i].mpool = ufp_mempool_init();
-		if(!threads[i].mpool){
+	for(i = 0; i < ufpd.num_threads; i++, mpool_assigned++){
+		ufpd.mpools[i] = ufp_mpool_init();
+		if(!ufpd.mpools[i]){
 			ret = -1;
 			goto err_mempool_init;
 		}
 	}
 
 	for(i = 0; i < ufpd.num_devices; i++, devices_assigned++){
-		ufpd.ih_array[i] = ufp_open(&ufpd.ifnames[i * IFNAMSIZ]);
-		if(!ufpd.ih_array[i]){
+		ufpd.devs[i] = ufp_open(&ufpd.ifnames[i * IFNAMSIZ]);
+		if(!ufpd.devs[i]){
 			ufpd_log(LOG_ERR, "failed to ufp_open, idx = %d", i);
 			ret = -1;
 			goto err_open;
@@ -188,8 +194,8 @@ int main(int argc, char **argv)
 	}
 
 	for(i = 0; i < ufpd.num_devices; i++, tun_assigned++){
-		ufpd.tunh_array[i] = tun_open(&ufpd, i);
-		if(!ufpd.tunh_array[i]){
+		ufpd.tunhs[i] = tun_open(&ufpd, i);
+		if(!ufpd.tunhs[i]){
 			ufpd_log(LOG_ERR, "failed to tun_open");
 			ret = -1;
 			goto err_tun_open;
@@ -197,8 +203,8 @@ int main(int argc, char **argv)
 	}
 
 	for(i = 0; i < ufpd.num_devices; i++, devices_up++){
-		ret = ufp_up(ufpd.ih_array[i], ufpd.num_threads,
-			ufpd.mtu_frame, ufpd.promisc,
+		ret = ufp_up(ufpd.devs[i], ufpd.mpools,
+			ufpd.num_threads, ufpd.mtu_frame, ufpd.promisc,
 			UFP_RX_BUDGET, UFP_TX_BUDGET);
 		if(ret < 0){
 			ufpd_log(LOG_ERR, "failed to ufp_up, idx = %d", i);
@@ -213,17 +219,20 @@ int main(int argc, char **argv)
 	}
 
 	for(i = 0; i < ufpd.num_threads; i++, threads_assigned++){
+		threads[i].mpool = ufpd.mpools[i];
 		threads[i].buf = ufp_alloc_buf(ufpd.devs, ufpd.num_devices,
 			ufpd.buf_size, ufpd.buf_count, threads[i].mpool);
 		if(!threads[i].buf){
-			ufpd_log(LOG_ERR, "failed to ufp_alloc_buf, idx = %d", i);
+			ufpd_log(LOG_ERR,
+				"failed to ufp_alloc_buf, idx = %d", i);
 			goto err_buf_alloc;
 		}
 
 		threads[i].plane = ufp_plane_alloc(ufpd.devs, ufpd.num_devices,
 			threads[i].buf, i, ufpd.cores[i]);
 		if(!threads[i].plane){
-			ufpd_log(LOG_ERR, "failed to ufp_plane_alloc, idx = %d", i);
+			ufpd_log(LOG_ERR,
+				"failed to ufp_plane_alloc, idx = %d", i);
 			goto err_plane_alloc;
 		}
 
@@ -241,8 +250,7 @@ int main(int argc, char **argv)
 err_thread_create:
 		tun_plane_release(threads[i].tun_plane);
 err_tun_plane_alloc:
-		ufp_plane_release(threads[i].plane,
-			ufpd.num_ports);
+		ufp_plane_release(threads[i].plane);
 err_plane_alloc:
 		ufp_release_buf(ufpd.devs, ufpd.num_devices, threads[i].buf);
 err_buf_alloc:
@@ -261,13 +269,13 @@ err_assign_threads:
 	for(i = 0; i < threads_assigned; i++){
 		ufpd_thread_kill(&threads[i]);
 		tun_plane_release(threads[i].tun_plane);
-		ufp_plane_release(threads[i].plane, ufpd.num_ports);
+		ufp_plane_release(threads[i].plane);
 		ufp_release_buf(ufpd.devs, ufpd.num_devices, threads[i].buf);
 	}
 err_set_signal:
 err_up:
 	for(i = 0; i < devices_up; i++){
-		ufp_down(ufpd.ih_array[i]);
+		ufp_down(ufpd.devs[i]);
 	}
 err_tun_open:
 	for(i = 0; i < tun_assigned; i++){
@@ -275,18 +283,20 @@ err_tun_open:
 	}
 err_open:
 	for(i = 0; i < devices_assigned; i++){
-		ufp_close(ufpd.ih_array[i]);
+		ufp_close(ufpd.devs[i]);
 	}
 err_mempool_init:
-	for(i = 0; i < mnode_assigned; i++){
-		ufp_mempool_destroy(threads[i].mpool);
+	for(i = 0; i < mpool_assigned; i++){
+		ufp_mpool_destroy(ufpd.mpools[i]);
 	}
 	free(threads);
 err_alloc_threads:
-	free(ufpd.tunh_array);
-err_tunh_array:
-	free(ufpd.ih_array);
-err_ih_array:
+	free(ufpd.mpools);
+err_mpools:
+	free(ufpd.tunhs);
+err_tunhs:
+	free(ufpd.devs);
+err_devs:
 err_set_mempolicy:
 	closelog();
 err_arg:
@@ -304,7 +314,8 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 	thread->num_ports	= ufpd->num_ports;
 	thread->ptid		= pthread_self();
 
-	ret = pthread_create(&thread->tid, NULL, thread_process_interrupt, thread);
+	ret = pthread_create(&thread->tid,
+		NULL, thread_process_interrupt, thread);
 	if(ret < 0){
 		ufpd_log(LOG_ERR, "failed to create thread");
 		goto err_pthread_create;
@@ -312,7 +323,8 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 
 	CPU_ZERO(&cpuset);
 	CPU_SET(core_id, &cpuset);
-	ret = pthread_setaffinity_np(thread->tid, sizeof(cpu_set_t), &cpuset);
+	ret = pthread_setaffinity_np(thread->tid,
+		sizeof(cpu_set_t), &cpuset);
 	if(ret < 0){
 		ufpd_log(LOG_ERR, "failed to set affinity");
 		goto err_set_affinity;
@@ -418,7 +430,8 @@ static int ufpd_parse_range(const char *str, char *result,
 				range[0] = range[1];
 
 			for(num = range[0]; num <= range[1]; num++){
-				err = snprintf(&(result)[strlen(result)], max_len,
+				err = snprintf(&(result)[strlen(result)],
+					max_len,
 					strlen(result) ? ",%d" : "%d", num);
 				if(err < 0)
 					goto err_print;

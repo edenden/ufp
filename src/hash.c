@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "linux/list.h"
+#include <ufp.h>
 #include "main.h"
 #include "hash.h"
 
@@ -18,7 +18,7 @@ void hash_init(struct hash_table *table)
 	for(i = 0; i < HASH_SIZE; i++){
 		INIT_HLIST_HEAD(&table->head[i]);
 	}
-	
+
 	return;
 }
 

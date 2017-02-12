@@ -4,7 +4,6 @@
 #include <linux/netlink.h>
 #include <signal.h>
 #include <ufp.h>
-#include "linux/list.h"
 #include "iftap.h"
 
 #define EPOLL_MAXEVENTS 16
@@ -22,7 +21,7 @@ struct epoll_desc {
 	int			type;
 	unsigned int		port_index;
 	void			*data;
-	struct list_head	list;
+	struct list_node	list;
 };
 
 int epoll_add(int fd_ep, void *ptr, int fd);

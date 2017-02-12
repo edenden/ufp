@@ -27,9 +27,9 @@ struct tun_handle *tun_open(struct ufpd *ufpd,
 	unsigned int mtu_frame;
 	const char *if_name;
 
-	if_name = ufp_ifname_get(ufpd->ih_array[port_index]);
-	src_mac = ufp_macaddr_default(ufpd->ih_array[port_index]);
-	mtu_frame = ufp_mtu_get(ufpd->ih_array[port_index]);
+	if_name = ufp_ifname_get(ufpd->devs[port_index]);
+	src_mac = ufp_macaddr_default(ufpd->devs[port_index]);
+	mtu_frame = ufp_mtu_get(ufpd->devs[port_index]);
 
 	tunh = malloc(sizeof(struct tun_handle));
 	if(!tunh)
@@ -103,7 +103,7 @@ void tun_close(struct ufpd *ufpd, unsigned int port_index)
 	struct tun_handle *tunh;
 	int i;
 
-	tunh = ufpd->tunh_array[port_index];
+	tunh = ufpd->tunhs[port_index];
 
 	for(i = 0; i < ufpd->num_threads; i++){
 		close(tunh->queues[i]);
@@ -145,7 +145,7 @@ static int tun_mac(int fd, const char *if_name, void *src_mac)
 
 	ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
 	memcpy(ifr.ifr_hwaddr.sa_data, src_mac, ETH_ALEN);
-	
+
 	ret = ioctl(fd, SIOCSIFHWADDR, (void *)&ifr);
 	if(ret < 0) {
 		perror("tun mac");
@@ -225,11 +225,11 @@ err_tun_ioctl:
 struct tun_plane *tun_plane_alloc(struct ufpd *ufpd,
 	unsigned int thread_id)
 {
-	struct tun_handle **tunh_array;
+	struct tun_handle **tunhs;
 	struct tun_plane *plane;
 	int i;
 
-	tunh_array = ufpd->tunh_array;
+	tunhs = ufpd->tunhs;
 
 	plane = malloc(sizeof(struct tun_plane));
 	if(!plane)
@@ -240,9 +240,9 @@ struct tun_plane *tun_plane_alloc(struct ufpd *ufpd,
 		goto err_alloc_ports;
 
 	for(i = 0; i < ufpd->num_devices; i++){
-		plane->ports[i].fd = tunh_array[i]->queues[thread_id];
-		plane->ports[i].ifindex = tunh_array[i]->ifindex;
-		plane->ports[i].mtu_frame = tunh_array[i]->mtu_frame;
+		plane->ports[i].fd = tunhs[i]->queues[thread_id];
+		plane->ports[i].ifindex = tunhs[i]->ifindex;
+		plane->ports[i].mtu_frame = tunhs[i]->mtu_frame;
 	}
 
 	return plane;

@@ -1,7 +1,7 @@
 #ifndef _UFPD_LPM_H
 #define _UFPD_LPM_H
 
-#include "linux/list.h"
+#include <ufp.h>
 
 #define TABLE_SIZE_16 (1 << 16)
 #define TABLE_SIZE_8 (1 << 8)

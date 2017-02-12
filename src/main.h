@@ -18,10 +18,6 @@
 	(void) (&_max1 == &_max2);		\
 	_max1 > _max2 ? _max1 : _max2; })
 
-#define container_of(ptr, type, member) ({			\
-	const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
-	(type *)( (char *)__mptr - offsetof(type,member) );})
-
 #define likely(x)	__builtin_expect(!!(x), 1)
 #define unlikely(x)	__builtin_expect(!!(x), 0)
 #define prefetch(x)	__builtin_prefetch(x, 0)
@@ -36,8 +32,9 @@
 #define UFP_MAX_IFNAMSIZ (UFP_MAX_IFS * IFNAMSIZ)
 
 struct ufpd {
-	struct ufp_handle	**ih_array;
-	struct tun_handle	**tunh_array;
+	struct ufp_dev		**devs;
+	struct tun_handle	**tunhs;
+	struct ufp_mpool	**mpools;
 	unsigned int		num_threads;
 	unsigned int		cores[UFP_MAX_CORES];
 	unsigned int		num_devices;

@@ -2,7 +2,6 @@
 #define _UFPD_FIB_H
 
 #include <pthread.h>
-#include "linux/list.h"
 #include "lpm.h"
 
 enum fib_type {

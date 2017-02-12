@@ -7,7 +7,6 @@
 #include <stddef.h>
 #include <ufp.h>
 
-#include "linux/list.h"
 #include "main.h"
 #include "fib.h"
 
