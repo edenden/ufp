@@ -57,6 +57,7 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_dev **devs, int num_devs,
 		num_ports += devs[i]->num_ifaces;
 	}
 
+	plane->num_ports = num_ports;
 	plane->ports = malloc(sizeof(struct ufp_port) * num_ports);
 	if(!plane->ports){
 		printf("failed to allocate port for each plane\n");

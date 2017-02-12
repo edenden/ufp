@@ -47,8 +47,7 @@ void lpm_init(struct lpm_table *table)
 static void lpm_init_node(struct lpm_node *node)
 {
 	node->next_table = NULL;
-	INIT_HLIST_HEAD(&node->head);
-
+	hlist_init(&node->head);
 	return;
 }
 
@@ -84,7 +83,7 @@ struct lpm_entry *lpm_lookup(struct lpm_table *table,
 		head = &node->head;
 	}
 
-	entry = hlist_first_entry_or_null(head, struct lpm_entry, list);
+	entry = hlist_first_entry(head, struct lpm_entry, list);
 	return entry;
 }
 
@@ -440,7 +439,7 @@ static int lpm_entry_insert(struct lpm_table *table, struct hlist_head *head,
 
 	prior = NULL;
 
-	hlist_for_each_entry(entry_lpm, head, list){
+	hlist_for_each(head, entry_lpm, list){
 		if(!table->entry_identify(entry_lpm->ptr, id, prefix_len)){
 			goto err_entry_exist;
 		}
@@ -452,8 +451,8 @@ static int lpm_entry_insert(struct lpm_table *table, struct hlist_head *head,
 
 	entry_lpm = hlist_entry(list, struct lpm_entry, list);
 	table->entry_pull(entry_lpm->ptr);
-	prior ? hlist_add_behind(list, prior)
-		: hlist_add_head(list, head);
+	prior ? hlist_add_after(prior, list)
+		: hlist_add_first(head, list);
 
 	return 0;
 
@@ -464,10 +463,9 @@ err_entry_exist:
 static int lpm_entry_delete(struct lpm_table *table, struct hlist_head *head,
 	unsigned int id, unsigned int prefix_len)
 {
-	struct lpm_entry *entry_lpm;
-	struct hlist_node *list_n;
+	struct lpm_entry *entry_lpm, *temp;
 
-	hlist_for_each_entry_safe(entry_lpm, list_n, head, list){
+	hlist_for_each_safe(head, entry_lpm, list, temp){
 		if(!table->entry_identify(entry_lpm->ptr, id, prefix_len)){
 			hlist_del(&entry_lpm->list);
 			table->entry_put(entry_lpm->ptr);
@@ -482,10 +480,9 @@ static int lpm_entry_delete(struct lpm_table *table, struct hlist_head *head,
 
 static void lpm_entry_delete_all(struct lpm_table *table, struct hlist_head *head)
 {
-	struct lpm_entry *entry_lpm;
-	struct hlist_node *list_n;
+	struct lpm_entry *entry_lpm, *temp;
 
-	hlist_for_each_entry_safe(entry_lpm, list_n, head, list){
+	hlist_for_each_safe(head, entry_lpm, list, temp){
 		hlist_del(&entry_lpm->list);
 		table->entry_put(entry_lpm->ptr);
 		ufp_mem_free(entry_lpm);

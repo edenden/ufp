@@ -168,6 +168,7 @@ struct ufp_port {
 
 struct ufp_plane {
 	struct ufp_port 	*ports;
+	uint16_t		num_ports;
 };
 
 struct ufp_packet {

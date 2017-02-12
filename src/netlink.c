@@ -116,7 +116,7 @@ static void netlink_route(struct ufpd_thread *thread, struct nlmsghdr *nlh)
 	case RTM_NEWROUTE:
 		fib_route_update(fib, family, type,
 			prefix, prefix_len, nexthop, port_index, ifindex,
-			thread->desc);
+			thread->mpool);
 		break;
 	case RTM_DELROUTE:
 		fib_route_delete(fib, family,
@@ -192,7 +192,7 @@ static void netlink_neigh(struct ufpd_thread *thread, struct nlmsghdr *nlh)
 	switch(nlh->nlmsg_type){
 	case RTM_NEWNEIGH:
 		neigh_add(neigh, family, dst_addr, dst_mac,
-			thread->desc);
+			thread->mpool);
 		break;
 	case RTM_DELNEIGH:
 		neigh_delete(neigh, family, dst_addr);

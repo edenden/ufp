@@ -311,7 +311,7 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 	int ret;
 
 	thread->id		= thread_id;
-	thread->num_ports	= ufpd->num_ports;
+	thread->num_ports	= ufp_portnum(thread->plane);
 	thread->ptid		= pthread_self();
 
 	ret = pthread_create(&thread->tid,

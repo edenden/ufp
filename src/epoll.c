@@ -61,7 +61,7 @@ struct epoll_desc *epoll_desc_alloc_irq(struct ufp_plane *plane,
 	ep_desc->fd		= ufp_irq_fd(plane, port_index, type);
 	ep_desc->type		= ep_type;
 	ep_desc->port_index	= port_index;
-	ep_desc->data		= ufp_irq_handle(plane, port_index, type);
+	ep_desc->data		= ufp_irq(plane, port_index, type);
 
 	return ep_desc;
 
@@ -139,7 +139,7 @@ struct epoll_desc *epoll_desc_alloc_netlink(struct sockaddr_nl *addr)
 {
 	struct epoll_desc *ep_desc;
 	int fd, ret;
-	
+
 	ep_desc = malloc(sizeof(struct epoll_desc));
 	if(!ep_desc)
 		goto err_alloc_ep_desc;
@@ -166,7 +166,6 @@ err_alloc_ep_desc:
 	return NULL;
 }
 
-	
 void epoll_desc_release_netlink(struct epoll_desc *ep_desc)
 {
 	close(ep_desc->fd);

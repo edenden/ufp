@@ -16,7 +16,7 @@ void hash_init(struct hash_table *table)
 	int i;
 
 	for(i = 0; i < HASH_SIZE; i++){
-		INIT_HLIST_HEAD(&table->head[i]);
+		hlist_init(&table->head[i]);
 	}
 
 	return;
@@ -40,13 +40,13 @@ int hash_add(struct hash_table *table, void *key,
 	hash_key = table->hash_key_generate(key, HASH_BIT);
 	head = &table->head[hash_key];
 
-	hlist_for_each_entry(entry, head, list){
+	hlist_for_each(head, entry, list){
 		if(!table->hash_key_compare(key, entry->key)){
 			goto err_entry_exist;
 		}
 	}
 
-	hlist_add_head(&entry_new->list, head);
+	hlist_add_first(head, &entry_new->list);
 
 	return 0;
 
@@ -65,7 +65,7 @@ int hash_delete(struct hash_table *table,
 	hash_key = table->hash_key_generate(key, HASH_BIT);
 	head = &table->head[hash_key];
 
-	hlist_for_each_entry(entry, head, list){
+	hlist_for_each(head, entry, list){
 		if(!table->hash_key_compare(key, entry->key)){
 			target = entry;
 			break;
@@ -75,7 +75,7 @@ int hash_delete(struct hash_table *table,
 	if(!target)
 		goto err_not_found;
 
-	hlist_del_init(&target->list);
+	hlist_del(&target->list);
 	table->hash_entry_delete(target);
 
 	return 0;
@@ -87,14 +87,13 @@ err_not_found:
 void hash_delete_all(struct hash_table *table)
 {
 	struct hlist_head *head;
-	struct hlist_node *next;
-	struct hash_entry *entry;
+	struct hash_entry *entry, *temp;
 	unsigned int i;
 
 	for(i = 0; i < HASH_SIZE; i++){
 		head = &table->head[i];
-		hlist_for_each_entry_safe(entry, next, head, list){
-			hlist_del_init(&entry->list);
+		hlist_for_each_safe(head, entry, list, temp){
+			hlist_del(&entry->list);
 			table->hash_entry_delete(entry);
 		}
 	}
@@ -106,20 +105,20 @@ struct hash_entry *hash_lookup(struct hash_table *table,
 	void *key)
 {
 	struct hlist_head *head;
-	struct hash_entry *entry, *entry_ret;
+	struct hash_entry *entry, *_entry;
 	unsigned int hash_key;
 
-	entry_ret = NULL;
+	entry = NULL;
 	hash_key = table->hash_key_generate(key, HASH_BIT);
 	head = &table->head[hash_key];
 
-	hlist_for_each_entry(entry, head, list){
-		if(!table->hash_key_compare(key, entry->key)){
-			entry_ret = entry;
+	hlist_for_each(head, _entry, list){
+		if(!table->hash_key_compare(key, _entry->key)){
+			entry = _entry;
 			break;
 		}
 	}
 
-        return entry_ret;
+        return entry;
 }
 

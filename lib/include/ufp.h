@@ -73,6 +73,7 @@ unsigned int ufp_mtu_get(struct ufp_iface *iface);
 char *ufp_ifname_get(struct ufp_dev *dev);
 void *ufp_macaddr(struct ufp_plane *plane,
 	unsigned int port_idx);
+unsigned short ufp_portnum(struct ufp_plane *plane);
 int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_idx,
 	enum ufp_irq_type type);
 struct ufp_irq *ufp_irq(struct ufp_plane *plane,

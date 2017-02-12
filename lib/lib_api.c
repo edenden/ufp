@@ -30,6 +30,11 @@ void *ufp_macaddr(struct ufp_plane *plane,
 	return plane->ports[port_idx].mac_addr;
 }
 
+unsigned short ufp_portnum(struct ufp_plane *plane)
+{
+	return plane->num_ports;
+}
+
 int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_idx,
 	enum ufp_irq_type type)
 {

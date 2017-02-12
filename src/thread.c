@@ -42,7 +42,7 @@ void *thread_process_interrupt(void *data)
 
 	ufpd_log(LOG_INFO, "thread %d started", thread->id);
 	read_size = getpagesize();
-	INIT_LIST_HEAD(&ep_desc_head);
+	list_init(&ep_desc_head);
 
 	/* Prepare fib */
 	thread->fib_inet = fib_alloc(thread->mpool);
@@ -244,7 +244,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 		if(!ep_desc)
 			goto err_assign_port;
 
-		list_add(&ep_desc->list, ep_desc_head);
+		list_add_last(ep_desc_head, &ep_desc->list);
 
 		ret = epoll_add(fd_ep, ep_desc, ep_desc->fd);
 		if(ret < 0){
@@ -257,7 +257,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 		if(!ep_desc)
 			goto err_assign_port;
 
-		list_add(&ep_desc->list, ep_desc_head);
+		list_add_last(ep_desc_head, &ep_desc->list);
 
 		ret = epoll_add(fd_ep, ep_desc, ep_desc->fd);
 		if(ret < 0){
@@ -270,7 +270,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 		if(!ep_desc)
 			goto err_assign_port;
 
-		list_add(&ep_desc->list, ep_desc_head);
+		list_add_last(ep_desc_head, &ep_desc->list);
 
 		ret = epoll_add(fd_ep, ep_desc, ep_desc->fd);
 		if(ret < 0){
@@ -286,7 +286,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 	if(!ep_desc)
 		goto err_epoll_desc_signalfd;
 
-	list_add(&ep_desc->list, ep_desc_head);
+	list_add_last(ep_desc_head, &ep_desc->list);
 
 	ret = epoll_add(fd_ep, ep_desc, ep_desc->fd);
 	if(ret < 0){
@@ -303,7 +303,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 	if(!ep_desc)
 		goto err_epoll_desc_netlink;
 
-	list_add(&ep_desc->list, ep_desc_head);
+	list_add_last(ep_desc_head, &ep_desc->list);
 
 	ret = epoll_add(fd_ep, ep_desc, ep_desc->fd);
 	if(ret < 0){
@@ -326,9 +326,9 @@ err_epoll_open:
 static void thread_fd_destroy(struct list_head *ep_desc_head,
 	int fd_ep)
 {
-	struct epoll_desc *ep_desc, *ep_next;
+	struct epoll_desc *ep_desc, *temp;
 
-	list_for_each_entry_safe(ep_desc, ep_next, ep_desc_head, list){
+	list_for_each_safe(ep_desc_head, ep_desc, list, temp){
 		list_del(&ep_desc->list);
 		epoll_del(fd_ep, ep_desc->fd);
 
