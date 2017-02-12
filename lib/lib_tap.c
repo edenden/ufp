@@ -6,7 +6,7 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <linux/if_tun.h>
-#include <linux/if_arp.h>
+#include <net/if_arp.h>
 
 #include "lib_main.h"
 #include "lib_tap.h"
@@ -141,7 +141,6 @@ err_queues:
 	for(i = 0; i < open_done; i++){
 		close(iface->tap_fds[i]);
 	}
-	close(sock);
 	free(iface->tap_fds);
 err_fds_alloc:
 	return -1;
