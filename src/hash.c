@@ -3,8 +3,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-
 #include <ufp.h>
+
 #include "main.h"
 #include "hash.h"
 

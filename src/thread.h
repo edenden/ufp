@@ -15,7 +15,6 @@ struct ufpd_thread {
 	struct neigh_table	**neigh_inet6;
 	struct fib		*fib_inet;
 	struct fib		*fib_inet6;
-	struct tun_plane	*tun_plane;
 	unsigned int		id;
 	pthread_t		tid;
 	pthread_t		ptid;

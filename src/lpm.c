@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <arpa/inet.h>
 #include <stddef.h>
+#include <ufp.h>
 
 #include "main.h"
 #include "lpm.h"

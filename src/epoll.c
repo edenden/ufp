@@ -6,6 +6,7 @@
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
 #include <sys/socket.h>
+#include <ufp.h>
 
 #include "main.h"
 #include "epoll.h"
@@ -110,7 +111,7 @@ void epoll_desc_release_signalfd(struct epoll_desc *ep_desc)
 	return;
 }
 
-struct epoll_desc *epoll_desc_alloc_tun(struct tun_plane *tun_plane,
+struct epoll_desc *epoll_desc_alloc_tun(struct ufp_plane *plane,
 	unsigned int port_index)
 {
 	struct epoll_desc *ep_desc;
@@ -119,7 +120,7 @@ struct epoll_desc *epoll_desc_alloc_tun(struct tun_plane *tun_plane,
 	if(!ep_desc)
 		goto err_alloc_ep_desc;
 
-	ep_desc->fd		= tun_plane->ports[port_index].fd;
+	ep_desc->fd		= ufp_tun_fd(plane, port_index);
 	ep_desc->type		= EPOLL_TUN;
 	ep_desc->port_index	= port_index;
 

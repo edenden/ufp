@@ -74,8 +74,8 @@ void *thread_process_interrupt(void *data)
 			goto err_neigh_inet6_alloc;
 
 		/* calclulate maximum buf_size we should prepare */
-		if(thread->tun_plane->ports[i].mtu_frame > read_size)
-			read_size = thread->tun_plane->ports[i].mtu_frame;
+		if(ufp_framemtu(thread->plane, i) > read_size)
+			read_size = ufp_framemtu(thread->plane, i);
 
 		continue;
 
@@ -266,7 +266,7 @@ static int thread_fd_prepare(struct list_head *ep_desc_head,
 		}
 
 		/* Register Virtual Interface fd */
-		ep_desc = epoll_desc_alloc_tun(thread->tun_plane, i);
+		ep_desc = epoll_desc_alloc_tun(thread->plane, i);
 		if(!ep_desc)
 			goto err_assign_port;
 

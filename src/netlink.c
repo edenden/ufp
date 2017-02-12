@@ -8,13 +8,13 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <linux/if_ether.h>
+#include <ufp.h>
 
 #include "main.h"
 #include "thread.h"
 #include "netlink.h"
 #include "fib.h"
 #include "neigh.h"
-#include "iftap.h"
 
 static void netlink_route(struct ufpd_thread *thread, struct nlmsghdr *nlh);
 static void netlink_neigh(struct ufpd_thread *thread, struct nlmsghdr *nlh);
@@ -94,7 +94,7 @@ static void netlink_route(struct ufpd_thread *thread, struct nlmsghdr *nlh)
 		type = FIB_TYPE_LOCAL;
 
 	for(i = 0; i < thread->num_ports; i++){
-		if(thread->tun_plane->ports[i].ifindex == ifindex){
+		if(ufp_tun_index(thread->plane, i) == ifindex){
 			port_index = i;
 			break;
 		}
@@ -148,7 +148,7 @@ static void netlink_neigh(struct ufpd_thread *thread, struct nlmsghdr *nlh)
 	port_index 	= -1;
 
 	for(i = 0; i < thread->num_ports; i++){
-		if(thread->tun_plane->ports[i].ifindex == ifindex){
+		if(ufp_tun_index(thread->plane, i) == ifindex){
 			port_index = i;
 			break;
 		}

@@ -3,6 +3,7 @@
 
 #include <linux/if_ether.h>
 #include <pthread.h>
+#include <ufp.h>
 #include "hash.h"
 
 #define GOLDEN_RATIO_PRIME_32 0x9e370001UL

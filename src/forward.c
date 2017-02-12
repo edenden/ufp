@@ -129,7 +129,7 @@ static int forward_arp_process(struct ufpd_thread *thread,
 {
 	int fd, ret;
 
-	fd = thread->tun_plane->ports[port_index].fd;
+	fd = ufp_tun_fd(thread->plane, port_index);
 	ret = write(fd, packet->slot_buf, packet->slot_size);
 	if(ret < 0)
 		goto err_write_tun;
@@ -201,7 +201,7 @@ static int forward_ip_process(struct ufpd_thread *thread,
 	return ret;
 
 packet_local:
-	fd = thread->tun_plane->ports[port_index].fd;
+	fd = ufp_tun_fd(thread->plane, port_index);
 	write(fd, packet->slot_buf, packet->slot_size);
 packet_drop:
 	return -1;
@@ -266,7 +266,7 @@ static int forward_ip6_process(struct ufpd_thread *thread,
 	return ret;
 
 packet_local:
-	fd = thread->tun_plane->ports[port_index].fd;
+	fd = ufp_tun_fd(thread->plane, port_index);
 	write(fd, packet->slot_buf, packet->slot_size);
 packet_drop:
 	return -1;

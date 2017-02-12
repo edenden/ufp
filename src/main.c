@@ -57,7 +57,6 @@ int main(int argc, char **argv)
 	int			threads_assigned = 0,
 				devices_assigned = 0,
 				devices_up = 0,
-				tun_assigned = 0,
 				mpool_assigned = 0;
 	sigset_t		sigset;
 	char			strbuf[1024];
@@ -158,12 +157,6 @@ int main(int argc, char **argv)
 		goto err_devs;
 	}
 
-	ufpd.tunhs = malloc(sizeof(struct tun_handle *) * ufpd.num_devices);
-	if(!ufpd.tunhs){
-		ret = -1;
-		goto err_tunhs;
-	}
-
 	ufpd.mpools = malloc(sizeof(struct ufp_mpool *) * ufpd.num_threads);
 	if(!ufpd.mpools){
 		ret = -1;
@@ -190,15 +183,6 @@ int main(int argc, char **argv)
 			ufpd_log(LOG_ERR, "failed to ufp_open, idx = %d", i);
 			ret = -1;
 			goto err_open;
-		}
-	}
-
-	for(i = 0; i < ufpd.num_devices; i++, tun_assigned++){
-		ufpd.tunhs[i] = tun_open(&ufpd, i);
-		if(!ufpd.tunhs[i]){
-			ufpd_log(LOG_ERR, "failed to tun_open");
-			ret = -1;
-			goto err_tun_open;
 		}
 	}
 
@@ -236,10 +220,6 @@ int main(int argc, char **argv)
 			goto err_plane_alloc;
 		}
 
-		threads[i].tun_plane = tun_plane_alloc(&ufpd, i);
-		if(!threads[i].tun_plane)
-			goto err_tun_plane_alloc;
-
 		ret = ufpd_thread_create(&ufpd, &threads[i], i, ufpd.cores[i]);
 		if(ret < 0){
 			goto err_thread_create;
@@ -248,8 +228,6 @@ int main(int argc, char **argv)
 		continue;
 
 err_thread_create:
-		tun_plane_release(threads[i].tun_plane);
-err_tun_plane_alloc:
 		ufp_plane_release(threads[i].plane);
 err_plane_alloc:
 		ufp_release_buf(ufpd.devs, ufpd.num_devices, threads[i].buf);
@@ -268,7 +246,6 @@ err_buf_alloc:
 err_assign_threads:
 	for(i = 0; i < threads_assigned; i++){
 		ufpd_thread_kill(&threads[i]);
-		tun_plane_release(threads[i].tun_plane);
 		ufp_plane_release(threads[i].plane);
 		ufp_release_buf(ufpd.devs, ufpd.num_devices, threads[i].buf);
 	}
@@ -276,10 +253,6 @@ err_set_signal:
 err_up:
 	for(i = 0; i < devices_up; i++){
 		ufp_down(ufpd.devs[i]);
-	}
-err_tun_open:
-	for(i = 0; i < tun_assigned; i++){
-		tun_close(&ufpd, i);
 	}
 err_open:
 	for(i = 0; i < devices_assigned; i++){
@@ -293,8 +266,6 @@ err_mempool_init:
 err_alloc_threads:
 	free(ufpd.mpools);
 err_mpools:
-	free(ufpd.tunhs);
-err_tunhs:
 	free(ufpd.devs);
 err_devs:
 err_set_mempolicy:

@@ -1,9 +1,9 @@
 #ifndef _UFPD_MAIN_H
 #define _UFPD_MAIN_H
 
-#include <ufp.h>
 #include <sys/socket.h>
 #include <linux/if.h>
+#include <ufp.h>
 /*#include <config.h>*/
 
 #define min(x, y) ({				\
@@ -33,7 +33,6 @@
 
 struct ufpd {
 	struct ufp_dev		**devs;
-	struct tun_handle	**tunhs;
 	struct ufp_mpool	**mpools;
 	unsigned int		num_threads;
 	unsigned int		cores[UFP_MAX_CORES];

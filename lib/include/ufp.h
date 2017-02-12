@@ -71,6 +71,12 @@ inline unsigned int ufp_slot_size(struct ufp_buf *buf);
 void *ufp_macaddr(struct ufp_plane *plane,
 	unsigned int port_idx);
 unsigned short ufp_portnum(struct ufp_plane *plane);
+unsigned int ufp_framemtu(struct ufp_plane *plane,
+	unsigned int port_idx);
+int ufp_tun_fd(struct ufp_plane *plane,
+	unsigned int port_idx);
+int ufp_tun_index(struct ufp_plane *plane,
+	unsigned int port_idx);
 int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_idx,
 	enum ufp_irq_type type);
 struct ufp_irq *ufp_irq(struct ufp_plane *plane,
