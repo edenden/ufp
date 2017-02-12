@@ -1,6 +1,8 @@
 #ifndef _UFP_H
 #define _UFP_H
 
+#include "ufp_list.h"
+
 struct ufp_mpool;
 struct ufp_dev;
 struct ufp_iface;
