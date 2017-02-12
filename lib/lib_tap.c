@@ -11,15 +11,19 @@
 #include "lib_main.h"
 #include "lib_tap.h"
 
-static int tun_iff(int fd, const char *if_name);
-static int tun_persist(int fd, const char *if_name, int flag);
-static int tun_macaddr_set(int fd, const char *if_name, void *src_mac);
-static int tun_mtu_set(int fd, const char *if_name, unsigned int mtu_frame);
-static int tun_flags_set(int fd, const char *if_name, short flags);
-static short tun_flags_get(int fd, const char *if_name);
-static int tun_index_get(int fd, const char *if_name);
+static int ufp_tun_iff(int fd, const char *if_name);
+static int ufp_tun_persist(int fd, const char *if_name,
+	int flag);
+static int ufp_tun_macaddr_set(int sock, const char *if_name,
+	void *src_mac);
+static int ufp_tun_mtu_set(int sock, const char *if_name,
+	unsigned int mtu_frame);
+static int ufp_tun_flags_set(int sock, const char *if_name,
+	short flags);
+static short ufp_tun_flags_get(int sock, const char *if_name);
+static int ufp_tun_index_get(int sock, const char *if_name);
 
-int tun_open(struct ufp_iface *iface)
+int ufp_tun_open(struct ufp_iface *iface)
 {
 	int fd, err;
 
@@ -27,11 +31,11 @@ int tun_open(struct ufp_iface *iface)
 	if(fd < 0)
 		goto err_tun_open;
 
-	err = tun_iff(fd, iface->name);
+	err = ufp_tun_iff(fd, iface->name);
 	if(err < 0)
 		goto err_tun_iff;
 
-	err = tun_persist(fd, iface->name, 1);
+	err = ufp_tun_persist(fd, iface->name, 1);
 	if(err < 0)
 		goto err_tun_persist;
 
@@ -45,7 +49,7 @@ err_tun_open:
 	return -1;
 }
 
-void tun_close(struct ufp_iface *iface)
+void ufp_tun_close(struct ufp_iface *iface)
 {
 
 	int fd, err;
@@ -54,11 +58,11 @@ void tun_close(struct ufp_iface *iface)
 	if(fd < 0)
 		goto err_tun_open;
 
-	err = tun_iff(fd, iface->name);
+	err = ufp_tun_iff(fd, iface->name);
 	if(err < 0)
 		goto err_tun_iff;
 
-	err = tun_persist(fd, iface->name, 0);
+	err = ufp_tun_persist(fd, iface->name, 0);
 	if(err < 0)
 		goto err_tun_persist;
 
@@ -69,7 +73,7 @@ err_tun_open:
 	return;
 }
 
-int tun_up(struct ufp_iface *iface)
+int ufp_tun_up(struct ufp_iface *iface)
 {
 	short flags;
 	int sock, i, err;
@@ -84,7 +88,7 @@ int tun_up(struct ufp_iface *iface)
 		if(iface->tap_fds < 0)
 			goto err_tun_open;
 
-		err = tun_iff(iface->tap_fds[i], iface->name);
+		err = ufp_tun_iff(iface->tap_fds[i], iface->name);
 		if(err < 0)
 			goto err_tun_iff;
 
@@ -101,24 +105,25 @@ err_tun_open:
 	if(sock < 0)
 		goto err_sock_open;
 
-	err = tun_macaddr_set(sock, iface->name, iface->mac_addr);
+	err = ufp_tun_macaddr_set(sock, iface->name,
+		iface->mac_addr);
 	if(err < 0)
 		goto err_tun_mac;
 
-	iface->tap_ifindex = tun_index_get(sock, iface->name);
-	if(iface->tap_ifindex < 0)
+	iface->tap_index = ufp_tun_index_get(sock, iface->name);
+	if(iface->tap_index < 0)
 		goto err_tun_ifindex;
 
-	err = tun_mtu_set(sock, iface->name, iface->mtu_frame);
+	err = ufp_tun_mtu_set(sock, iface->name, iface->mtu_frame);
 	if(err < 0)
 		goto err_tun_mtu;
 
-	flags = tun_flags_get(sock, iface->name);
+	flags = ufp_tun_flags_get(sock, iface->name);
 	if(flags < 0)
 		goto err_tun_flags_get;
 
 	flags |= IFF_UP;
-	err = tun_flags_set(sock, iface->name, flags);
+	err = ufp_tun_flags_set(sock, iface->name, flags);
 	if(err < 0)
 		goto err_tun_flags_set;
 
@@ -142,7 +147,7 @@ err_fds_alloc:
 	return -1;
 }
 
-void tun_down(struct ufp_iface *iface)
+void ufp_tun_down(struct ufp_iface *iface)
 {
 	int sock, i, err;
 	short flags;
@@ -152,12 +157,12 @@ void tun_down(struct ufp_iface *iface)
 	if(sock < 0)
 		goto err_sock_open;
 
-	flags = tun_flags_get(sock, iface->name);
+	flags = ufp_tun_flags_get(sock, iface->name);
 	if(flags < 0)
 		goto err_tun_flags_get;
 
 	flags &= ~IFF_UP;
-	err = tun_flags_set(sock, iface->name, flags);
+	err = ufp_tun_flags_set(sock, iface->name, flags);
 	if(err < 0)
 		goto err_tun_flags_set;
 
@@ -173,7 +178,7 @@ err_sock_open:
 	return;
 }
 
-static int tun_iff(int fd, const char *if_name)
+static int ufp_tun_iff(int fd, const char *if_name)
 {
 	struct ifreq ifr;
 	int err;
@@ -193,7 +198,8 @@ err_tun_ioctl:
 	return -1;
 }
 
-static int tun_persist(int fd, const char *if_name, int flag)
+static int ufp_tun_persist(int fd, const char *if_name,
+	int flag)
 {
 	int err;
 
@@ -207,7 +213,8 @@ err_tun_ioctl:
 	return -1;
 }
 
-static int tun_macaddr_set(int fd, const char *if_name, void *src_mac)
+static int ufp_tun_macaddr_set(int sock, const char *if_name,
+	void *src_mac)
 {
 	struct ifreq ifr;
 	int err;
@@ -218,7 +225,7 @@ static int tun_macaddr_set(int fd, const char *if_name, void *src_mac)
 	ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
 	memcpy(ifr.ifr_hwaddr.sa_data, src_mac, ETH_ALEN);
 
-	err = ioctl(fd, SIOCSIFHWADDR, (void *)&ifr);
+	err = ioctl(sock, SIOCSIFHWADDR, (void *)&ifr);
 	if(err < 0)
 		goto err_tun_ioctl;
 
@@ -228,7 +235,8 @@ err_tun_ioctl:
 	return -1;
 }
 
-static int tun_mtu_set(int fd, const char *if_name, unsigned int mtu_frame)
+static int ufp_tun_mtu_set(int sock, const char *if_name,
+	unsigned int mtu_frame)
 {
 	struct ifreq ifr;
 	int err;
@@ -238,7 +246,7 @@ static int tun_mtu_set(int fd, const char *if_name, unsigned int mtu_frame)
 
 	ifr.ifr_mtu = mtu_frame;
 
-	err = ioctl(fd, SIOCSIFMTU, (void *)&ifr);
+	err = ioctl(sock, SIOCSIFMTU, (void *)&ifr);
 	if(err < 0)
 		goto err_tun_ioctl;
 
@@ -248,7 +256,8 @@ err_tun_ioctl:
 	return -1;
 }
 
-static int tun_flags_set(int fd, const char *if_name, short flags)
+static int ufp_tun_flags_set(int sock, const char *if_name,
+	short flags)
 {
 	struct ifreq ifr;
 	int err;
@@ -258,7 +267,7 @@ static int tun_flags_set(int fd, const char *if_name, short flags)
 
 	ifr.ifr_flags = flags;
 
-	err = ioctl(fd, SIOCSIFFLAGS, (void *)&ifr);
+	err = ioctl(sock, SIOCSIFFLAGS, (void *)&ifr);
 	if(err < 0)
 		goto err_tun_ioctl;
 
@@ -268,7 +277,7 @@ err_tun_ioctl:
 	return -1;
 }
 
-static short tun_flags_get(int fd, const char *if_name)
+static short ufp_tun_flags_get(int sock, const char *if_name)
 {
 	struct ifreq ifr;
 	int err;
@@ -276,7 +285,7 @@ static short tun_flags_get(int fd, const char *if_name)
 	memset(&ifr, 0, sizeof(struct ifreq));
 	strncpy(ifr.ifr_name, if_name, IFNAMSIZ);
 
-	err = ioctl(fd, SIOCGIFFLAGS, (void *)&ifr);
+	err = ioctl(sock, SIOCGIFFLAGS, (void *)&ifr);
 	if(err < 0)
 		goto err_tun_ioctl;
 
@@ -286,7 +295,7 @@ err_tun_ioctl:
 	return -1;
 }
 
-static int tun_index_get(int fd, const char *if_name)
+static int ufp_tun_index_get(int sock, const char *if_name)
 {
 	struct ifreq ifr;
 	int err;
@@ -294,7 +303,7 @@ static int tun_index_get(int fd, const char *if_name)
 	memset(&ifr, 0, sizeof(struct ifreq));
 	strncpy(ifr.ifr_name, if_name, IFNAMSIZ);
 
-	err = ioctl(fd, SIOCGIFINDEX, (void *)&ifr);
+	err = ioctl(sock, SIOCGIFINDEX, (void *)&ifr);
 	if(err < 0)
 		goto err_tun_ioctl;
 

@@ -9,21 +9,6 @@
 #include "lib_main.h"
 #include "lib_api.h"
 
-void *ufp_macaddr_default(struct ufp_iface *iface)
-{
-	return iface->mac_addr;
-}
-
-unsigned int ufp_mtu_get(struct ufp_iface *iface)
-{
-	return iface->mtu_frame;
-}
-
-char *ufp_ifname_get(struct ufp_dev *dev)
-{
-	return dev->name;
-}
-
 void *ufp_macaddr(struct ufp_plane *plane,
 	unsigned int port_idx)
 {

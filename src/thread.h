@@ -4,7 +4,6 @@
 #include <pthread.h>
 #include <ufp.h>
 
-#include "iftap.h"
 #include "neigh.h"
 #include "fib.h"
 

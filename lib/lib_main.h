@@ -113,6 +113,7 @@ struct ufp_iface {
 	int			*tap_fds;
 	int			tap_index;
 
+	char			name[IFNAMSIZ];
 	void			*drv_data;
 	struct list_node	list;
 };

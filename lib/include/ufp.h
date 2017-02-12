@@ -68,9 +68,6 @@ inline void *ufp_slot_addr_virt(struct ufp_buf *buf,
 inline unsigned int ufp_slot_size(struct ufp_buf *buf);
 
 /* API */
-void *ufp_macaddr_default(struct ufp_iface *iface);
-unsigned int ufp_mtu_get(struct ufp_iface *iface);
-char *ufp_ifname_get(struct ufp_dev *dev);
 void *ufp_macaddr(struct ufp_plane *plane,
 	unsigned int port_idx);
 unsigned short ufp_portnum(struct ufp_plane *plane);

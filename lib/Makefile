@@ -4,7 +4,7 @@ LDFLAGS = -shared -ldl -Wl,--export-dynamic,-soname=libufp.so.1
 TARGET_LIB = libufp.so.1.0.0
 LIBDIR = /usr/local/lib/
 
-SRCS = lib_main.c lib_api.c lib_mem.c lib_io.c lib_dev.c
+SRCS = lib_main.c lib_api.c lib_mem.c lib_io.c lib_dev.c lib_tap.c
 OBJS = $(subst .c,.o,$(SRCS))
 
 ${TARGET_LIB}: ${OBJS}

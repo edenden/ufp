@@ -17,6 +17,7 @@
 #include "lib_list.h"
 #include "lib_dev.h"
 #include "lib_mem.h"
+#include "lib_tap.h"
 
 static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	unsigned long size_desc, uint32_t num_desc, struct ufp_mpool *mpool);
@@ -456,6 +457,10 @@ struct ufp_dev *ufp_open(const char *name)
 	if(!iface)
 		goto err_alloc_iface;
 	list_add_last(&dev->iface, &iface->list);
+	strncpy(iface->name, dev->name, sizeof(iface->name));
+	err = ufp_tun_open(iface);
+	if(err < 0)
+		goto err_tap_open;
 
 	err = dev->ops->open(dev);
 	if(err < 0)
@@ -464,6 +469,8 @@ struct ufp_dev *ufp_open(const char *name)
 	return dev;
 
 err_ops_open:
+	ufp_tun_close(iface);
+err_tap_open:
 	list_del(&iface->list);
 	free(iface);
 err_alloc_iface:
@@ -483,18 +490,18 @@ void ufp_close(struct ufp_dev *dev)
 {
 	struct ufp_iface *iface, *temp;
 
+	dev->ops->close(dev);
+
 	list_for_each_safe(&dev->iface, iface, list, temp){
+		ufp_tun_close(iface);
 		list_del(&iface->list);
-		ufp_release_rings(dev, iface);
 		free(iface);
 	}
 
-	dev->ops->close(dev);
 	ufp_ops_release(dev, dev->ops);
 	munmap(dev->bar, dev->bar_size);
 	close(dev->fd);
 	free(dev);
-
 	return;
 }
 
@@ -521,7 +528,17 @@ int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
 		if(err < 0)
 			goto err_alloc_rings;
 
+		err = ufp_tun_up(iface);
+		if(err < 0)
+			goto err_tun_up;
+
 		iface_done++;
+		continue;
+
+err_tun_up:
+		ufp_release_rings(dev, iface);
+err_alloc_rings:
+		goto err_iface_up;
 	}
 	req.num_irqs += dev->num_misc_irqs;
 	if(ioctl(dev->fd, UFP_START, (unsigned long)&req) < 0)
@@ -536,11 +553,12 @@ int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
 err_ops_up:
 	ioctl(dev->fd, UFP_STOP, 0);
 err_ioctl_start:
-err_alloc_rings:
+err_iface_up:
 	i = 0;
 	list_for_each(&dev->iface, iface, list){
 		if(!(i++ < iface_done))
 			break;
+		ufp_tun_down(iface);
 		ufp_release_rings(dev, iface);
 	}
 	return -1;
@@ -548,6 +566,7 @@ err_alloc_rings:
 
 void ufp_down(struct ufp_dev *dev)
 {
+	struct ufp_iface *iface;
 	int err;
 
 	err = dev->ops->down(dev);
@@ -560,6 +579,10 @@ err_ops_down:
 		goto err_ioctl_stop;
 
 err_ioctl_stop:
+	list_for_each(&dev->iface, iface, list){
+		ufp_tun_down(iface);
+		ufp_release_rings(dev, iface);
+	}
 	return;
 }
 

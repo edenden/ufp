@@ -4,7 +4,6 @@
 #include <linux/netlink.h>
 #include <signal.h>
 #include <ufp.h>
-#include "iftap.h"
 
 #define EPOLL_MAXEVENTS 16
 
