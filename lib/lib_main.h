@@ -93,8 +93,8 @@ struct ufp_iface {
 	struct ufp_ring		*tx_ring;
 	struct ufp_ring		*rx_ring;
 
-	struct ufp_irq_handle   **rx_irq;
-	struct ufp_irq_handle   **tx_irq;
+	struct ufp_irq		**rx_irq;
+	struct ufp_irq		**tx_irq;
 
 	uint32_t		num_tx_desc;
 	unsigned long		size_tx_desc;
@@ -124,14 +124,14 @@ struct ufp_dev {
 	struct list_head	iface;
 	uint16_t		num_ifaces;
 	uint32_t		num_misc_irqs;
-	struct ufp_irq_handle	*misc_irqh;
+	struct ufp_irq		*misc_irq;
 	uint16_t		device_id;
 	uint16_t		vendor_id;
 
 	void			*drv_data;
 };
 
-struct ufp_irq_handle {
+struct ufp_irq {
 	int			fd;
 	uint16_t		entry_idx;
 	uint32_t		vector;
@@ -146,8 +146,8 @@ struct ufp_port {
 	/* struct iface specific parameters */
 	struct ufp_ring		*rx_ring;
 	struct ufp_ring		*tx_ring;
-	struct ufp_irq_handle	*rx_irq;
-	struct ufp_irq_handle	*tx_irq;
+	struct ufp_irq		*rx_irq;
+	struct ufp_irq		*tx_irq;
 	uint32_t		mtu_frame;
 	uint32_t		num_tx_desc;
 	uint32_t		num_rx_desc;
@@ -252,8 +252,8 @@ inline void ufp_writel(uint32_t b, volatile void *addr);
 int ufp_dma_map(struct ufp_dev *dev, void *addr_virt,
 	unsigned long *addr_dma, unsigned long size);
 int ufp_dma_unmap(struct ufp_dev *dev, unsigned long addr_dma);
-struct ufp_irq_handle *ufp_irq_open(struct ufp_dev *dev,
+struct ufp_irq *ufp_irq_open(struct ufp_dev *dev,
 	unsigned int entry_idx);
-void ufp_irq_close(struct ufp_irq_handle *irqh);
+void ufp_irq_close(struct ufp_irq *irq);
 
 #endif /* _LIBUFP_MAIN_H */

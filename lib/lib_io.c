@@ -49,12 +49,12 @@ static inline void ufp_write_tail(struct ufp_ring *ring, uint32_t value)
 }
 
 void ufp_irq_unmask_queues(struct ufp_plane *plane,
-	unsigned int port_idx, struct ufp_irq_handle *irqh)
+	unsigned int port_idx, struct ufp_irq *irq)
 {
 	struct ufp_port *port;
 
 	port = &plane->ports[port_idx];
-	port->ops->unmask_queues(port->bar, irqh->entry_idx);
+	port->ops->unmask_queues(port->bar, irq->entry_idx);
 
 	return;
 }

@@ -434,11 +434,11 @@ int i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 		iface->rx_irq[i] = ufp_irq_open(dev,
 			irq_idx + dev->num_misc_irqs);
 		if(!iface->rx_irq[i])
-			goto err_rx_irqh;
+			goto err_iface_rx_irq;
 
 		continue;
 
-err_rx_irqh:
+err_iface_rx_irq:
 		i40e_vsi_shutdown_irq_rx(dev, qp_idx, irq_idx);
 		goto err_rx_irq;
 
@@ -452,11 +452,11 @@ err_rx_irqh:
 		iface->tx_irq[i] = ufp_irq_open(dev,
 			irq_idx + dev->num_misc_irqs);
 		if(!iface->tx_irq[i])
-			goto err_tx_irqh;
+			goto err_iface_tx_irq;
 
 		continue;
 
-err_tx_irqh:
+err_iface_tx_irq:
 		i40e_vsi_shutdown_irq_tx(dev, qp_idx, irq_idx);
 		goto err_tx_irq;
 	}

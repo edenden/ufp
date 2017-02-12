@@ -34,47 +34,47 @@ int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_idx,
 	enum ufp_irq_type type)
 {
 	struct ufp_port *port;
-	struct ufp_irq_handle *irqh;
+	struct ufp_irq *irq;
 
 	port = &plane->ports[port_idx];
 
 	switch(type){
 	case UFP_IRQ_RX:
-		irqh = port->rx_irq;
+		irq = port->rx_irq;
 		break;
 	case UFP_IRQ_TX:
-		irqh = port->tx_irq;
+		irq = port->tx_irq;
 		break;
 	default:
 		goto err_undefined_type;
 	}
 
-	return irqh->fd;
+	return irq->fd;
 
 err_undefined_type:
 	return -1;
 }
 
-struct ufp_irq_handle *ufp_irq_handle(struct ufp_plane *plane,
+struct ufp_irq *ufp_irq(struct ufp_plane *plane,
 	unsigned int port_idx, enum ufp_irq_type type)
 {
 	struct ufp_port *port;
-	struct ufp_irq_handle *irqh;
+	struct ufp_irq *irq;
 
 	port = &plane->ports[port_idx];
 
 	switch(type){
 	case UFP_IRQ_RX:
-		irqh = port->rx_irq;
+		irq = port->rx_irq;
 		break;
 	case UFP_IRQ_TX:
-		irqh = port->tx_irq;
+		irq = port->tx_irq;
 		break;
 	default:
 		goto err_undefined_type;
 	}
 
-	return irqh;
+	return irq;
 
 err_undefined_type:
 	return NULL;

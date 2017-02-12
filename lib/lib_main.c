@@ -26,7 +26,7 @@ static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring);
 static struct ufp_ops *ufp_ops_alloc(struct ufp_dev *dev);
 static void ufp_ops_release(struct ufp_dev *dev, struct ufp_ops *ops);
-static int ufp_irq_setaffinity(struct ufp_irq_handle *irqh,
+static int ufp_irq_setaffinity(struct ufp_irq *irq,
 	unsigned int core_id);
 
 inline uint32_t ufp_readl(const volatile void *addr)
@@ -126,7 +126,6 @@ void ufp_plane_release(struct ufp_plane *plane)
 struct ufp_mpool *ufp_mpool_init()
 {
 	struct ufp_mpool *mpool;
-	void *addr_virt;
 	unsigned long size;
 
 	mpool = malloc(sizeof(struct ufp_mpool));
@@ -140,7 +139,7 @@ struct ufp_mpool *ufp_mpool_init()
 		goto err_mmap;
 	}
 
-	mpool->node = ufp_mem_init(addr_virt, size);
+	mpool->node = ufp_mem_init(mpool->addr_virt, size);
 	if(!mpool->node)
 		goto err_mem_init;
 
@@ -503,7 +502,8 @@ int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
 {
 	struct ufp_iface *iface;
 	struct ufp_start_req req;
-	int err;
+	unsigned int iface_done = 0;
+	int i, err;
 
 	memset(&req, 0, sizeof(struct ufp_start_req));
 	list_for_each(&dev->iface, iface, list){
@@ -517,6 +517,8 @@ int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
 		err = ufp_alloc_rings(dev, iface, mpools);
 		if(err < 0)
 			goto err_alloc_rings;
+
+		iface_done++;
 	}
 	req.num_irqs += dev->num_misc_irqs;
 	if(ioctl(dev->fd, UFP_START, (unsigned long)&req) < 0)
@@ -531,6 +533,13 @@ int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
 err_ops_up:
 	ioctl(dev->fd, UFP_STOP, 0);
 err_ioctl_start:
+err_alloc_rings:
+	i = 0;
+	list_for_each(&dev->iface, iface, list){
+		if(!(i++ < iface_done))
+			break;
+		ufp_release_rings(dev, iface);
+	}
 	return -1;
 }
 
@@ -551,10 +560,10 @@ err_ioctl_stop:
 	return;
 }
 
-struct ufp_irq_handle *ufp_irq_open(struct ufp_dev *dev,
+struct ufp_irq *ufp_irq_open(struct ufp_dev *dev,
 	unsigned int entry_idx)
 {
-	struct ufp_irq_handle *irqh;
+	struct ufp_irq *irq;
 	int efd, err;
 	struct ufp_irqbind_req req;
 
@@ -571,14 +580,14 @@ struct ufp_irq_handle *ufp_irq_open(struct ufp_dev *dev,
 		goto err_irq_bind;
 	}
 
-	irqh = malloc(sizeof(struct ufp_irq_handle));
-	if(!irqh)
+	irq = malloc(sizeof(struct ufp_irq));
+	if(!irq)
 		goto err_alloc_handle;
 
-	irqh->fd		= efd;
-	irqh->vector		= req.vector;
-	irqh->entry_idx		= entry_idx;
-	return irqh;
+	irq->fd		= efd;
+	irq->vector		= req.vector;
+	irq->entry_idx		= entry_idx;
+	return irq;
 
 err_alloc_handle:
 err_irq_bind:
@@ -587,15 +596,15 @@ err_open_efd:
 	return NULL;
 }
 
-void ufp_irq_close(struct ufp_irq_handle *irqh)
+void ufp_irq_close(struct ufp_irq *irq)
 {
-	close(irqh->fd);
-	free(irqh);
+	close(irq->fd);
+	free(irq);
 
 	return;
 }
 
-static int ufp_irq_setaffinity(struct ufp_irq_handle *irqh,
+static int ufp_irq_setaffinity(struct ufp_irq *irq,
 	unsigned int core_id)
 {
 	FILE *file;
@@ -607,7 +616,7 @@ static int ufp_irq_setaffinity(struct ufp_irq_handle *irqh,
 	mask_high = core_id <= 31 ? 0 : 1 << (core_id - 31);
 
 	snprintf(filename, sizeof(filename),
-		"/proc/irq/%d/smp_affinity", irqh->vector);
+		"/proc/irq/%d/smp_affinity", irq->vector);
 	file = fopen(filename, "w");
 	if(!file){
 		printf("failed to open smp_affinity\n");

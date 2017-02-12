@@ -617,8 +617,8 @@ int i40e_setup_misc_irq(struct ufp_dev *dev)
 
 	i40e_flush(dev);
 
-	dev->misc_irqh = ufp_irq_open(dev, dev->num_misc_irqs);
-	if(!dev->misc_irqh)
+	dev->misc_irq = ufp_irq_open(dev, dev->num_misc_irqs);
+	if(!dev->misc_irq)
 		goto err_open_irq;
 	dev->num_misc_irqs += 1;
 
@@ -631,7 +631,7 @@ err_open_irq:
 
 void i40e_shutdown_misc_irq(struct ufp_dev *dev)
 {
-	ufp_irq_close(dev->misc_irqh);
+	ufp_irq_close(dev->misc_irq);
 	/* Disable ICR 0 */
 	UFP_WRITE32(dev, I40E_PFINT_ICR0_ENA, 0);
 

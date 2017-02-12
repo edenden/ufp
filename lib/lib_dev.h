@@ -25,13 +25,11 @@ struct pci_entry {
 	struct list_node	list;
 };
 
-int ufp_dev_load_lib(char *dir_path);
-void ufp_dev_unload_lib();
-
 int ufp_dev_init(struct ufp_dev *dev, struct ufp_ops *ops);
 int ufp_dev_destroy(struct ufp_dev *dev, struct ufp_ops *ops);
-
 int ufp_dev_register(struct pci_driver *driver);
 void ufp_dev_unregister(struct pci_driver *driver);
+int ufp_dev_load_lib(char *dir_path);
+void ufp_dev_unload_lib();
 
 #endif /* _LIBUFP_DEV_H */

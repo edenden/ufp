@@ -2,9 +2,9 @@
 #define _UFP_H
 
 struct ufp_mpool;
-struct ufp_handle;
-struct ufp_irq_handle;
-struct ufp_desc;
+struct ufp_dev;
+struct ufp_iface;
+struct ufp_irq;
 struct ufp_buf;
 struct ufp_plane;
 
@@ -46,18 +46,18 @@ void ufp_mem_free(void *addr_free);
 
 /* IO */
 void ufp_irq_unmask_queues(struct ufp_plane *plane,
-	unsigned int port_index, struct ufp_irq_handle *irqh);
-void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_index,
+	unsigned int port_idx, struct ufp_irq *irq);
+void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_idx,
 	struct ufp_buf *buf);
-void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_index,
+void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_idx,
 	struct ufp_buf *buf, struct ufp_packet *packet);
-void ufp_tx_xmit(struct ufp_plane *plane, unsigned int port_index);
-unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_index,
+void ufp_tx_xmit(struct ufp_plane *plane, unsigned int port_idx);
+unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_idx,
 	struct ufp_buf *buf, struct ufp_packet *packet);
-void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_index,
+void ufp_tx_clean(struct ufp_plane *plane, unsigned int port_idx,
 	struct ufp_buf *buf);
 inline int ufp_slot_assign(struct ufp_buf *buf,
-	struct ufp_plane *plane, unsigned int port_index);
+	struct ufp_plane *plane, unsigned int port_idx);
 inline void ufp_slot_release(struct ufp_buf *buf,
 	int slot_index);
 inline void *ufp_slot_addr_virt(struct ufp_buf *buf,
@@ -65,15 +65,15 @@ inline void *ufp_slot_addr_virt(struct ufp_buf *buf,
 inline unsigned int ufp_slot_size(struct ufp_buf *buf);
 
 /* API */
-void *ufp_macaddr_default(struct ufp_handle *ih);
-unsigned int ufp_mtu_get(struct ufp_handle *ih);
-char *ufp_ifname_get(struct ufp_handle *ih);
+void *ufp_macaddr_default(struct ufp_iface *iface);
+unsigned int ufp_mtu_get(struct ufp_iface *iface);
+char *ufp_ifname_get(struct ufp_dev *dev);
 void *ufp_macaddr(struct ufp_plane *plane,
-	unsigned int port_index);
-int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_index,
+	unsigned int port_idx);
+int ufp_irq_fd(struct ufp_plane *plane, unsigned int port_idx,
 	enum ufp_irq_type type);
-struct ufp_irq_handle *ufp_irq_handle(struct ufp_plane *plane,
-	unsigned int port_index, enum ufp_irq_type type);
+struct ufp_irq *ufp_irq(struct ufp_plane *plane,
+	unsigned int port_idx, enum ufp_irq_type type);
 unsigned long ufp_count_rx_alloc_failed(struct ufp_plane *plane,
 	unsigned int port_index);
 unsigned long ufp_count_rx_clean_total(struct ufp_plane *plane,
@@ -82,6 +82,5 @@ unsigned long ufp_count_tx_xmit_failed(struct ufp_plane *plane,
 	unsigned int port_index);
 unsigned long ufp_count_tx_clean_total(struct ufp_plane *plane,
 	unsigned int port_index);
-
 
 #endif /* _UFP_H */
