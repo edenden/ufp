@@ -110,6 +110,9 @@ struct ufp_iface {
 	uint32_t		mtu_frame;
 	uint8_t			mac_addr[ETH_ALEN];
 
+	int			*tap_fds;
+	int			tap_index;
+
 	void			*drv_data;
 	struct list_node	list;
 };
@@ -155,6 +158,8 @@ struct ufp_port {
 	uint32_t		rx_budget;
 	uint32_t		tx_budget;
 	uint8_t			mac_addr[ETH_ALEN];
+	int			tap_fd;
+	int			tap_index;
 
 	/* original parameters */
 	uint32_t		rx_slot_next;

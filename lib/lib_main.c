@@ -83,6 +83,8 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_dev **devs, int num_devs,
 			port->tx_budget		= iface->tx_budget;
 			port->mtu_frame		= iface->mtu_frame;
 			memcpy(port->mac_addr, iface->mac_addr, ETH_ALEN);
+			port->tap_fd		= iface->tap_fds[thread_id];
+			port->tap_index		= iface->tap_index;
 
 			port->rx_slot_next	= 0;
 			port->rx_slot_offset	= port_idx * buf->count;
