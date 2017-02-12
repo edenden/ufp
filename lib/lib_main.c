@@ -18,9 +18,16 @@
 #include "lib_dev.h"
 #include "lib_mem.h"
 
+static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
+	unsigned long size_desc, uint32_t num_desc, struct ufp_mpool *mpool);
+static void ufp_release_rings(struct ufp_dev *dev, struct ufp_iface *iface);
+static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
+	unsigned long size_desc, uint32_t num_desc, struct ufp_mpool *mpool);
+static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring);
 static struct ufp_ops *ufp_ops_alloc(struct ufp_dev *dev);
 static void ufp_ops_release(struct ufp_dev *dev, struct ufp_ops *ops);
-static int ufp_irq_setaffinity(unsigned int vector, unsigned int core_id);
+static int ufp_irq_setaffinity(struct ufp_irq_handle *irqh,
+	unsigned int core_id);
 
 inline uint32_t ufp_readl(const volatile void *addr)
 {
@@ -207,12 +214,8 @@ static void ufp_release_rings(struct ufp_dev *dev, struct ufp_iface *iface)
 	int i;
 
 	for(i = 0; i < iface->num_qps; i++){
-		free(iface->tx_ring[i].slot_index);
-		ufp_dma_unmap(dev, iface->tx_ring[i].addr_dma);
-		ufp_mem_free(iface->tx_ring[i].addr_virt);
-		free(iface->rx_ring[i].slot_index);
-		ufp_dma_unmap(dev, iface->rx_ring[i].addr_dma);
-		ufp_mem_free(iface->rx_ring[i].addr_virt);
+		ufp_release_ring(dev, &iface->tx_ring[i]);
+		ufp_release_ring(dev, &iface->rx_ring[i]);
 	}
 
 	free(iface->rx_ring);
@@ -259,11 +262,10 @@ err_alloc:
 	return -1;
 }
 
-
 static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring)
 {
 	free(ring->slot_index);
-	ufp_dma_unmap(dev, iface->tx_ring[i].addr_dma);
+	ufp_dma_unmap(dev, ring->addr_dma);
 	ufp_mem_free(ring->addr_virt);
 
 	return;
@@ -273,9 +275,7 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 	uint32_t buf_size, uint32_t buf_count, struct ufp_mpool *mpool)
 {
 	struct ufp_buf *buf;
-	void *addr_virt;
 	unsigned long addr_dma, size;
-	int *slots;
 	int err, i, num_bufs, mapped_devs = 0;
 
 	buf = malloc(sizeof(struct ufp_buf));
@@ -293,7 +293,7 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 	buf->buf_size = buf_size;
 	buf->count = buf_count;
 	for(i = 0, num_bufs = 0; i < num_devs; i++){
-		num_bufs += devs[i].num_ifaces * buf->count;
+		num_bufs += devs[i]->num_ifaces * buf->count;
 	}
 	size = buf->buf_size * num_bufs;
 	buf->addr_virt = ufp_mem_alloc(mpool, size);
@@ -439,7 +439,7 @@ struct ufp_dev *ufp_open(const char *name)
 	/* Map PCI config register space */
 	dev->bar = mmap(NULL, dev->bar_size,
 		PROT_READ | PROT_WRITE, MAP_SHARED, dev->fd, 0);
-	if(ih->bar == MAP_FAILED)
+	if(dev->bar == MAP_FAILED)
 		goto err_mmap;
 
 	dev->device_id = req.device_id;
@@ -448,7 +448,7 @@ struct ufp_dev *ufp_open(const char *name)
 	if(!dev->ops)
 		goto err_ops_alloc;
 
-	/* dev->ops setup only first iface */
+	/* dev->ops->open setup only first iface */
 	list_init(&dev->iface);
 	iface = malloc(sizeof(struct ufp_iface));
 	if(!iface)
@@ -459,16 +459,11 @@ struct ufp_dev *ufp_open(const char *name)
 	if(err < 0)
 		goto err_ops_open;
 
-	err = ufp_alloc_rings(dev, dev->iface, mpools);
-	if(err < 0)
-		goto err_alloc_rings;
-
 	return dev;
 
-err_alloc_rings:
-	dev->ops->close(dev);
 err_ops_open:
-	free(dev->iface);
+	list_del(&iface->list);
+	free(iface);
 err_alloc_iface:
 	ufp_ops_release(dev, dev->ops);
 err_ops_alloc:
@@ -477,8 +472,6 @@ err_mmap:
 err_ioctl_info:
 	close(dev->fd);
 err_open:
-	free(dev->iface);
-err_alloc_iface:
 	free(dev);
 err_alloc_dev:
 	return NULL;
@@ -503,9 +496,10 @@ void ufp_close(struct ufp_dev *dev)
 	return;
 }
 
-int ufp_up(struct ufp_dev *dev, unsigned int num_qps,
-	unsigned int mtu_frame, unsigned int promisc,
-	unsigned int rx_budget, unsigned int tx_budget)
+int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
+	unsigned int num_qps, unsigned int mtu_frame,
+	unsigned int promisc, unsigned int rx_budget,
+	unsigned int tx_budget)
 {
 	struct ufp_iface *iface;
 	struct ufp_start_req req;
@@ -519,8 +513,12 @@ int ufp_up(struct ufp_dev *dev, unsigned int num_qps,
 		iface->tx_budget = tx_budget;
 		iface->num_qps = num_qps;
 		req.num_irqs += (iface->num_qps * 2);
+
+		err = ufp_alloc_rings(dev, iface, mpools);
+		if(err < 0)
+			goto err_alloc_rings;
 	}
-	req.num_irqs += dev->num_misc_irqs
+	req.num_irqs += dev->num_misc_irqs;
 	if(ioctl(dev->fd, UFP_START, (unsigned long)&req) < 0)
 		goto err_ioctl_start;
 
@@ -544,11 +542,12 @@ void ufp_down(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_ops_down;
 
+err_ops_down:
+	/* Stop device anyway */
 	if(ioctl(dev->fd, UFP_STOP, 0) < 0)
 		goto err_ioctl_stop;
 
 err_ioctl_stop:
-err_stop_adapter:
 	return;
 }
 
@@ -596,7 +595,8 @@ void ufp_irq_close(struct ufp_irq_handle *irqh)
 	return;
 }
 
-static int ufp_irq_setaffinity(struct ufp_irq_handle *irqh, unsigned int core_id)
+static int ufp_irq_setaffinity(struct ufp_irq_handle *irqh,
+	unsigned int core_id)
 {
 	FILE *file;
 	char filename[FILENAME_SIZE];

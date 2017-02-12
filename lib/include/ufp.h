@@ -24,22 +24,21 @@ enum ufp_irq_type {
 };
 
 /* MAIN */
-struct ufp_plane *ufp_plane_alloc(struct ufp_handle **ih_list,
-	struct ufp_buf *buf, int ih_num, unsigned int thread_id,
-	unsigned int core_id);
-void ufp_plane_release(struct ufp_plane *plane, int ih_num);
+struct ufp_plane *ufp_plane_alloc(struct ufp_dev **devs, int num_devs,
+	struct ufp_buf *buf, unsigned int thread_id, unsigned int core_id);
+void ufp_plane_release(struct ufp_plane *plane);
+struct ufp_mpool *ufp_mpool_init();
+void ufp_mpool_destroy(struct ufp_mpool *mpool);
 struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
-	uint32_t count, uint32_t buf_size, struct ufp_mpool *mpool);
+	uint32_t buf_size, uint32_t buf_count, struct ufp_mpool *mpool);
 void ufp_release_buf(struct ufp_dev **devs, int num_devs,
 	struct ufp_buf *buf);
-struct ufp_handle *ufp_open(const char *ifname,
-	unsigned int num_qps_req, unsigned int num_rx_desc,
-	unsigned int num_tx_desc);
-void ufp_close(struct ufp_handle *ih);
-int ufp_up(struct ufp_handle *ih, unsigned int irq_rate,
+struct ufp_dev *ufp_open(const char *name);
+void ufp_close(struct ufp_dev *dev)
+int ufp_up(struct ufp_dev *dev, unsigned int num_qps,
 	unsigned int mtu_frame, unsigned int promisc,
 	unsigned int rx_budget, unsigned int tx_budget);
-void ufp_down(struct ufp_handle *ih);
+void ufp_down(struct ufp_dev *dev);
 
 /* MEM */
 void *ufp_mem_alloc(struct ufp_mpool *mpool, unsigned int size);

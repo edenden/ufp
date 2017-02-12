@@ -13,7 +13,7 @@
 #include <pthread.h>
 
 #include "lib_main.h"
-#include "lib_rtx.h"
+#include "lib_io.h"
 
 static inline uint16_t ufp_desc_unused(struct ufp_ring *ring,
 	uint16_t num_desc);
@@ -203,7 +203,7 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_idx,
 			ufp_slot_addr_virt(buf, slot_index);
 
 		next_to_clean = rx_ring->next_to_clean + 1;
-		rx_ring->next_to_clean = 
+		rx_ring->next_to_clean =
 			(next_to_clean < port->num_rx_desc) ? next_to_clean : 0;
 
 		total_rx_packets++;
