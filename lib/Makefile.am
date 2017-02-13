@@ -1,4 +1,4 @@
-lib_LTLIBRARIES = libixmap.la
-libixmap_la_CFLAGS = 
-libixmap_la_LDFLAGS = -version-info 1:0:0
-libixmap_la_SOURCES = ixmap.c driver.c rxinit.c txinit.c memory.c
+lib_LTLIBRARIES = libufp.la
+libufp_la_CFLAGS =
+libufp_la_LDFLAGS = -ldl -module -export-dynamic -version-info 1:0:0
+libufp_la_SOURCES = lib_api.c lib_dev.c lib_io.c lib_main.c lib_mem.c lib_tap.c

@@ -1,0 +1,54 @@
+#                                               -*- Autoconf -*-
+# Process this file with autoconf to produce a configure script.
+
+AC_PREREQ([2.69])
+AC_INIT([UFP], [1.0.0], [eden@sfc.wide.ad.jp])
+AM_INIT_AUTOMAKE([foreign 1.11])
+AM_CFLAGS="-Wall -O2"
+LT_INIT
+AC_CONFIG_SRCDIR([lib/lib_mem.c])
+AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_MACRO_DIR([m4])
+
+# Checks for programs.
+AC_PROG_CC
+
+# Checks for libraries.
+
+# Checks for header files.
+AC_CHECK_HEADERS([arpa/inet.h fcntl.h netinet/in.h stddef.h stdint.h stdlib.h string.h sys/ioctl.h sys/socket.h unistd.h])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_CHECK_HEADER_STDBOOL
+AC_C_INLINE
+AC_TYPE_INT32_T
+AC_TYPE_INT8_T
+AC_TYPE_SIZE_T
+AC_TYPE_SSIZE_T
+AC_TYPE_UINT16_T
+AC_TYPE_UINT32_T
+AC_TYPE_UINT64_T
+AC_TYPE_UINT8_T
+
+AC_ARG_ENABLE(debug,
+[  --enable-debug          turn on debugging [[default=no]]],
+[\
+case "${enableval}" in
+	yes)	enable_debug=yes ;;
+	no)	enable_debug=no ;;
+	*)	AC_MSG_ERROR(bad value for --enable-debug) ;;
+esac],
+enable_debug=no)
+if test x"${enable_debug}" = x"yes"; then
+	AC_DEFINE(DEBUG, 1, [Define to 1 if you want to debug])
+fi
+
+# Checks for library functions.
+AC_FUNC_MALLOC
+AC_FUNC_MMAP
+AC_CHECK_FUNCS([getpagesize memset munmap socket])
+AC_CONFIG_FILES([Makefile
+	lib/Makefile
+	dev/i40e/Makefile
+	src/Makefile])
+AC_OUTPUT

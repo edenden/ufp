@@ -1,0 +1,4 @@
+ACLOCAL_AMFLAGS = -I m4
+SUBDIRS = lib dev src
+DIST_SUBDIRS = $(SUBDIRS)
+
