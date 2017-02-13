@@ -49,6 +49,7 @@ AC_FUNC_MMAP
 AC_CHECK_FUNCS([getpagesize memset munmap socket])
 AC_CONFIG_FILES([Makefile
 	lib/Makefile
+	dev/Makefile
 	dev/i40e/Makefile
 	src/Makefile])
 AC_OUTPUT
