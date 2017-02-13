@@ -8,13 +8,9 @@
 /ltmain.sh
 /missing
 /stamp-h1
-
 Makefile.in
 Makefile
 *.m4
-Makefile.in
-Makefile
-
 *.o
 *.lo
 *.la
