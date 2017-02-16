@@ -669,6 +669,7 @@ static void ufp_initialize()
 {
 	int err;
 
+	/* TBD: DRIVER_PATH should be configurable */
 	err = ufp_dev_load_lib(DRIVER_PATH);
 	if(err)
 		goto err_load_lib;

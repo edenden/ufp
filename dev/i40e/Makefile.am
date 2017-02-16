@@ -1,3 +1,4 @@
+libdir = @libdir@/dev
 lib_LTLIBRARIES = libi40e.la
 libi40e_la_CFLAGS = -I../../lib
 libi40e_la_LDFLAGS = -module -version-info 1:0:0

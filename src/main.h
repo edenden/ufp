@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <linux/if.h>
 #include <ufp.h>
-/*#include <config.h>*/
+#include <config.h>
 
 #define min(x, y) ({				\
 	typeof(x) _min1 = (x);			\

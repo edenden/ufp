@@ -31,14 +31,15 @@ AC_TYPE_UINT64_T
 AC_TYPE_UINT8_T
 
 AC_ARG_ENABLE(debug,
-[  --enable-debug          turn on debugging [[default=no]]],
-[\
-case "${enableval}" in
-	yes)	enable_debug=yes ;;
-	no)	enable_debug=no ;;
-	*)	AC_MSG_ERROR(bad value for --enable-debug) ;;
-esac],
-enable_debug=no)
+	[AS_HELP_STRING([--enable-debug], [turn on debugging [default=no]])],
+	[\
+		case "${enableval}" in
+		yes)	enable_debug=yes ;;
+		no)	enable_debug=no ;;
+		*)	AC_MSG_ERROR(bad value for --enable-debug) ;;
+		esac
+	],
+	enable_debug=no)
 if test x"${enable_debug}" = x"yes"; then
 	AC_DEFINE(DEBUG, 1, [Define to 1 if you want to debug])
 fi

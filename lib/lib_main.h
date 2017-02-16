@@ -1,7 +1,7 @@
 #ifndef _LIBUFP_MAIN_H
 #define _LIBUFP_MAIN_H
 
-/*#include <config.h>*/
+#include <config.h>
 #include <net/if.h>
 #include <stdint.h>
 #include <linux/types.h>
@@ -9,7 +9,7 @@
 #include <time.h>
 #include "lib_list.h"
 
-#define DRIVER_PATH		"../dev/"
+#define DRIVER_PATH		"/usr/local/lib/dev/"
 #define ALIGN(x,a)		__ALIGN_MASK(x,(typeof(x))(a)-1)
 #define __ALIGN_MASK(x,mask)	(((x)+(mask))&~(mask))
 
