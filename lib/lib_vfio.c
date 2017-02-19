@@ -17,6 +17,8 @@
 #include "lib_vfio.h"
 
 static int vfio_iommu_type_set();
+static int vfio_vendor_id(struct ufp_dev *dev);
+static int vfio_device_id(struct ufp_dev *dev);
 static int vfio_group_id(struct ufp_dev *dev);
 
 static struct ufp_vfio vfio = { 0 };
@@ -124,6 +126,64 @@ int vfio_dma_unmap(struct ufp_dev *dev,
 	return 0;
 
 err_dma_unmap:
+	return -1;
+}
+
+static int vfio_vendor_id(struct ufp_dev *dev)
+{
+	char path[PATH_MAX];
+	FILE *file;
+	unsigned int value;
+	int err;
+
+	snprintf(path, sizeof(path),
+		"/sys/bus/pci/devices/%s/vendor", dev->name);
+
+	file = fopen(path, "r");
+	if(!file)
+		goto err_fopen;
+
+	err = fscanf(file, "%08x", &value);
+	if(err != 1)
+		goto err_fscanf;
+
+	fclose(file);
+	dev->vendor_id = value;
+
+	return 0;
+
+err_fscanf:
+	fclose(file);
+err_fopen:
+	return -1;
+}
+
+static int vfio_device_id(struct ufp_dev *dev)
+{
+	char path[PATH_MAX];
+	FILE *file;
+	unsigned int value;
+	int err;
+
+	snprintf(path, sizeof(path),
+		"/sys/bus/pci/devices/%s/device", dev->name);
+
+	file = fopen(path, "r");
+	if(!file)
+		goto err_fopen;
+
+	err = fscanf(file, "%08x", &value);
+	if(err != 1)
+		goto err_fscanf;
+
+	fclose(file);
+	dev->device_id = value;
+
+	return 0;
+
+err_fscanf:
+	fclose(file);
+err_fopen:
 	return -1;
 }
 
@@ -244,6 +304,14 @@ int vfio_device_open(struct ufp_dev *dev, int group_fd)
 	if(dev->bar == MAP_FAILED)
 		goto err_bar_map;
 
+	err = vfio_vendor_id(dev);
+	if(err < 0)
+		goto err_vendor_id;
+
+	err = vfio_device_id(dev);
+	if(err < 0)
+		goto err_device_id;
+
 	/* Gratuitous device reset and go... */
 	err = ioctl(dev->fd, VFIO_DEVICE_RESET);
 	if(err < 0)
@@ -252,6 +320,8 @@ int vfio_device_open(struct ufp_dev *dev, int group_fd)
 	return 0;
 
 err_reset:
+err_device_id:
+err_vendor_id:
 	munmap(dev->bar, dev->bar_size);
 err_bar_map:
 err_reg_flag:

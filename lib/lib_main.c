@@ -415,9 +415,6 @@ struct ufp_dev *ufp_open(const char *name)
 	if(err < 0)
 		goto err_device_open;
 
-	dev->device_id = req.device_id;
-	dev->vendor_id = req.vendor_id;
-
 	dev->ops = ufp_ops_alloc(dev);
 	if(!dev->ops)
 		goto err_ops_alloc;
