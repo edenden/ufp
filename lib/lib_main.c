@@ -18,6 +18,7 @@
 #include "lib_dev.h"
 #include "lib_mem.h"
 #include "lib_tap.h"
+#include "lib_vfio.h"
 
 static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	unsigned long size_desc, uint32_t num_desc, struct ufp_mpool *mpool);
@@ -27,6 +28,12 @@ static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring);
 static struct ufp_ops *ufp_ops_alloc(struct ufp_dev *dev);
 static void ufp_ops_release(struct ufp_dev *dev, struct ufp_ops *ops);
+static int ufp_up_iface(struct ufp_dev *dev, struct ufp_mpool **mpools,
+	struct ufp_iface *iface);
+static void ufp_down_iface(struct ufp_dev *dev, struct ufp_iface *iface);
+static struct ufp_irq *ufp_irq_open(struct ufp_dev *dev,
+	unsigned int entry_idx);
+static void ufp_irq_close(struct ufp_irq *irq);
 static int ufp_irq_setaffinity(struct ufp_irq *irq,
 	unsigned int core_id);
 
@@ -360,35 +367,6 @@ void ufp_release_buf(struct ufp_dev **devs, int num_devs,
 	return;
 }
 
-int ufp_dma_map(struct ufp_dev *dev, void *addr_virt,
-	unsigned long *addr_dma, unsigned long size)
-{
-	struct ufp_map_req req_map;
-
-	req_map.addr_virt = (unsigned long)addr_virt;
-	req_map.addr_dma = 0;
-	req_map.size = size;
-	req_map.cache = IXGBE_DMA_CACHE_DISABLE;
-
-	if(ioctl(dev->fd, UFP_MAP, (unsigned long)&req_map) < 0)
-		return -1;
-
-	*addr_dma = req_map.addr_dma;
-	return 0;
-}
-
-int ufp_dma_unmap(struct ufp_dev *dev, unsigned long addr_dma)
-{
-	struct ufp_unmap_req req_unmap;
-
-	req_unmap.addr_dma = addr_dma;
-
-	if(ioctl(dev->fd, UFP_UNMAP, (unsigned long)&req_unmap) < 0)
-		return -1;
-
-	return 0;
-}
-
 static struct ufp_ops *ufp_ops_alloc(struct ufp_dev *dev)
 {
 	struct ufp_ops *ops;
@@ -421,37 +399,25 @@ static void ufp_ops_release(struct ufp_dev *dev, struct ufp_ops *ops)
 struct ufp_dev *ufp_open(const char *name)
 {
 	struct ufp_dev *dev;
-	char filename[FILENAME_SIZE];
-	struct ufp_info_req req;
 	struct ufp_iface *iface;
-	int err;
+	int group_fd, err;
 
 	dev = malloc(sizeof(struct ufp_dev));
 	if (!dev)
 		goto err_alloc_dev;
-
 	strncpy(dev->name, name, sizeof(dev->name));
-	snprintf(filename, sizeof(filename), "/dev/ufp/%s", dev->name);
-	dev->fd = open(filename, O_RDWR);
-	if (dev->fd < 0)
-		goto err_open;
 
-	/* Get device information */
-	memset(&req, 0, sizeof(struct ufp_info_req));
-	err = ioctl(dev->fd, UFP_INFO, (unsigned long)&req);
+	group_fd = vfio_group_open(dev);
+	if(group_fd < 0)
+		goto err_group_open;
+
+	err = vfio_device_open(dev, group_fd);
 	if(err < 0)
-		goto err_ioctl_info;
-
-	dev->bar_size = req.mmio_size;
-
-	/* Map PCI config register space */
-	dev->bar = mmap(NULL, dev->bar_size,
-		PROT_READ | PROT_WRITE, MAP_SHARED, dev->fd, 0);
-	if(dev->bar == MAP_FAILED)
-		goto err_mmap;
+		goto err_device_open;
 
 	dev->device_id = req.device_id;
 	dev->vendor_id = req.vendor_id;
+
 	dev->ops = ufp_ops_alloc(dev);
 	if(!dev->ops)
 		goto err_ops_alloc;
@@ -471,6 +437,7 @@ struct ufp_dev *ufp_open(const char *name)
 	if(err < 0)
 		goto err_ops_open;
 
+	close(group_fd);
 	return dev;
 
 err_ops_open:
@@ -481,11 +448,10 @@ err_tap_open:
 err_alloc_iface:
 	ufp_ops_release(dev, dev->ops);
 err_ops_alloc:
-	munmap(dev->bar, dev->bar_size);
-err_mmap:
-err_ioctl_info:
 	close(dev->fd);
-err_open:
+err_device_open:
+	close(group_fd);
+err_group_open:
 	free(dev);
 err_alloc_dev:
 	return NULL;
@@ -510,44 +476,129 @@ void ufp_close(struct ufp_dev *dev)
 	return;
 }
 
+static int ufp_up_iface(struct ufp_dev *dev, struct ufp_mpool **mpools,
+	struct ufp_iface *iface)
+{
+	unsigned int	irq_idx = 0,
+			rx_irq_done = 0,
+			tx_irq_done = 0;
+	int i, err;
+
+	err = ufp_alloc_rings(dev, iface, mpools);
+	if(err < 0)
+		goto err_alloc_rings;
+
+	err = ufp_tun_up(iface);
+	if(err < 0)
+		goto err_tun_up;
+
+	iface->rx_irq = malloc(sizeof(struct ufp_irq *) * iface->num_qps);
+	if(!iface->rx_irq)
+		goto err_alloc_rx_irq;
+
+	iface->tx_irq = malloc(sizeof(struct ufp_irq *) * iface->num_qps);
+	if(!iface->tx_irq)
+		goto err_alloc_tx_irq;
+
+	/* reserve irq_idx = 0 for misc_irq */
+	irq_idx++;
+
+	for(i = 0; i < iface->num_qps; i++, rx_irq_done++){
+		iface->rx_irq[i] = ufp_irq_open(dev, irq_idx++);
+		if(!iface->rx_irq[i])
+			goto err_rx_irq;
+	}
+
+	for(i = 0; i < iface->num_qps; i++, tx_irq_done++){
+		iface->tx_irq[i] = ufp_irq_open(dev, irq_idx++);
+		if(!iface->tx_irq[i])
+			goto err_tx_irq;
+	}
+
+	return 0;
+
+err_tx_irq:
+	for(i = 0; i < tx_irq_done; i++){
+		ufp_irq_close(iface->tx_irq[i]);
+	}
+err_rx_irq:
+	for(i = 0; i < rx_irq_done; i++){
+		ufp_irq_close(iface->rx_irq[i]);
+	}
+err_alloc_tx_irq:
+	free(iface->rx_irq);
+err_alloc_rx_irq:
+	ufp_tun_down(iface);
+err_tun_up:
+	ufp_release_rings(dev, iface);
+err_alloc_rings:
+	return -1;
+}
+
+static void ufp_down_iface(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	int i;
+
+	for(i = 0; i < iface->num_qps; i++){
+		ufp_irq_close(iface->rx_irq[i]);
+	}
+	for(i = 0; i < iface->num_qps; i++){
+		ufp_irq_close(iface->tx_irq[i]);
+	}
+
+	free(iface->tx_irq);
+	free(iface->rx_irq);
+
+	ufp_tun_down(iface);
+	ufp_release_rings(dev, iface);
+
+	return;
+}
+
 int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
 	unsigned int num_qps, unsigned int mtu_frame,
 	unsigned int promisc, unsigned int rx_budget,
 	unsigned int tx_budget)
 {
 	struct ufp_iface *iface;
-	struct ufp_start_req req;
-	unsigned int iface_done = 0;
-	int i, err;
+	unsigned int	irq_idx = 0,
+			misc_done = 0,
+			iface_done = 0;
+	int err, i;
 
-	memset(&req, 0, sizeof(struct ufp_start_req));
+	dev->misc_irq = malloc(sizeof(struct ufp_irq *) *
+		dev->num_misc_irqs);
+	if(!dev->misc_irq)
+		goto err_alloc_misc_irq;
+
+	for(i = 0; i < dev->num_misc_irqs; i++, misc_done++){
+		dev->misc_irq[i] = ufp_irq_open(dev, irq_idx++);
+		if(!dev->misc_irq[i])
+			goto err_misc_irq;
+	}
+
 	list_for_each(&dev->iface, iface, list){
 		iface->mtu_frame = mtu_frame;
 		iface->promisc = promisc;
 		iface->rx_budget = rx_budget;
 		iface->tx_budget = tx_budget;
 		iface->num_qps = num_qps;
-		req.num_irqs += (iface->num_qps * 2);
 
-		err = ufp_alloc_rings(dev, iface, mpools);
+		err = ufp_up_iface(dev, mpools, iface);
 		if(err < 0)
-			goto err_alloc_rings;
+			goto err_iface_up;
 
-		err = ufp_tun_up(iface);
-		if(err < 0)
-			goto err_tun_up;
-
+		irq_idx += iface->num_qps * 2;
 		iface_done++;
-		continue;
-
-err_tun_up:
-		ufp_release_rings(dev, iface);
-err_alloc_rings:
-		goto err_iface_up;
 	}
-	req.num_irqs += dev->num_misc_irqs;
-	if(ioctl(dev->fd, UFP_START, (unsigned long)&req) < 0)
-		goto err_ioctl_start;
+
+	err = vfio_irq_set(dev, irq_idx);
+	if(err < 0)
+		goto err_irq_set;
+
+	err = vfio_irq_vector_get(dev);
+	if(err < 0)
+		goto err_irq_vector_get;
 
 	err = dev->ops->up(dev);
 	if(err < 0)
@@ -556,78 +607,75 @@ err_alloc_rings:
 	return 0;
 
 err_ops_up:
-	ioctl(dev->fd, UFP_STOP, 0);
-err_ioctl_start:
+err_irq_vector_get:
+	vfio_irq_unset(dev);
+err_irq_set:
 err_iface_up:
 	i = 0;
 	list_for_each(&dev->iface, iface, list){
 		if(!(i++ < iface_done))
 			break;
-		ufp_tun_down(iface);
-		ufp_release_rings(dev, iface);
+		ufp_down_iface(dev, iface);
 	}
+err_misc_irq:
+	for(i = 0; i < misc_done; i++){
+		ufp_irq_close(dev->misc_irq[i]);
+	}
+	free(dev->misc_irq);
+err_alloc_misc_irq:
 	return -1;
 }
 
 void ufp_down(struct ufp_dev *dev)
 {
 	struct ufp_iface *iface;
-	int err;
+	int i, err;
 
-	err = dev->ops->down(dev);
+	dev->ops->down(dev);
+
+	err = vfio_irq_unset(dev);
 	if(err < 0)
-		goto err_ops_down;
+		goto err_irq_unset;
 
-err_ops_down:
-	/* Stop device anyway */
-	if(ioctl(dev->fd, UFP_STOP, 0) < 0)
-		goto err_ioctl_stop;
-
-err_ioctl_stop:
+err_irq_unset:
 	list_for_each(&dev->iface, iface, list){
-		ufp_tun_down(iface);
-		ufp_release_rings(dev, iface);
+		ufp_down_iface(dev, iface);
 	}
+
+	for(i = 0; i < dev->num_misc_irqs; i++){
+		ufp_irq_close(dev->misc_irq[i]);
+	}
+	free(dev->misc_irq);
 	return;
 }
 
-struct ufp_irq *ufp_irq_open(struct ufp_dev *dev,
+static struct ufp_irq *ufp_irq_open(struct ufp_dev *dev,
 	unsigned int entry_idx)
 {
 	struct ufp_irq *irq;
-	int efd, err;
-	struct ufp_irqbind_req req;
+	int efd;
 
 	efd = eventfd(0, 0);
 	if(efd < 0)
 		goto err_open_efd;
-
-	req.event_fd	= efd;
-	req.entry_idx	= entry_idx;
-
-	err = ioctl(dev->fd, UFP_IRQBIND, (unsigned long)&req);
-	if(err < 0){
-		printf("failed to UFP_IRQ\n");
-		goto err_irq_bind;
-	}
 
 	irq = malloc(sizeof(struct ufp_irq));
 	if(!irq)
 		goto err_alloc_handle;
 
 	irq->fd		= efd;
-	irq->vector		= req.vector;
-	irq->entry_idx		= entry_idx;
+	irq->vector	= 0;
+	irq->entry_idx	= entry_idx;
+
 	return irq;
 
 err_alloc_handle:
-err_irq_bind:
 	close(efd);
 err_open_efd:
 	return NULL;
 }
 
-void ufp_irq_close(struct ufp_irq *irq)
+static void ufp_irq_close(struct ufp_irq *irq)
 {
 	close(irq->fd);
 	free(irq);
@@ -674,6 +722,10 @@ static void ufp_initialize()
 {
 	int err;
 
+	err = vfio_container_open();
+	if(err < 0)
+		goto err_container_open;
+
 	/* TBD: DRIVER_PATH should be configurable */
 	err = ufp_dev_load_lib(DRIVER_PATH);
 	if(err)
@@ -682,6 +734,8 @@ static void ufp_initialize()
 	return;
 
 err_load_lib:
+	vfio_container_close();
+err_container_open:
 	exit(-1);
 }
 
@@ -689,4 +743,6 @@ __attribute__((destructor))
 static void ufp_finalize()
 {
 	ufp_dev_unload_lib();
+	vfio_container_close();
+	return;
 }

@@ -128,7 +128,7 @@ struct ufp_dev {
 	struct list_head	iface;
 	uint16_t		num_ifaces;
 	uint32_t		num_misc_irqs;
-	struct ufp_irq		*misc_irq;
+	struct ufp_irq		**misc_irq;
 	uint16_t		device_id;
 	uint16_t		vendor_id;
 
@@ -190,9 +190,9 @@ struct ufp_packet {
 struct ufp_ops {
 	/* For configuration */
 	int	(*open)(struct ufp_dev *dev);
-	int	(*close)(struct ufp_dev *dev);
+	void	(*close)(struct ufp_dev *dev);
 	int	(*up)(struct ufp_dev *dev);
-	int	(*down)(struct ufp_dev *dev);
+	void	(*down)(struct ufp_dev *dev);
 
 	/* For forwarding */
 	void	(*unmask_queues)(void *bar, uint16_t entry_idx);
@@ -205,62 +205,12 @@ struct ufp_ops {
 	int	(*fetch_tx_desc)(struct ufp_ring *tx_ring, uint16_t index);
 };
 
-enum {
-	IXGBE_DMA_CACHE_DEFAULT = 0,
-	IXGBE_DMA_CACHE_DISABLE,
-	IXGBE_DMA_CACHE_WRITECOMBINE
-};
-
 enum ufp_irq_type {
 	UFP_IRQ_RX = 0,
 	UFP_IRQ_TX,
 };
 
-#define UFP_INFO		_IOW('E', 201, int)
-/* MAC and PHY info */
-struct ufp_info_req {
-	__u64			mmio_base;
-	__u64			mmio_size;
-
-	__u16			device_id;
-	__u16			vendor_id;
-};
-
-#define UFP_START		_IOW('E', 202, int)
-struct ufp_start_req {
-	__u32			num_irqs;
-};
-
-#define UFP_STOP		_IOW('E', 203, int)
-
-#define UFP_MAP			_IOW('U', 210, int)
-struct ufp_map_req {
-	__u64			addr_virt;
-	__u64			addr_dma;
-	__u64			size;
-	__u8			cache;
-};
-
-#define UFP_UNMAP		_IOW('U', 211, int)
-struct ufp_unmap_req {
-	__u64			addr_dma;
-};
-
-#define UFP_IRQBIND		_IOW('E', 220, int)
-struct ufp_irqbind_req {
-	__u32			entry_idx;
-	__s32			event_fd;
-
-	__u32			vector;
-};
-
 inline uint32_t ufp_readl(const volatile void *addr);
 inline void ufp_writel(uint32_t b, volatile void *addr);
-int ufp_dma_map(struct ufp_dev *dev, void *addr_virt,
-	unsigned long *addr_dma, unsigned long size);
-int ufp_dma_unmap(struct ufp_dev *dev, unsigned long addr_dma);
-struct ufp_irq *ufp_irq_open(struct ufp_dev *dev,
-	unsigned int entry_idx);
-void ufp_irq_close(struct ufp_irq *irq);
 
 #endif /* _LIBUFP_MAIN_H */

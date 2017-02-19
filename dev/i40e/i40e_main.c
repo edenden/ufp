@@ -102,9 +102,7 @@ int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface)
 	if(err < 0)
 		goto err_configure_tx;
 
-	err = i40e_vsi_configure_irq(dev, iface);
-	if(err < 0)
-		goto err_configure_irq;
+	i40e_vsi_configure_irq(dev, iface);
 
 	err = i40e_vsi_start_rx(dev, iface);
 	if(err < 0)
@@ -120,7 +118,6 @@ int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface)
 
 err_start_tx:
 err_start_rx:
-err_configure_irq:
 err_configure_tx:
 err_configure_rx:
 err_configure_filter:
@@ -590,7 +587,7 @@ err_clear_pxemode:
 	return -1;
 }
 
-int i40e_setup_misc_irq(struct ufp_dev *dev)
+void i40e_setup_misc_irq(struct ufp_dev *dev)
 {
 	uint32_t val;
 
@@ -616,22 +613,11 @@ int i40e_setup_misc_irq(struct ufp_dev *dev)
 	UFP_WRITE32(dev, I40E_PFINT_ITR0(I40E_IDX_ITR0), I40E_ITR_8K);
 
 	i40e_flush(dev);
-
-	dev->misc_irq = ufp_irq_open(dev, dev->num_misc_irqs);
-	if(!dev->misc_irq)
-		goto err_open_irq;
-	dev->num_misc_irqs += 1;
-
-	return 0;
-
-err_open_irq:
-
-	return -1;
+	return;
 }
 
 void i40e_shutdown_misc_irq(struct ufp_dev *dev)
 {
-	ufp_irq_close(dev->misc_irq);
 	/* Disable ICR 0 */
 	UFP_WRITE32(dev, I40E_PFINT_ICR0_ENA, 0);
 

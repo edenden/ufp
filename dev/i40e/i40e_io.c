@@ -419,7 +419,7 @@ static void i40e_vsi_shutdown_irq_tx(struct ufp_dev *dev,
 	return;
 }
 
-int i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
+void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint16_t qp_idx, irq_idx, rx_done = 0, tx_done = 0;
@@ -427,59 +427,20 @@ int i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 
 	irq_idx = i40e_iface->base_qp * 2;
 	for (i = 0; i < iface->num_qps; i++, irq_idx++, rx_done++){
+		/* XXX: consider misc irqs? */
 		qp_idx = i40e_iface->base_qp + i;
 		i40e_vsi_configure_irq_rx(dev,
 			iface, qp_idx, irq_idx);
-
-		iface->rx_irq[i] = ufp_irq_open(dev,
-			irq_idx + dev->num_misc_irqs);
-		if(!iface->rx_irq[i])
-			goto err_iface_rx_irq;
-
-		continue;
-
-err_iface_rx_irq:
-		i40e_vsi_shutdown_irq_rx(dev, qp_idx, irq_idx);
-		goto err_rx_irq;
-
 	}
 
 	for (i = 0; i < iface->num_qps; i++, irq_idx++, tx_done++){
 		qp_idx = i40e_iface->base_qp + i;
 		i40e_vsi_configure_irq_tx(dev,
 			iface, qp_idx, irq_idx);
-
-		iface->tx_irq[i] = ufp_irq_open(dev,
-			irq_idx + dev->num_misc_irqs);
-		if(!iface->tx_irq[i])
-			goto err_iface_tx_irq;
-
-		continue;
-
-err_iface_tx_irq:
-		i40e_vsi_shutdown_irq_tx(dev, qp_idx, irq_idx);
-		goto err_tx_irq;
 	}
 
 	i40e_flush(dev);
-	return 0;
-
-err_tx_irq:
-	for(i = 0; i < tx_done; i++){
-		ufp_irq_close(iface->tx_irq[i]);
-		qp_idx = i40e_iface->base_qp + i;
-		irq_idx = i40e_iface->base_qp * 2 + i + rx_done;
-		i40e_vsi_shutdown_irq_tx(dev, qp_idx, irq_idx);
-	}
-err_rx_irq:
-	for(i = 0; i < rx_done; i++){
-		ufp_irq_close(iface->rx_irq[i]);
-		qp_idx = i40e_iface->base_qp + i;
-		irq_idx = i40e_iface->base_qp * 2 + i;
-		i40e_vsi_shutdown_irq_rx(dev, qp_idx, irq_idx);
-	}
-	i40e_flush(dev);
-	return -1;
+	return;
 }
 
 void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
@@ -490,15 +451,11 @@ void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 
 	irq_idx = i40e_iface->base_qp * 2;
 	for (i = 0; i < iface->num_qps; i++, irq_idx++){
-		ufp_irq_close(iface->rx_irq[i]);
-
 		qp_idx = i40e_iface->base_qp + i;
 		i40e_vsi_shutdown_irq_rx(dev, qp_idx, irq_idx);
 	}
 
 	for(i = 0; i < iface->num_qps; i++, irq_idx++){
-		ufp_irq_close(iface->tx_irq[i]);
-
 		qp_idx = i40e_iface->base_qp + i;
 		i40e_vsi_shutdown_irq_tx(dev, qp_idx, irq_idx);
 	}

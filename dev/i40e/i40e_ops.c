@@ -16,9 +16,9 @@
 static int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops);
 static void i40e_ops_destroy(struct ufp_dev *dev, struct ufp_ops *ops);
 static int i40e_ops_open(struct ufp_dev *dev);
-static int i40e_ops_close(struct ufp_dev *dev);
+static void i40e_ops_close(struct ufp_dev *dev);
 static int i40e_ops_up(struct ufp_dev *dev);
-static int i40e_ops_down(struct ufp_dev *dev);
+static void i40e_ops_down(struct ufp_dev *dev);
 
 static const struct pci_id device_pci_tbl[] = {
 	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_XL710},
@@ -59,7 +59,7 @@ static int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops)
 
 	list_init(&i40e_dev->elem);
 	dev->drv_data = i40e_dev;
-	dev->num_misc_irqs = 0;
+	dev->num_misc_irqs = 1;
 
 	/* Configuration related functions*/
 	ops->open		= i40e_ops_open;
@@ -100,10 +100,10 @@ err_open:
 	return -1;
 }
 
-static int i40e_ops_close(struct ufp_dev *dev)
+static void i40e_ops_close(struct ufp_dev *dev)
 {
 	i40e_close(dev);
-	return 0;
+	return;
 }
 
 static int i40e_ops_up(struct ufp_dev *dev)
@@ -111,9 +111,7 @@ static int i40e_ops_up(struct ufp_dev *dev)
 	struct ufp_iface *iface;
 	int err;
 
-	err = i40e_setup_misc_irq(dev);
-	if(err < 0)
-		goto err_setup_misc_irq;
+	i40e_setup_misc_irq(dev);
 	i40e_start_misc_irq(dev);
 
 	list_for_each(&dev->iface, iface, list){
@@ -124,11 +122,12 @@ static int i40e_ops_up(struct ufp_dev *dev)
 	return 0;
 
 err_up:
-err_setup_misc_irq:
+	i40e_stop_misc_irq(dev);
+	i40e_shutdown_misc_irq(dev);
 	return -1;
 }
 
-static int i40e_ops_down(struct ufp_dev *dev)
+static void i40e_ops_down(struct ufp_dev *dev)
 {
 	struct ufp_iface *iface;
 	int err;
@@ -139,12 +138,11 @@ static int i40e_ops_down(struct ufp_dev *dev)
 			goto err_down;
 	}
 
+err_down:
+	/* Stop device anyway */
 	i40e_stop_misc_irq(dev);
 	i40e_shutdown_misc_irq(dev);
-	return 0;
-
-err_down:
-	return -1;
+	return;
 }
 
 __attribute__((constructor))

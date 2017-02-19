@@ -195,7 +195,7 @@ int i40e_vsi_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface);
 int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface);
 int i40e_vsi_configure_tx(struct ufp_dev *dev, struct ufp_iface *iface);
 int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface);
-int i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface);
+void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface);
 void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface);
 void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface);
 void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface);
