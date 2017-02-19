@@ -27,7 +27,7 @@ static inline int ufp_slot_detach(struct ufp_ring *ring,
 inline void ufp_slot_release(struct ufp_buf *buf,
 	int slot_index);
 static inline unsigned long ufp_slot_addr_dma(struct ufp_buf *buf,
-	int slot_index, int port_idx);
+	int slot_index);
 inline void *ufp_slot_addr_virt(struct ufp_buf *buf,
 	uint16_t slot_index);
 
@@ -87,7 +87,7 @@ void ufp_rx_assign(struct ufp_plane *plane, unsigned int port_idx,
 			break;
 		}
 
-		addr_dma = (uint64_t)ufp_slot_addr_dma(buf, slot_index, port->dev_idx);
+		addr_dma = (uint64_t)ufp_slot_addr_dma(buf, slot_index);
 		port->ops->fill_rx_desc(rx_ring, rx_ring->next_to_use, addr_dma);
 		ufp_slot_attach(rx_ring, rx_ring->next_to_use, slot_index);
 
@@ -130,7 +130,7 @@ void ufp_tx_assign(struct ufp_plane *plane, unsigned int port_idx,
 		return;
 	}
 
-	addr_dma = (uint64_t)ufp_slot_addr_dma(buf, packet->slot_index, port->dev_idx);
+	addr_dma = (uint64_t)ufp_slot_addr_dma(buf, packet->slot_index);
 	port->ops->fill_tx_desc(tx_ring, tx_ring->next_to_use,
 		addr_dma, packet);
 	ufp_slot_attach(tx_ring, tx_ring->next_to_use, packet->slot_index);
@@ -304,18 +304,18 @@ inline void ufp_slot_release(struct ufp_buf *buf,
 }
 
 static inline unsigned long ufp_slot_addr_dma(struct ufp_buf *buf,
-	int slot_index, int dev_idx)
+	int slot_index)
 {
-	return buf->addr_dma[dev_idx] + (buf->buf_size * slot_index);
+	return buf->addr_dma + (buf->slot_size * slot_index);
 }
 
 inline void *ufp_slot_addr_virt(struct ufp_buf *buf,
 	uint16_t slot_index)
 {
-	return buf->addr_virt + (buf->buf_size * slot_index);
+	return buf->addr_virt + (buf->slot_size * slot_index);
 }
 
 inline unsigned int ufp_slot_size(struct ufp_buf *buf)
 {
-	return buf->buf_size;
+	return buf->slot_size;
 }

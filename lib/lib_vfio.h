@@ -11,16 +11,14 @@ struct ufp_vfio_irq_entry {
 	unsigned int vector;
 };
 
-int vfio_container_open();
-void vfio_container_close();
-int vfio_dma_map(struct ufp_dev *dev,
-	void *addr_virt, uint64_t *iova, size_t size);
-int vfio_dma_unmap(struct ufp_dev *dev,
-	uint64_t iova, size_t size);
-int vfio_group_open(struct ufp_dev *dev);
-int vfio_device_open(struct ufp_dev *dev, int group_fd);
-int vfio_irq_set(struct ufp_dev *dev, unsigned int num_irqs);
-int vfio_irq_unset(struct ufp_dev *dev);
-int vfio_irq_vector_get(struct ufp_dev *dev);
+int ufp_vfio_container_open();
+void ufp_vfio_container_close();
+int ufp_vfio_dma_map(void *addr_virt, uint64_t *iova, size_t size);
+int ufp_vfio_dma_unmap(uint64_t iova, size_t size);
+int ufp_vfio_group_open(struct ufp_dev *dev);
+int ufp_vfio_device_open(struct ufp_dev *dev, int group_fd);
+int ufp_vfio_irq_set(struct ufp_dev *dev, unsigned int num_irqs);
+int ufp_vfio_irq_unset(struct ufp_dev *dev);
+int ufp_vfio_irq_vector_get(struct ufp_dev *dev);
 
 #endif /* _UFP_VFIO_H */

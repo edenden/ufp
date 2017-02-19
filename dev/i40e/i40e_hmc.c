@@ -154,12 +154,12 @@ static int i40e_hmc_sd_allocate(struct ufp_dev *dev,
 	uint64_t *pd_addr;
 	int i;
 
-	sd_entry->pd_addrs = i40e_page_alloc(dev);
+	sd_entry->pd_addrs = i40e_page_alloc();
 	if(!sd_entry->pd_addrs)
 		goto err_alloc_pd_addrs;
 
 	for(i = 0; i < I40E_HMC_MAX_BP_COUNT; i++, pd_allocated++){
-		pd = i40e_page_alloc(dev);
+		pd = i40e_page_alloc();
 		if(!pd)
 			goto err_alloc_pd;
 
@@ -177,9 +177,9 @@ static int i40e_hmc_sd_allocate(struct ufp_dev *dev,
 
 err_alloc_pd:
 	for(i = 0; i < pd_allocated; i++){
-		i40e_page_release(dev, sd_entry->pd[i]);
+		i40e_page_release(sd_entry->pd[i]);
 	}
-	i40e_page_release(dev, sd_entry->pd_addrs);
+	i40e_page_release(sd_entry->pd_addrs);
 err_alloc_pd_addrs:
 	return -1;
 }
@@ -199,10 +199,10 @@ static void i40e_hmc_sd_release(struct ufp_dev *dev,
 			(sd_index << I40E_PFHMC_PDINV_PMSDIDX_SHIFT)
 			| (i << I40E_PFHMC_PDINV_PMPDIDX_SHIFT));
 
-		i40e_page_release(dev, pd);
+		i40e_page_release(pd);
 	}
 
-	i40e_page_release(dev, sd_entry->pd_addrs);
+	i40e_page_release(sd_entry->pd_addrs);
 	return;
 }
 

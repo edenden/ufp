@@ -33,8 +33,7 @@ struct ufp_mpool *ufp_mpool_init();
 void ufp_mpool_destroy(struct ufp_mpool *mpool);
 struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 	uint32_t buf_size, uint32_t buf_count, struct ufp_mpool *mpool);
-void ufp_release_buf(struct ufp_dev **devs, int num_devs,
-	struct ufp_buf *buf);
+void ufp_release_buf(struct ufp_buf *buf);
 struct ufp_dev *ufp_open(const char *name);
 void ufp_close(struct ufp_dev *dev);
 int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,

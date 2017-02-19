@@ -230,7 +230,7 @@ int main(int argc, char **argv)
 err_thread_create:
 		ufp_plane_release(threads[i].plane);
 err_plane_alloc:
-		ufp_release_buf(ufpd.devs, ufpd.num_devices, threads[i].buf);
+		ufp_release_buf(threads[i].buf);
 err_buf_alloc:
 		ret = -1;
 		goto err_assign_threads;
@@ -247,7 +247,7 @@ err_assign_threads:
 	for(i = 0; i < threads_assigned; i++){
 		ufpd_thread_kill(&threads[i]);
 		ufp_plane_release(threads[i].plane);
-		ufp_release_buf(ufpd.devs, ufpd.num_devices, threads[i].buf);
+		ufp_release_buf(threads[i].buf);
 	}
 err_set_signal:
 err_up:

@@ -25,7 +25,8 @@ static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 static void ufp_release_rings(struct ufp_dev *dev, struct ufp_iface *iface);
 static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	unsigned long size_desc, uint32_t num_desc, struct ufp_mpool *mpool);
-static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring);
+static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring,
+	unsigned long size_desc);
 static struct ufp_ops *ufp_ops_alloc(struct ufp_dev *dev);
 static void ufp_ops_release(struct ufp_dev *dev, struct ufp_ops *ops);
 static int ufp_up_iface(struct ufp_dev *dev, struct ufp_mpool **mpools,
@@ -206,7 +207,8 @@ static int ufp_alloc_rings(struct ufp_dev *dev, struct ufp_iface *iface,
 		continue;
 
 err_tx_alloc:
-		ufp_release_ring(dev, &iface->rx_ring[i]);
+		ufp_release_ring(dev, &iface->rx_ring[i],
+			iface->size_rx_desc);
 err_rx_alloc:
 		goto err_desc_assign;
 	}
@@ -215,8 +217,10 @@ err_rx_alloc:
 
 err_desc_assign:
 	for(i = 0; i < qps_assigned; i++){
-		ufp_release_ring(dev, &iface->tx_ring[i]);
-		ufp_release_ring(dev, &iface->rx_ring[i]);
+		ufp_release_ring(dev, &iface->tx_ring[i],
+			iface->size_tx_desc);
+		ufp_release_ring(dev, &iface->rx_ring[i],
+			iface->size_rx_desc);
 	}
 err_alloc_rx_ring:
 	free(iface->tx_ring);
@@ -229,8 +233,10 @@ static void ufp_release_rings(struct ufp_dev *dev, struct ufp_iface *iface)
 	int i;
 
 	for(i = 0; i < iface->num_qps; i++){
-		ufp_release_ring(dev, &iface->tx_ring[i]);
-		ufp_release_ring(dev, &iface->rx_ring[i]);
+		ufp_release_ring(dev, &iface->tx_ring[i],
+			iface->size_tx_desc);
+		ufp_release_ring(dev, &iface->rx_ring[i],
+			iface->size_rx_desc);
 	}
 
 	free(iface->rx_ring);
@@ -251,7 +257,7 @@ static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	if(!addr_virt)
 		goto err_alloc;
 
-	err = ufp_dma_map(dev, addr_virt, &addr_dma, size_desc);
+	err = ufp_vfio_dma_map(addr_virt, &addr_dma, size_desc);
 	if(err < 0){
 		goto err_dma_map;
 	}
@@ -270,58 +276,50 @@ static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	return 0;
 
 err_assign:
-	ufp_dma_unmap(dev, ring->addr_dma);
+	ufp_vfio_dma_unmap(ring->addr_dma, size_desc);
 err_dma_map:
 	ufp_mem_free(addr_virt);
 err_alloc:
 	return -1;
 }
 
-static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring)
+static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring,
+	unsigned long size_desc)
 {
 	free(ring->slot_index);
-	ufp_dma_unmap(dev, ring->addr_dma);
+	ufp_vfio_dma_unmap(ring->addr_dma, size_desc);
 	ufp_mem_free(ring->addr_virt);
 
 	return;
 }
 
 struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
-	uint32_t buf_size, uint32_t buf_count, struct ufp_mpool *mpool)
+	uint32_t slot_size, uint32_t buf_count, struct ufp_mpool *mpool)
 {
 	struct ufp_buf *buf;
-	unsigned long addr_dma, size;
-	int err, i, num_bufs, mapped_devs = 0;
+	int err, i, num_bufs;
 
 	buf = malloc(sizeof(struct ufp_buf));
 	if(!buf)
 		goto err_alloc_buf;
 
-	buf->addr_dma = malloc(sizeof(unsigned long) * num_devs);
-	if(!buf->addr_dma)
-		goto err_alloc_buf_addr_dma;
-
 	/*
 	 * XXX: Should we add buffer padding for memory interleaving?
 	 * DPDK does so in rte_mempool.c/optimize_object_size().
 	 */
-	buf->buf_size = buf_size;
+	buf->slot_size = slot_size;
 	buf->count = buf_count;
 	for(i = 0, num_bufs = 0; i < num_devs; i++){
 		num_bufs += devs[i]->num_ifaces * buf->count;
 	}
-	size = buf->buf_size * num_bufs;
-	buf->addr_virt = ufp_mem_alloc(mpool, size);
+	buf->size = buf->slot_size * num_bufs;
+	buf->addr_virt = ufp_mem_alloc(mpool, buf->size);
 	if(!buf->addr_virt)
 		goto err_mem_alloc;
 
-	for(i = 0; i < num_devs; i++, mapped_devs++){
-		err = ufp_dma_map(devs[i], buf->addr_virt, &addr_dma, size);
-		if(err < 0)
-			goto err_ufp_dma_map;
-
-		buf->addr_dma[i] = addr_dma;
-	}
+	err = ufp_vfio_dma_map(buf->addr_virt, &buf->addr_dma, buf->size);
+	if(err < 0)
+		goto err_dma_map;
 
 	buf->slots = malloc(sizeof(int) * num_bufs);
 	if(!buf->slots)
@@ -334,34 +332,26 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 	return buf;
 
 err_alloc_slots:
-err_ufp_dma_map:
-	for(i = 0; i < mapped_devs; i++){
-		ufp_dma_unmap(devs[i], buf->addr_dma[i]);
-	}
+	ufp_vfio_dma_unmap(buf->addr_dma, buf->size);
+err_dma_map:
 	ufp_mem_free(buf->addr_virt);
 err_mem_alloc:
-	free(buf->addr_dma);
-err_alloc_buf_addr_dma:
 	free(buf);
 err_alloc_buf:
 	return NULL;
 }
 
-void ufp_release_buf(struct ufp_dev **devs, int num_devs,
-	struct ufp_buf *buf)
+void ufp_release_buf(struct ufp_buf *buf)
 {
-	int i, err;
+	int err;
 
 	free(buf->slots);
 
-	for(i = 0; i < num_devs; i++){
-		err = ufp_dma_unmap(devs[i], buf->addr_dma[i]);
-		if(err < 0)
-			perror("failed to unmap buf");
-	}
+	err = ufp_vfio_dma_unmap(buf->addr_dma, buf->size);
+	if(err < 0)
+		perror("failed to unmap buf");
 
 	ufp_mem_free(buf->addr_virt);
-	free(buf->addr_dma);
 	free(buf);
 
 	return;
@@ -407,11 +397,11 @@ struct ufp_dev *ufp_open(const char *name)
 		goto err_alloc_dev;
 	strncpy(dev->name, name, sizeof(dev->name));
 
-	group_fd = vfio_group_open(dev);
+	group_fd = ufp_vfio_group_open(dev);
 	if(group_fd < 0)
 		goto err_group_open;
 
-	err = vfio_device_open(dev, group_fd);
+	err = ufp_vfio_device_open(dev, group_fd);
 	if(err < 0)
 		goto err_device_open;
 
@@ -589,11 +579,11 @@ int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
 		iface_done++;
 	}
 
-	err = vfio_irq_set(dev, irq_idx);
+	err = ufp_vfio_irq_set(dev, irq_idx);
 	if(err < 0)
 		goto err_irq_set;
 
-	err = vfio_irq_vector_get(dev);
+	err = ufp_vfio_irq_vector_get(dev);
 	if(err < 0)
 		goto err_irq_vector_get;
 
@@ -605,7 +595,7 @@ int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
 
 err_ops_up:
 err_irq_vector_get:
-	vfio_irq_unset(dev);
+	ufp_vfio_irq_unset(dev);
 err_irq_set:
 err_iface_up:
 	i = 0;
@@ -630,7 +620,7 @@ void ufp_down(struct ufp_dev *dev)
 
 	dev->ops->down(dev);
 
-	err = vfio_irq_unset(dev);
+	err = ufp_vfio_irq_unset(dev);
 	if(err < 0)
 		goto err_irq_unset;
 
@@ -719,7 +709,7 @@ static void ufp_initialize()
 {
 	int err;
 
-	err = vfio_container_open();
+	err = ufp_vfio_container_open();
 	if(err < 0)
 		goto err_container_open;
 
@@ -731,7 +721,7 @@ static void ufp_initialize()
 	return;
 
 err_load_lib:
-	vfio_container_close();
+	ufp_vfio_container_close();
 err_container_open:
 	exit(-1);
 }
@@ -740,6 +730,6 @@ __attribute__((destructor))
 static void ufp_finalize()
 {
 	ufp_dev_unload_lib();
-	vfio_container_close();
+	ufp_vfio_container_close();
 	return;
 }

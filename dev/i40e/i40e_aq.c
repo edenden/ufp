@@ -146,7 +146,7 @@ static int i40e_aq_ring_alloc(struct ufp_dev *dev,
 	if(size > sysconf(_SC_PAGESIZE))
 		goto err_desc_size;
 
-	ring->desc = i40e_page_alloc(dev);
+	ring->desc = i40e_page_alloc();
 	if(!ring->desc)
 		goto err_desc_alloc;
 
@@ -156,7 +156,7 @@ static int i40e_aq_ring_alloc(struct ufp_dev *dev,
 		goto err_buf_alloc;
 
 	for(i = 0; i < ring->num_desc; i++, buf_allocated++){
-		ring->bufs[i] =  i40e_page_alloc(dev);
+		ring->bufs[i] =  i40e_page_alloc();
 		if(!ring->bufs[i])
 			goto err_page_alloc;
 	}
@@ -165,10 +165,10 @@ static int i40e_aq_ring_alloc(struct ufp_dev *dev,
 
 err_page_alloc:
 	for(i = 0; i < buf_allocated; i++){
-		i40e_page_release(dev, ring->bufs[i]);
+		i40e_page_release(ring->bufs[i]);
 	}
 err_buf_alloc:
-	i40e_page_release(dev, ring->desc);
+	i40e_page_release(ring->desc);
 err_desc_alloc:
 err_desc_size:
 	return -1;
@@ -269,10 +269,10 @@ static void i40e_aq_ring_release(struct ufp_dev *dev,
 	int i;
 
 	for(i = 0; i < ring->num_desc; i++){
-		i40e_page_release(dev, ring->bufs[i]);
+		i40e_page_release(ring->bufs[i]);
 	}
 	free(ring->bufs);
-	i40e_page_release(dev, ring->desc);
+	i40e_page_release(ring->desc);
 
 	return;
 }

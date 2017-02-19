@@ -83,8 +83,9 @@ struct ufp_ring {
 
 struct ufp_buf {
 	void			*addr_virt;
-	unsigned long		*addr_dma;
-	uint32_t		buf_size;
+	unsigned long		addr_dma;
+	uint32_t		slot_size;
+	uint64_t		size;
 	uint32_t		count;
 	int32_t			*slots;
 };

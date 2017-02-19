@@ -16,14 +16,14 @@
 #include "lib_main.h"
 #include "lib_vfio.h"
 
-static int vfio_iommu_type_set();
-static int vfio_vendor_id(struct ufp_dev *dev);
-static int vfio_device_id(struct ufp_dev *dev);
-static int vfio_group_id(struct ufp_dev *dev);
+static int ufp_vfio_iommu_type_set();
+static int ufp_vfio_vendor_id(struct ufp_dev *dev);
+static int ufp_vfio_device_id(struct ufp_dev *dev);
+static int ufp_vfio_group_id(struct ufp_dev *dev);
 
 static struct ufp_vfio vfio = { 0 };
 
-int vfio_container_open()
+int ufp_vfio_container_open()
 {
 	int err;
 
@@ -50,13 +50,13 @@ err_open:
 	return -1;
 }
 
-void vfio_container_close()
+void ufp_vfio_container_close()
 {
 	close(vfio.container);
 	return;
 }
 
-static int vfio_iommu_type_set()
+static int ufp_vfio_iommu_type_set()
 {
 	struct vfio_iommu_type1_info iommu_info;
 	int err;
@@ -84,8 +84,7 @@ err_set_iommu:
 	return -1;
 }
 
-int vfio_dma_map(struct ufp_dev *dev,
-	void *addr_virt, uint64_t *iova, size_t size)
+int ufp_vfio_dma_map(void *addr_virt, uint64_t *iova, size_t size)
 {
 	struct vfio_iommu_type1_dma_map dma_map;
 	int err;
@@ -109,8 +108,7 @@ err_dma_map:
 	return -1;
 }
 
-int vfio_dma_unmap(struct ufp_dev *dev,
-	uint64_t iova, size_t size)
+int ufp_vfio_dma_unmap(uint64_t iova, size_t size)
 {
 	struct vfio_iommu_type1_dma_unmap dma_unmap;
 	int err;
@@ -129,7 +127,7 @@ err_dma_unmap:
 	return -1;
 }
 
-static int vfio_vendor_id(struct ufp_dev *dev)
+static int ufp_vfio_vendor_id(struct ufp_dev *dev)
 {
 	char path[PATH_MAX];
 	FILE *file;
@@ -158,7 +156,7 @@ err_fopen:
 	return -1;
 }
 
-static int vfio_device_id(struct ufp_dev *dev)
+static int ufp_vfio_device_id(struct ufp_dev *dev)
 {
 	char path[PATH_MAX];
 	FILE *file;
@@ -187,7 +185,7 @@ err_fopen:
 	return -1;
 }
 
-static int vfio_group_id(struct ufp_dev *dev)
+static int ufp_vfio_group_id(struct ufp_dev *dev)
 {
 	char path[PATH_MAX];
 	char *linkpath;
@@ -215,13 +213,13 @@ err_readlink:
 	return -1;
 }
 
-int vfio_group_open(struct ufp_dev *dev)
+int ufp_vfio_group_open(struct ufp_dev *dev)
 {
 	int err, group_id, group_fd;
 	char path[PATH_MAX];
 	struct vfio_group_status group_status;
 
-	group_id = vfio_group_id(dev);
+	group_id = ufp_vfio_group_id(dev);
 	if(group_id < 0)
 		goto err_group_id;
 
@@ -248,7 +246,7 @@ int vfio_group_open(struct ufp_dev *dev)
 			goto err_set_container;
 	}
 
-	err = vfio_iommu_type_set();
+	err = ufp_vfio_iommu_type_set();
 	if(err < 0)
 		goto err_iommu_type;
 
@@ -264,7 +262,7 @@ err_group_id:
 	return -1;
 }
 
-int vfio_device_open(struct ufp_dev *dev, int group_fd)
+int ufp_vfio_device_open(struct ufp_dev *dev, int group_fd)
 {
 	int err;
 	struct vfio_device_info device_info;
@@ -304,11 +302,11 @@ int vfio_device_open(struct ufp_dev *dev, int group_fd)
 	if(dev->bar == MAP_FAILED)
 		goto err_bar_map;
 
-	err = vfio_vendor_id(dev);
+	err = ufp_vfio_vendor_id(dev);
 	if(err < 0)
 		goto err_vendor_id;
 
-	err = vfio_device_id(dev);
+	err = ufp_vfio_device_id(dev);
 	if(err < 0)
 		goto err_device_id;
 
@@ -333,7 +331,7 @@ err_open:
 	return -1;
 }
 
-int vfio_irq_set(struct ufp_dev *dev, unsigned int num_irqs)
+int ufp_vfio_irq_set(struct ufp_dev *dev, unsigned int num_irqs)
 {
 	struct ufp_iface *iface;
 	struct vfio_irq_info irq_info;
@@ -397,7 +395,7 @@ err_irq_info:
 	return -1;
 }
 
-int vfio_irq_unset(struct ufp_dev *dev)
+int ufp_vfio_irq_unset(struct ufp_dev *dev)
 {
 	struct vfio_irq_set irq_set;
 	int err;
@@ -419,7 +417,7 @@ err_set_irqs:
 	return -1;
 }
 
-int vfio_irq_vector_get(struct ufp_dev *dev)
+int ufp_vfio_irq_vector_get(struct ufp_dev *dev)
 {
 	struct ufp_iface *iface;
 	struct list_head head;

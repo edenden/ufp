@@ -9,6 +9,7 @@
 #include <sys/mman.h>
 
 #include <lib_main.h>
+#include <lib_vfio.h>
 
 #include "i40e_main.h"
 #include "i40e_regs.h"
@@ -361,10 +362,11 @@ err_fetch:
 	return -1;
 }
 
-struct i40e_page *i40e_page_alloc(struct ufp_dev *dev)
+struct i40e_page *i40e_page_alloc()
 {
 	struct i40e_page *page;
-	unsigned long addr_dma, size;
+	unsigned long addr_dma;
+	size_t size;
 	void *addr_virt;
 	int err;
 
@@ -381,13 +383,12 @@ struct i40e_page *i40e_page_alloc(struct ufp_dev *dev)
 
 	page->addr_virt = addr_virt;
 
-	err = ufp_dma_map(dev, addr_virt, &addr_dma, size);
+	err = ufp_vfio_dma_map(addr_virt, &addr_dma, size);
 	if(err < 0){
 		goto err_dma_map;
 	}
 
 	page->addr_dma = addr_dma;
-
 	return page;
 
 err_dma_map:
@@ -398,10 +399,13 @@ err_alloc_page:
 	return NULL;
 }
 
-void i40e_page_release(struct ufp_dev *dev, struct i40e_page *page)
+void i40e_page_release(struct i40e_page *page)
 {
-	ufp_dma_unmap(dev, page->addr_dma);
-	munmap(page->addr_virt, sysconf(_SC_PAGESIZE));
+	size_t size;
+
+	size = sysconf(_SC_PAGESIZE);
+	ufp_vfio_dma_unmap(page->addr_dma, size);
+	munmap(page->addr_virt, size);
 	free(page);
 	return;
 }
