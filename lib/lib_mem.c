@@ -9,15 +9,15 @@
 #include "lib_mem.h"
 
 static struct ufp_mnode *ufp_mnode_alloc(struct ufp_mnode *parent,
-	void *ptr, unsigned int size, unsigned int index);
+	void *ptr, size_t size, unsigned int index);
 static void ufp_mnode_release(struct ufp_mnode *node);
 static void _ufp_mem_destroy(struct ufp_mnode *node);
 static struct ufp_mnode *_ufp_mem_alloc(struct ufp_mnode *node,
-	unsigned int size);
+	size_t size);
 static void _ufp_mem_free(struct ufp_mnode *node);
 
 static struct ufp_mnode *ufp_mnode_alloc(struct ufp_mnode *parent,
-	void *ptr, unsigned int size, unsigned int index)
+	void *ptr, size_t size, unsigned int index)
 {
 	struct ufp_mnode *node;
 
@@ -51,7 +51,7 @@ static void ufp_mnode_release(struct ufp_mnode *node)
 	return;
 }
 
-struct ufp_mnode *ufp_mem_init(void *ptr, unsigned int size)
+struct ufp_mnode *ufp_mem_init(void *ptr, size_t size)
 {
 	struct ufp_mnode *root;
 
@@ -85,32 +85,32 @@ static void _ufp_mem_destroy(struct ufp_mnode *node)
 	return;
 }
 
-void *ufp_mem_alloc(struct ufp_mpool *mpool, unsigned int size)
+void *ufp_mem_alloc(struct ufp_mpool *mpool, size_t size)
 {
 	struct ufp_mnode *node;
-	unsigned long *header;
+	void **header;
 
 	node = _ufp_mem_alloc(mpool->node,
 		ALIGN(size, L1_CACHE_BYTES) +
-		ALIGN(sizeof(unsigned long), L1_CACHE_BYTES));
+		ALIGN(sizeof(void *), L1_CACHE_BYTES));
 
 	if(!node)
 		goto err_alloc;
 
 	header = node->ptr;
-	*header = (unsigned long)node;
-	return node->ptr + ALIGN(sizeof(unsigned long), L1_CACHE_BYTES);
+	*header = node;
+	return node->ptr + ALIGN(sizeof(void *), L1_CACHE_BYTES);
 
 err_alloc:
 	return NULL;
 }
 
 static struct ufp_mnode *_ufp_mem_alloc(struct ufp_mnode *node,
-	unsigned int size)
+	size_t size)
 {
 	void *ptr_new;
 	struct ufp_mnode *ret;
-	unsigned int size_new;
+	size_t size_new;
 	int i, buddy_allocated;
 
 	ret = NULL;
@@ -157,9 +157,9 @@ err_alloc_child:
 void ufp_mem_free(void *addr_free)
 {
 	struct ufp_mnode *node;
-	unsigned long *header;
+	void **header;
 
-	header = addr_free - ALIGN(sizeof(unsigned long), L1_CACHE_BYTES);
+	header = addr_free - ALIGN(sizeof(void *), L1_CACHE_BYTES);
 	node = (struct ufp_mnode *)*header;
 	_ufp_mem_free(node);
 }
@@ -169,7 +169,7 @@ static void _ufp_mem_free(struct ufp_mnode *node)
 	struct ufp_mnode *parent, *buddy;
 
 	node->allocated = 0;
-	
+
 	parent = node->parent;
 	if(!parent)
 		goto out;
