@@ -138,7 +138,12 @@ struct ufp_mpool *ufp_mpool_init()
 
 	size = SIZE_1GB;
 	mpool->addr_virt = mmap(NULL, size, PROT_READ | PROT_WRITE,
-		MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, 0, 0);
+#ifdef MAP_HUGE_1GB
+		MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_HUGE_1GB,
+#else
+		MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB,
+#endif
+		0, 0);
 	if(mpool->addr_virt == MAP_FAILED){
 		goto err_mmap;
 	}
