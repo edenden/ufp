@@ -21,12 +21,15 @@
 #include "thread.h"
 
 static void usage();
+static int ufpd_device_init(struct ufpd *ufpd, int dev_idx);
+static void ufpd_device_destroy(struct ufpd *ufpd, int dev_idx);
 static int ufpd_thread_create(struct ufpd *ufpd,
 	struct ufpd_thread *thread, unsigned int thread_id,
 	unsigned int core_id);
 static void ufpd_thread_kill(struct ufpd_thread *thread);
 static int ufpd_set_signal(sigset_t *sigset);
 static int ufpd_set_mempolicy(unsigned int node);
+static int ufpd_parse_args(struct ufpd *ufpd, int argc, char **argv);
 static int ufpd_parse_range(const char *str, char *result,
 	int max_len);
 static int ufpd_parse_list(const char *str, void *result,
@@ -53,13 +56,11 @@ int main(int argc, char **argv)
 {
 	struct ufpd		ufpd;
 	struct ufpd_thread	*threads;
-	int			ret, i, signal, opt;
-	int			threads_assigned = 0,
-				devices_assigned = 0,
-				devices_up = 0,
-				mpool_assigned = 0;
+	int			err, ret, i, signal;
+	int			threads_done = 0,
+				devices_done = 0,
+				mpool_done = 0;
 	sigset_t		sigset;
-	char			strbuf[1024];
 
 	/* set default values */
 	ufpd.numa_node		= 0;
@@ -70,86 +71,19 @@ int main(int argc, char **argv)
 	ufpd.buf_count		= 8192; /* number of per port packet buffer */
 	ufpd.buf_size		= 2048; /* must be larger than 2048 */
 
-	while ((opt = getopt(argc, argv, "c:p:n:m:b:ah")) != -1) {
-		switch(opt){
-		case 'c':
-			ret = ufpd_parse_range(optarg, strbuf, sizeof(strbuf));
-			if(ret < 0){
-				printf("Invalid argument\n");
-				ret = -1;
-				goto err_arg;
-			}
-
-			ufpd.num_threads = ufpd_parse_list(strbuf, ufpd.cores,
-				sizeof(unsigned int), "%u", UFP_MAX_CORES);
-			if(ufpd.num_threads < 0){
-				printf("Invalid CPU cores to use\n");
-				ret = -1;
-				goto err_arg;
-			}
-			break;
-		case 'p':
-			ufpd.num_devices = ufpd_parse_list(optarg, ufpd.ifnames,
-				IFNAMSIZ, "%s", UFP_MAX_IFS);
-			if(ufpd.num_devices < 0){
-				printf("Invalid Interfaces to use\n");
-				ret = -1;
-				goto err_arg;
-			}
-			break;
-		case 'n':
-			if(sscanf(optarg, "%u", &ufpd.numa_node) < 1){
-				printf("Invalid NUMA node\n");
-				ret = -1;
-				goto err_arg;
-			}
-			break;
-		case 'm':
-			if(sscanf(optarg, "%u", &ufpd.mtu_frame) < 1){
-				printf("Invalid MTU length\n");
-				ret = -1;
-				goto err_arg;
-			}
-			break;
-		case 'b':
-			if(sscanf(optarg, "%u", &ufpd.buf_count) < 1){
-				printf("Invalid number of packet buffer\n");
-				ret = -1;
-				goto err_arg;
-			}
-			break;
-		case 'a':
-			ufpd.promisc = 1;
-			break;
-		case 'h':
-			usage();
-			ret = 0;
-			goto err_arg;
-			break;
-		default:
-			usage();
-			ret = -1;
-			goto err_arg;
-		}
-	}
-
-	if(!ufpd.num_devices){
-		printf("You must specify PCI Interfaces to use.\n");
+	err = ufpd_parse_args(&ufpd, argc, argv);
+	if(err < 0){
 		ret = -1;
-		goto err_arg;
-	}
-
-	if(!ufpd.num_threads){
-		printf("You must specify CPU cores to use.\n");
-		ret = -1;
-		goto err_arg;
+		goto err_parse_args;
 	}
 
 	openlog(PROCESS_NAME, LOG_CONS | LOG_PID, SYSLOG_FACILITY);
 
-	ret = ufpd_set_mempolicy(ufpd.numa_node);
-	if(ret < 0)
+	err = ufpd_set_mempolicy(ufpd.numa_node);
+	if(err < 0){
+		ret = -1;
 		goto err_set_mempolicy;
+	}
 
 	ufpd.devs = malloc(sizeof(struct ufp_dev *) * ufpd.num_devices);
 	if(!ufpd.devs){
@@ -169,7 +103,7 @@ int main(int argc, char **argv)
 		goto err_alloc_threads;
 	}
 
-	for(i = 0; i < ufpd.num_threads; i++, mpool_assigned++){
+	for(i = 0; i < ufpd.num_threads; i++, mpool_done++){
 		ufpd.mpools[i] = ufp_mpool_init();
 		if(!ufpd.mpools[i]){
 			ret = -1;
@@ -177,63 +111,26 @@ int main(int argc, char **argv)
 		}
 	}
 
-	for(i = 0; i < ufpd.num_devices; i++, devices_assigned++){
-		ufpd.devs[i] = ufp_open(&ufpd.ifnames[i * IFNAMSIZ]);
-		if(!ufpd.devs[i]){
-			ufpd_log(LOG_ERR, "failed to ufp_open, idx = %d", i);
+	for(i = 0; i < ufpd.num_devices; i++, devices_done++){
+		err = ufpd_device_init(&ufpd, i);
+		if(err < 0){
 			ret = -1;
-			goto err_open;
+			goto err_init_device;
 		}
 	}
 
-	for(i = 0; i < ufpd.num_devices; i++, devices_up++){
-		ret = ufp_up(ufpd.devs[i], ufpd.mpools,
-			ufpd.num_threads, ufpd.mtu_frame, ufpd.promisc,
-			UFP_RX_BUDGET, UFP_TX_BUDGET);
-		if(ret < 0){
-			ufpd_log(LOG_ERR, "failed to ufp_up, idx = %d", i);
-			ret = -1;
-			goto err_up;
-		}
-	}
-
-	ret = ufpd_set_signal(&sigset);
-	if(ret != 0){
+	err = ufpd_set_signal(&sigset);
+	if(err != 0){
+		ret = -1;
 		goto err_set_signal;
 	}
 
-	for(i = 0; i < ufpd.num_threads; i++, threads_assigned++){
-		threads[i].mpool = ufpd.mpools[i];
-		threads[i].buf = ufp_alloc_buf(ufpd.devs, ufpd.num_devices,
-			ufpd.buf_size, ufpd.buf_count, threads[i].mpool);
-		if(!threads[i].buf){
-			ufpd_log(LOG_ERR,
-				"failed to ufp_alloc_buf, idx = %d", i);
-			goto err_buf_alloc;
-		}
-
-		threads[i].plane = ufp_plane_alloc(ufpd.devs, ufpd.num_devices,
-			threads[i].buf, i, ufpd.cores[i]);
-		if(!threads[i].plane){
-			ufpd_log(LOG_ERR,
-				"failed to ufp_plane_alloc, idx = %d", i);
-			goto err_plane_alloc;
-		}
-
-		ret = ufpd_thread_create(&ufpd, &threads[i], i, ufpd.cores[i]);
-		if(ret < 0){
+	for(i = 0; i < ufpd.num_threads; i++, threads_done++){
+		err = ufpd_thread_create(&ufpd, &threads[i], i, ufpd.cores[i]);
+		if(err < 0){
+			ret = -1;
 			goto err_thread_create;
 		}
-
-		continue;
-
-err_thread_create:
-		ufp_plane_release(threads[i].plane);
-err_plane_alloc:
-		ufp_release_buf(threads[i].buf);
-err_buf_alloc:
-		ret = -1;
-		goto err_assign_threads;
 	}
 
 	while(1){
@@ -243,23 +140,17 @@ err_buf_alloc:
 	}
 	ret = 0;
 
-err_assign_threads:
-	for(i = 0; i < threads_assigned; i++){
+err_thread_create:
+	for(i = 0; i < threads_done; i++){
 		ufpd_thread_kill(&threads[i]);
-		ufp_plane_release(threads[i].plane);
-		ufp_release_buf(threads[i].buf);
 	}
 err_set_signal:
-err_up:
-	for(i = 0; i < devices_up; i++){
-		ufp_down(ufpd.devs[i]);
-	}
-err_open:
-	for(i = 0; i < devices_assigned; i++){
-		ufp_close(ufpd.devs[i]);
+err_init_device:
+	for(i = 0; i < devices_done; i++){
+		ufpd_device_destroy(&ufpd, i);
 	}
 err_mempool_init:
-	for(i = 0; i < mpool_assigned; i++){
+	for(i = 0; i < mpool_done; i++){
 		ufp_mpool_destroy(ufpd.mpools[i]);
 	}
 	free(threads);
@@ -270,8 +161,40 @@ err_mpools:
 err_devs:
 err_set_mempolicy:
 	closelog();
-err_arg:
+err_parse_args:
 	return ret;
+}
+
+static int ufpd_device_init(struct ufpd *ufpd, int dev_idx)
+{
+	int err;
+
+	ufpd->devs[dev_idx] = ufp_open(&ufpd->ifnames[dev_idx * IFNAMSIZ]);
+	if(!ufpd->devs[dev_idx]){
+		ufpd_log(LOG_ERR, "failed to ufp_open, idx = %d", dev_idx);
+		goto err_open;
+	}
+
+	err = ufp_up(ufpd->devs[dev_idx], ufpd->mpools,
+		ufpd->num_threads, ufpd->mtu_frame, ufpd->promisc,
+		UFP_RX_BUDGET, UFP_TX_BUDGET);
+	if(err < 0){
+		ufpd_log(LOG_ERR, "failed to ufp_up, idx = %d", dev_idx);
+		goto err_up;
+	}
+
+	return 0;
+
+err_up:
+	ufp_close(ufpd->devs[dev_idx]);
+err_open:
+	return -1;
+}
+
+static void ufpd_device_destroy(struct ufpd *ufpd, int dev_idx)
+{
+	ufp_down(ufpd->devs[dev_idx]);
+	ufp_close(ufpd->devs[dev_idx]);
 }
 
 static int ufpd_thread_create(struct ufpd *ufpd,
@@ -279,24 +202,41 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 	unsigned int core_id)
 {
 	cpu_set_t cpuset;
-	int ret;
+	int err;
 
 	thread->id		= thread_id;
 	thread->num_ports	= ufp_portnum(thread->plane);
 	thread->ptid		= pthread_self();
+	thread->mpool		= ufpd->mpools[thread->id];
 
-	ret = pthread_create(&thread->tid,
+	thread->buf = ufp_alloc_buf(ufpd->devs, ufpd->num_devices,
+			ufpd->buf_size, ufpd->buf_count, thread->mpool);
+	if(!thread->buf){
+		ufpd_log(LOG_ERR,
+			"failed to ufp_alloc_buf, idx = %d", thread->id);
+		goto err_buf_alloc;
+	}
+
+	thread->plane = ufp_plane_alloc(ufpd->devs, ufpd->num_devices,
+		thread->buf, thread->id, ufpd->cores[thread->id]);
+	if(!thread->plane){
+		ufpd_log(LOG_ERR,
+			"failed to ufp_plane_alloc, idx = %d", thread->id);
+		goto err_plane_alloc;
+	}
+
+	err = pthread_create(&thread->tid,
 		NULL, thread_process_interrupt, thread);
-	if(ret < 0){
+	if(err < 0){
 		ufpd_log(LOG_ERR, "failed to create thread");
 		goto err_pthread_create;
 	}
 
 	CPU_ZERO(&cpuset);
 	CPU_SET(core_id, &cpuset);
-	ret = pthread_setaffinity_np(thread->tid,
+	err = pthread_setaffinity_np(thread->tid,
 		sizeof(cpu_set_t), &cpuset);
-	if(ret < 0){
+	if(err < 0){
 		ufpd_log(LOG_ERR, "failed to set affinity");
 		goto err_set_affinity;
 	}
@@ -306,6 +246,10 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 err_set_affinity:
 	ufpd_thread_kill(thread);
 err_pthread_create:
+	ufp_plane_release(thread->plane);
+err_plane_alloc:
+	ufp_release_buf(thread->buf);
+err_buf_alloc:
 	return -1;
 }
 
@@ -320,45 +264,51 @@ void ufpd_log(int level, char *fmt, ...){
 
 static void ufpd_thread_kill(struct ufpd_thread *thread)
 {
-	int ret;
+	int err;
 
-	ret = pthread_kill(thread->tid, SIGUSR1);
-	if(ret != 0)
+	err = pthread_kill(thread->tid, SIGUSR1);
+	if(err != 0)
 		ufpd_log(LOG_ERR, "failed to kill thread");
 
-	ret = pthread_join(thread->tid, NULL);
-	if(ret != 0)
+	err = pthread_join(thread->tid, NULL);
+	if(err != 0)
 		ufpd_log(LOG_ERR, "failed to join thread");
 
+	ufp_plane_release(thread->plane);
+	ufp_release_buf(thread->buf);
 	return;
 }
 
 static int ufpd_set_signal(sigset_t *sigset)
 {
-	int ret;
+	int err;
 
 	sigemptyset(sigset);
-	ret = sigaddset(sigset, SIGUSR1);
-	if(ret != 0)
-		return -1;
+	err = sigaddset(sigset, SIGUSR1);
+	if(err != 0)
+		goto err_sigaddset;
 
-	ret = sigaddset(sigset, SIGHUP);
-	if(ret != 0)
-		return -1;
+	err = sigaddset(sigset, SIGHUP);
+	if(err != 0)
+		goto err_sigaddset;
 
-	ret = sigaddset(sigset, SIGINT);
-	if(ret != 0)
-		return -1;
+	err = sigaddset(sigset, SIGINT);
+	if(err != 0)
+		goto err_sigaddset;
 
-	ret = sigaddset(sigset, SIGTERM);
-	if(ret != 0)
-		return -1;
+	err = sigaddset(sigset, SIGTERM);
+	if(err != 0)
+		goto err_sigaddset;
 
-	ret = pthread_sigmask(SIG_BLOCK, sigset, NULL);
-	if(ret != 0)
-		return -1;
+	err = pthread_sigmask(SIG_BLOCK, sigset, NULL);
+	if(err != 0)
+		goto err_sigmask;
 
 	return 0;
+
+err_sigmask:
+err_sigaddset:
+	return -1;
 }
 
 static int ufpd_set_mempolicy(unsigned int node)
@@ -375,6 +325,85 @@ static int ufpd_set_mempolicy(unsigned int node)
 	}
 
 	return 0;
+}
+
+static int ufpd_parse_args(struct ufpd *ufpd, int argc, char **argv)
+{
+	int err, opt;
+	char strbuf[1024];
+
+	while((opt = getopt(argc, argv, "c:p:n:m:b:ah")) != -1){
+		switch(opt){
+		case 'c':
+			err = ufpd_parse_range(optarg,
+				strbuf, sizeof(strbuf));
+			if(err < 0){
+				printf("Invalid argument\n");
+				goto err_arg;
+			}
+
+			ufpd->num_threads = ufpd_parse_list(strbuf,
+				ufpd->cores, sizeof(unsigned int),
+				"%u", UFP_MAX_CORES);
+			if(ufpd->num_threads < 0){
+				printf("Invalid CPU cores to use\n");
+				goto err_arg;
+			}
+			break;
+		case 'p':
+			ufpd->num_devices = ufpd_parse_list(optarg,
+				ufpd->ifnames, IFNAMSIZ,
+				"%s", UFP_MAX_IFS);
+			if(ufpd->num_devices < 0){
+				printf("Invalid Interfaces to use\n");
+				goto err_arg;
+			}
+			break;
+		case 'n':
+			if(sscanf(optarg, "%u", &ufpd->numa_node) != 1){
+				printf("Invalid NUMA node\n");
+				goto err_arg;
+			}
+			break;
+		case 'm':
+			if(sscanf(optarg, "%u", &ufpd->mtu_frame) != 1){
+				printf("Invalid MTU length\n");
+				goto err_arg;
+			}
+			break;
+		case 'b':
+			if(sscanf(optarg, "%u", &ufpd->buf_count) != 1){
+				printf("Invalid number of packet buffer\n");
+				goto err_arg;
+			}
+			break;
+		case 'a':
+			ufpd->promisc = 1;
+			break;
+		case 'h':
+			usage();
+			goto err_arg;
+			break;
+		default:
+			usage();
+			goto err_arg;
+		}
+	}
+
+	if(!ufpd->num_devices){
+		printf("You must specify PCI Interfaces to use.\n");
+		goto err_arg;
+	}
+
+	if(!ufpd->num_threads){
+		printf("You must specify CPU cores to use.\n");
+		goto err_arg;
+	}
+
+	return 0;
+
+err_arg:
+	return -1;
 }
 
 static int ufpd_parse_range(const char *str, char *result,
