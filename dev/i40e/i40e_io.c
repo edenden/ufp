@@ -425,9 +425,13 @@ void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	uint16_t qp_idx, irq_idx, rx_done = 0, tx_done = 0;
 	int i;
 
+	/*
+	 * The interrupt indexing is offset by 1 in the PFINT_ITRn
+	 * and PFINT_LNKLSTn registers.
+	 * e.g. PFINT_ITRn[0..n-1] gets msix1..msixn (qpair interrupts)
+	 */
 	irq_idx = i40e_iface->base_qp * 2;
 	for (i = 0; i < iface->num_qps; i++, irq_idx++, rx_done++){
-		/* XXX: consider misc irqs? */
 		qp_idx = i40e_iface->base_qp + i;
 		i40e_vsi_configure_irq_rx(dev,
 			iface, qp_idx, irq_idx);
@@ -583,13 +587,13 @@ int i40e_vsi_stop_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		UFP_WRITE32(dev, I40E_QRX_ENA(qp_idx), rx_reg);
 
 		/* wait for the change to finish */
-		for (retry = 0; retry < I40E_QUEUE_WAIT_RETRY_LIMIT; retry++) {
+		for(retry = 0; retry < I40E_QUEUE_WAIT_RETRY_LIMIT; retry++){
 			rx_reg = UFP_READ32(dev, I40E_QRX_ENA(qp_idx));
 			if(!(rx_reg & I40E_QRX_ENA_QENA_STAT_MASK))
 				break;
 			usleep(10);
 		}
-		if (retry >= I40E_QUEUE_WAIT_RETRY_LIMIT)
+		if(retry >= I40E_QUEUE_WAIT_RETRY_LIMIT)
 			goto err_vsi_stop;
 	}
 	return 0;
@@ -628,13 +632,13 @@ int i40e_vsi_start_tx(struct ufp_dev *dev, struct ufp_iface *iface)
 		UFP_WRITE32(dev, I40E_QTX_ENA(qp_idx), tx_reg);
 
 		/* wait for the change to finish */
-		for (retry = 0; retry < I40E_QUEUE_WAIT_RETRY_LIMIT; retry++) {
+		for(retry = 0; retry < I40E_QUEUE_WAIT_RETRY_LIMIT; retry++){
 			tx_reg = UFP_READ32(dev, I40E_QTX_ENA(qp_idx));
 			if (tx_reg & I40E_QTX_ENA_QENA_STAT_MASK)
 				break;
 			usleep(10);
 		}
-		if (retry >= I40E_QUEUE_WAIT_RETRY_LIMIT)
+		if(retry >= I40E_QUEUE_WAIT_RETRY_LIMIT)
 			goto err_vsi_start;
 	}
 

@@ -19,6 +19,8 @@ struct ufpd_thread {
 	pthread_t		tid;
 	pthread_t		ptid;
 	unsigned int		num_ports;
+	uint8_t			*read_buf;
+	size_t			read_size;
 };
 
 void *thread_process_interrupt(void *data);

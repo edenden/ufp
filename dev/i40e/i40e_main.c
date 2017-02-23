@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 #include <lib_main.h>
 #include <lib_vfio.h>
@@ -359,6 +360,7 @@ err_session_create:
 	return 0;
 
 err_fetch:
+	i40e_clear_swconf(dev);
 	return -1;
 }
 
@@ -374,7 +376,7 @@ struct i40e_page *i40e_page_alloc()
 	if(!page)
 		goto err_alloc_page;
 
-	size = sysconf(_SC_PAGESIZE);
+	size = getpagesize();
 	addr_virt = mmap(NULL, size, PROT_READ | PROT_WRITE,
 		MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 	if(addr_virt == MAP_FAILED){
@@ -403,7 +405,7 @@ void i40e_page_release(struct i40e_page *page)
 {
 	size_t size;
 
-	size = sysconf(_SC_PAGESIZE);
+	size = getpagesize();
 	ufp_vfio_dma_unmap(page->addr_dma, size);
 	munmap(page->addr_virt, size);
 	free(page);
@@ -872,6 +874,7 @@ err_vsi_update:
 	free(i40e_iface);
 err_alloc_iface:
 err_first_vsi:
+	i40e_clear_swconf(dev);
 err_get_swconf:
 err_configure_rss:
 err_configure_filter:
