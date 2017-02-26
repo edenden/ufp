@@ -20,6 +20,7 @@
 #include "lib_tap.h"
 #include "lib_vfio.h"
 
+static int ufp_ifname_base(struct ufp_dev *dev, struct ufp_iface *iface);
 static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	unsigned long size_desc, uint32_t num_desc, struct ufp_mpool *mpool);
 static void ufp_release_rings(struct ufp_dev *dev, struct ufp_iface *iface);
@@ -47,6 +48,54 @@ inline void ufp_writel(uint32_t b, volatile void *addr)
 {
 	*(volatile uint32_t *)addr = htole32(b);
 	return;
+}
+
+static int ufp_ifname_base(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	uint16_t domain;
+	uint8_t bus, slot, func;
+	int err;
+
+	err = sscanf(dev->name,
+		"%04" SCNx16 ":%02" SCNx8 ":%02" SCNx8 ".%01" SCNx8,
+		&domain, &bus, &slot, &func);
+	if(err != 4)
+		goto err_parse;
+
+	err = snprintf(iface->name, sizeof(iface->name), "un");
+	if(err < 0)
+		goto err_parse;
+
+	if(domain){
+		snprintf(iface->name + strlen(iface->name),
+			sizeof(iface->name) - strlen(iface->name),
+			"P%d", domain);
+		if(err < 0)
+			goto err_parse;
+	}
+
+	err = snprintf(iface->name + strlen(iface->name),
+		sizeof(iface->name) - strlen(iface->name),
+		"p%d", bus);
+	if(err < 0)
+		goto err_parse;
+
+	err = snprintf(iface->name + strlen(iface->name),
+		sizeof(iface->name) - strlen(iface->name),
+		"s%d", slot);
+	if(err < 0)
+		goto err_parse;
+
+	err = snprintf(ifname + strlen(iface->name),
+		sizeof(iface->name) - strlen(iface->name),
+		"f%d", func);
+	if(err < 0)
+		goto err_parse;
+
+	return 0;
+
+err_parse:
+	return -1;
 }
 
 struct ufp_plane *ufp_plane_alloc(struct ufp_dev **devs, int num_devs,
@@ -415,7 +464,11 @@ struct ufp_dev *ufp_open(const char *name)
 	if(!iface)
 		goto err_alloc_iface;
 	list_add_last(&dev->iface, &iface->list);
-	strncpy(iface->name, dev->name, sizeof(iface->name));
+
+	err = ufp_ifname_base(dev, iface);
+	if(err < 0)
+		goto err_ifname;
+
 	err = ufp_tun_open(iface);
 	if(err < 0)
 		goto err_tap_open;
@@ -430,6 +483,7 @@ struct ufp_dev *ufp_open(const char *name)
 err_ops_open:
 	ufp_tun_close(iface);
 err_tap_open:
+err_ifname:
 	list_del(&iface->list);
 	free(iface);
 err_alloc_iface:
