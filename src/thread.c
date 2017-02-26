@@ -270,7 +270,7 @@ static int thread_wait(struct ufpd_thread *thread, int fd_ep)
 {
         struct epoll_desc *ep_desc;
         struct epoll_event events[EPOLL_MAXEVENTS];
-	struct ufp_packet packet[UFP_RX_BUDGET];
+	struct ufp_packet packet[UFPD_RX_BUDGET];
         int i, err, num_fd;
 
 	while(1){

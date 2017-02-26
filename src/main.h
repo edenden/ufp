@@ -25,19 +25,20 @@
 
 #define PROCESS_NAME "ufp"
 #define SYSLOG_FACILITY LOG_DAEMON
-#define UFP_RX_BUDGET 1024
-#define UFP_TX_BUDGET 4096
-#define UFP_MAX_CORES 16
-#define UFP_MAX_IFS 8
-#define UFP_MAX_IFNAMSIZ (UFP_MAX_IFS * IFNAMSIZ)
+#define UFPD_RX_BUDGET 1024
+#define UFPD_TX_BUDGET 4096
+#define UFPD_MAX_CORES 16
+#define UFPD_MAX_ARGS 128
+#define UFPD_MAX_ARGLEN 1024
+#define UFPD_MAX_IFS 64
 
 struct ufpd {
 	struct ufp_dev		**devs;
 	struct ufp_mpool	**mpools;
 	unsigned int		num_threads;
-	unsigned int		cores[UFP_MAX_CORES];
+	unsigned int		cores[UFPD_MAX_CORES];
 	unsigned int		num_devices;
-	char			ifnames[UFP_MAX_IFNAMSIZ];
+	char			*ifnames[UFPD_MAX_IFS];
 	unsigned int		promisc;
 	unsigned int		mtu_frame;
 	unsigned int		buf_size;
