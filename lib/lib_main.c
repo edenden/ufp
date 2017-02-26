@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 #include <errno.h>
 #include <stdint.h>
 #include <endian.h>
@@ -86,7 +87,7 @@ static int ufp_ifname_base(struct ufp_dev *dev, struct ufp_iface *iface)
 	if(err < 0)
 		goto err_parse;
 
-	err = snprintf(ifname + strlen(iface->name),
+	err = snprintf(iface->name + strlen(iface->name),
 		sizeof(iface->name) - strlen(iface->name),
 		"f%d", func);
 	if(err < 0)
