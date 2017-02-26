@@ -181,7 +181,7 @@ static int ufpd_device_init(struct ufpd *ufpd, int dev_idx)
 {
 	int err;
 
-	ufpd->devs[dev_idx] = ufp_open(&ufpd->ifnames[dev_idx * IFNAMSIZ]);
+	ufpd->devs[dev_idx] = ufp_open(ufpd->ifnames[dev_idx]);
 	if(!ufpd->devs[dev_idx]){
 		ufpd_log(LOG_ERR, "failed to ufp_open, idx = %d", dev_idx);
 		goto err_open;
@@ -341,7 +341,7 @@ static int ufpd_set_mempolicy(unsigned int node)
 
 static int ufpd_parse_args(struct ufpd *ufpd, int argc, char **argv)
 {
-	int err, opt;
+	int err, opt, i;
 	char strbuf[UFPD_MAX_ARGLEN];
 	char *argbuf[UFPD_MAX_ARGS];
 	unsigned int argbuf_done = 0;
@@ -369,7 +369,8 @@ static int ufpd_parse_args(struct ufpd *ufpd, int argc, char **argv)
 				goto err_arg;
 			}
 
-			err = ufpd_convert_list(argbuf, ufpd->num_threads,
+			err = ufpd_convert_list((const char **)argbuf,
+				ufpd->num_threads,
 				"%u", ufpd->cores,
 				sizeof(unsigned int), UFPD_MAX_CORES);
 			if(err < 0){
