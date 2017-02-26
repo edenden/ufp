@@ -30,10 +30,11 @@ static void ufpd_thread_kill(struct ufpd_thread *thread);
 static int ufpd_set_signal(sigset_t *sigset);
 static int ufpd_set_mempolicy(unsigned int node);
 static int ufpd_parse_args(struct ufpd *ufpd, int argc, char **argv);
-static int ufpd_parse_range(const char *str, char *result,
-	int max_len);
-static int ufpd_parse_list(const char *str, void *result,
-	int size_elem, const char *format, int max_count);
+static int ufpd_parse_range(const char *str, char *result, int max_len);
+static int ufpd_parse_list(const char *str, char **result, int max_len,
+	int max_count);
+static int ufpd_convert_list(const char **str, int str_count,
+	const char *format, void *result, int elem, int max_count);
 
 char *optarg;
 
@@ -57,7 +58,8 @@ int main(int argc, char **argv)
 	struct ufpd		ufpd;
 	struct ufpd_thread	*threads;
 	int			err, ret, i, signal;
-	int			threads_done = 0,
+	int			ifnames_done = 0,
+				threads_done = 0,
 				devices_done = 0,
 				mpool_done = 0;
 	sigset_t		sigset;
@@ -70,6 +72,12 @@ int main(int argc, char **argv)
 	ufpd.mtu_frame		= 0; /* MTU=1522 is used by default. */
 	ufpd.buf_count		= 8192; /* number of per port packet buffer */
 	ufpd.buf_size		= 2048; /* must be larger than 2048 */
+
+	for(i = 0; i < UFPD_MAX_IFS; i++, ifnames_done++){
+		ufpd.ifnames[i] = malloc(UFPD_MAX_ARGLEN);
+		if(!ufpd.ifnames[i])
+			goto err_alloc_ifnames;
+	}
 
 	err = ufpd_parse_args(&ufpd, argc, argv);
 	if(err < 0){
@@ -162,6 +170,10 @@ err_devs:
 err_set_mempolicy:
 	closelog();
 err_parse_args:
+err_alloc_ifnames:
+	for(i = 0; i < ifnames_done; i++){
+		free(ufpd.ifnames[i]);
+	}
 	return ret;
 }
 
@@ -169,7 +181,7 @@ static int ufpd_device_init(struct ufpd *ufpd, int dev_idx)
 {
 	int err;
 
-	ufpd->devs[dev_idx] = ufp_open(&ufpd->ifnames[dev_idx * IFNAMSIZ]);
+	ufpd->devs[dev_idx] = ufp_open(ufpd->ifnames[dev_idx]);
 	if(!ufpd->devs[dev_idx]){
 		ufpd_log(LOG_ERR, "failed to ufp_open, idx = %d", dev_idx);
 		goto err_open;
@@ -177,7 +189,7 @@ static int ufpd_device_init(struct ufpd *ufpd, int dev_idx)
 
 	err = ufp_up(ufpd->devs[dev_idx], ufpd->mpools,
 		ufpd->num_threads, ufpd->mtu_frame, ufpd->promisc,
-		UFP_RX_BUDGET, UFP_TX_BUDGET);
+		UFPD_RX_BUDGET, UFPD_TX_BUDGET);
 	if(err < 0){
 		ufpd_log(LOG_ERR, "failed to ufp_up, idx = %d", dev_idx);
 		goto err_up;
@@ -329,8 +341,16 @@ static int ufpd_set_mempolicy(unsigned int node)
 
 static int ufpd_parse_args(struct ufpd *ufpd, int argc, char **argv)
 {
-	int err, opt;
-	char strbuf[1024];
+	int err, opt, i;
+	char strbuf[UFPD_MAX_ARGLEN];
+	char *argbuf[UFPD_MAX_ARGS];
+	unsigned int argbuf_done = 0;
+
+	for(i = 0; i < UFPD_MAX_ARGS; i++, argbuf_done++){
+		argbuf[i] = malloc(UFPD_MAX_ARGLEN);
+		if(!argbuf[i])
+			goto err_alloc_buf;
+	}
 
 	while((opt = getopt(argc, argv, "c:p:n:m:b:ah")) != -1){
 		switch(opt){
@@ -343,17 +363,25 @@ static int ufpd_parse_args(struct ufpd *ufpd, int argc, char **argv)
 			}
 
 			ufpd->num_threads = ufpd_parse_list(strbuf,
-				ufpd->cores, sizeof(unsigned int),
-				"%u", UFP_MAX_CORES);
+				argbuf, UFPD_MAX_ARGLEN, UFPD_MAX_ARGS);
 			if(ufpd->num_threads < 0){
 				printf("Invalid CPU cores to use\n");
 				goto err_arg;
 			}
+
+			err = ufpd_convert_list((const char **)argbuf,
+				ufpd->num_threads,
+				"%u", ufpd->cores,
+				sizeof(unsigned int), UFPD_MAX_CORES);
+			if(err < 0){
+				printf("Invalid argument\n");
+				goto err_arg;
+			}
+
 			break;
 		case 'p':
 			ufpd->num_devices = ufpd_parse_list(optarg,
-				ufpd->ifnames, IFNAMSIZ,
-				"%s", UFP_MAX_IFS);
+				ufpd->ifnames, UFPD_MAX_ARGLEN, UFPD_MAX_IFS);
 			if(ufpd->num_devices < 0){
 				printf("Invalid Interfaces to use\n");
 				goto err_arg;
@@ -400,18 +428,24 @@ static int ufpd_parse_args(struct ufpd *ufpd, int argc, char **argv)
 		goto err_arg;
 	}
 
+	for(i = 0; i < UFPD_MAX_ARGS; i++){
+		free(argbuf[i]);
+	}
 	return 0;
 
 err_arg:
+err_alloc_buf:
+	for(i = 0; i < argbuf_done; i++){
+		free(argbuf[i]);
+	}
 	return -1;
 }
 
-static int ufpd_parse_range(const char *str, char *result,
-	int max_len)
+static int ufpd_parse_range(const char *str, char *result, int max_len)
 {
 	unsigned int range[2];
 	int err, i, num, offset, ranged;
-	char buf[128];
+	char buf[UFPD_MAX_ARGLEN];
 
 	result[0] = '\0';
 	offset = 0;
@@ -422,54 +456,50 @@ static int ufpd_parse_range(const char *str, char *result,
 		case '\0':
 			buf[offset] = '\0';
 
-			if(sscanf(buf, "%u", &range[1]) < 1){
+			if(sscanf(buf, "%u", &range[1]) != 1)
 				goto err_parse;
-			}
 
 			if(!ranged)
 				range[0] = range[1];
 
 			for(num = range[0]; num <= range[1]; num++){
 				err = snprintf(&(result)[strlen(result)],
-					max_len,
+					max_len - strlen(result),
 					strlen(result) ? ",%d" : "%d", num);
 				if(err < 0)
-					goto err_print;
+					goto err_parse;
 			}
 
 			offset = 0;
 			ranged = 0;
-
 			break;
 		case '-':
 			buf[offset] = '\0';
 
-			if(sscanf(buf, "%u", &range[0]) < 1){
+			if(sscanf(buf, "%u", &range[0]) != 1)
 				goto err_parse;
-			}
 
 			offset = 0;
 			ranged = 1;
-
 			break;
 		default:
-			buf[offset] = str[i];
-			offset++;
+			if(offset == sizeof(buf) - 1)
+				goto err_parse;
+
+			buf[offset++] = str[i];
 		}
 	}
-
 	return 0;
 
-err_print:
 err_parse:
 	return -1;
 }
 
-static int ufpd_parse_list(const char *str, void *result,
-	int size_elem, const char *format, int max_count)
+static int ufpd_parse_list(const char *str, char **result, int max_len,
+	int max_count)
 {
 	int i, offset, count;
-	char buf[128];
+	char buf[UFPD_MAX_ARGLEN];
 
 	offset = 0;
 	count = 0;
@@ -480,27 +510,37 @@ static int ufpd_parse_list(const char *str, void *result,
 			buf[offset] = '\0';
 
 			if(count >= max_count)
-				goto err_max_count;
-
-			if(sscanf(buf, format,
-			result + (size_elem * count)) < 1){
-				printf("parse error\n");
 				goto err_parse;
-			}
 
-			count++;
-
+			strncpy(result[count++], buf, max_len);
 			offset = 0;
 			break;
 		default:
-			buf[offset] = str[i];
-			offset++;
+			if(offset == sizeof(buf) - 1)
+				goto err_parse;
+
+			buf[offset++] = str[i];
 		}
 	}
-
 	return count;
 
 err_parse:
-err_max_count:
+	return -1;
+}
+
+static int ufpd_convert_list(const char **str, int str_count,
+	const char *format, void *result, int size, int max_count)
+{
+	int i;
+
+	for(i = 0; (i < str_count) && (i < max_count); i++){
+		if(sscanf(str[i], format,
+			((char *)result) + (size * i)) != 1){
+			goto err_parse;
+		}
+	}
+	return 0;
+
+err_parse:
 	return -1;
 }
