@@ -18,7 +18,9 @@ static int i40e_aq_asq_init(struct ufp_dev *dev);
 static int i40e_aq_arq_init(struct ufp_dev *dev);
 static int i40e_aq_ring_alloc(struct ufp_dev *dev,
 	struct i40e_aq_ring *ring);
-static int i40e_aq_ring_configure(struct ufp_dev *dev,
+static int i40e_aq_asq_configure(struct ufp_dev *dev,
+	struct i40e_aq_ring *ring);
+static int i40e_aq_arq_configure(struct ufp_dev *dev,
 	struct i40e_aq_ring *ring);
 static void i40e_aq_asq_shutdown(struct ufp_dev *dev);
 static void i40e_aq_arq_shutdown(struct ufp_dev *dev);
@@ -77,8 +79,7 @@ static int i40e_aq_asq_init(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_aq_alloc_ring;
 
-	/* initialize base registers */
-	err = i40e_aq_ring_configure(dev, ring);
+	err = i40e_aq_asq_configure(dev, ring);
 	if (err < 0)
 		goto err_regs_config;
 
@@ -114,8 +115,7 @@ static int i40e_aq_arq_init(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_aq_alloc_ring;
 
-	/* initialize base registers */
-	err = i40e_aq_ring_configure(dev, ring);
+	err = i40e_aq_arq_configure(dev, ring);
 	if (err < 0)
 		goto err_regs_config;
 
@@ -172,7 +172,7 @@ err_desc_alloc:
 	return -1;
 }
 
-static int i40e_aq_ring_configure(struct ufp_dev *dev,
+static int i40e_aq_asq_configure(struct ufp_dev *dev,
 	struct i40e_aq_ring *ring)
 {
 	uint32_t reg;
@@ -183,7 +183,33 @@ static int i40e_aq_ring_configure(struct ufp_dev *dev,
 
 	/* set starting point */
 	UFP_WRITE32(dev, ring->len,
-		(ring->num_desc | I40E_MASK(0x1, 31)));
+		(ring->num_desc | I40E_PF_ATQLEN_ATQENABLE_MASK));
+	UFP_WRITE32(dev, ring->bal, lower32(ring->desc->addr_dma));
+	UFP_WRITE32(dev, ring->bah, upper32(ring->desc->addr_dma));
+
+	/* Check one register to verify that config was applied */
+	reg = UFP_READ32(dev, ring->bal);
+	if (reg != lower32(ring->desc->addr_dma))
+		goto err_init_ring;
+
+	return 0;
+
+err_init_ring:
+	return -1;
+}
+
+static int i40e_aq_arq_configure(struct ufp_dev *dev,
+	struct i40e_aq_ring *ring)
+{
+	uint32_t reg;
+
+	/* Clear Head and Tail */
+	UFP_WRITE32(dev, ring->head, 0);
+	UFP_WRITE32(dev, ring->tail, 0);
+
+	/* set starting point */
+	UFP_WRITE32(dev, ring->len,
+		(ring->num_desc | I40E_PF_ARQLEN_ARQENABLE_MASK));
 	UFP_WRITE32(dev, ring->bal, lower32(ring->desc->addr_dma));
 	UFP_WRITE32(dev, ring->bah, upper32(ring->desc->addr_dma));
 
