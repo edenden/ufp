@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include <lib_main.h>
+#include <lib_dev.h>
 
 #include "i40e_regs.h"
 #include "i40e_main.h"
@@ -26,10 +27,10 @@ static void i40e_aq_ring_release(struct ufp_dev *dev,
 static uint16_t i40e_aq_desc_unused(struct i40e_aq_ring *ring,
 	uint16_t num_desc);
 static void i40e_aq_asq_process(struct ufp_dev *dev,
-	struct i40e_aq_desc *desc, struct ufp_dma_buf *buf,
+	struct i40e_aq_desc *desc, struct ufp_dev_buf *buf,
 	struct i40e_aq_session *session);
 static void i40e_aq_arq_process(struct ufp_dev *dev,
-	struct i40e_aq_desc *desc, struct ufp_dma_buf *buf);
+	struct i40e_aq_desc *desc, struct ufp_dev_buf *buf);
 
 int i40e_aq_init(struct ufp_dev *dev)
 {
@@ -144,17 +145,17 @@ static int i40e_aq_ring_alloc(struct ufp_dev *dev,
 	size = ring->num_desc * sizeof(struct i40e_aq_desc);
 	size = ALIGN(size, I40E_ADMINQ_DESC_ALIGNMENT);
 
-	ring->desc = ufp_dma_alloc(size);
+	ring->desc = ufp_dev_dma_alloc(size);
 	if(!ring->desc)
 		goto err_desc_alloc;
 
 	/* allocate buffers in the rings */
-	ring->bufs = malloc(ring->num_desc * sizeof(struct ufp_dma_buf *));
+	ring->bufs = malloc(ring->num_desc * sizeof(struct ufp_dev_buf *));
 	if(!ring->bufs)
 		goto err_buf_alloc;
 
 	for(i = 0; i < ring->num_desc; i++, buf_allocated++){
-		ring->bufs[i] =  ufp_dma_alloc(I40E_MAX_AQ_BUF_SIZE);
+		ring->bufs[i] =  ufp_dev_dma_alloc(I40E_MAX_AQ_BUF_SIZE);
 		if(!ring->bufs[i])
 			goto err_page_alloc;
 	}
@@ -163,10 +164,10 @@ static int i40e_aq_ring_alloc(struct ufp_dev *dev,
 
 err_page_alloc:
 	for(i = 0; i < buf_allocated; i++){
-		ufp_dma_free(ring->bufs[i]);
+		ufp_dev_dma_free(ring->bufs[i]);
 	}
 err_buf_alloc:
-	ufp_dma_free(ring->desc);
+	ufp_dev_dma_free(ring->desc);
 err_desc_alloc:
 	return -1;
 }
@@ -266,10 +267,10 @@ static void i40e_aq_ring_release(struct ufp_dev *dev,
 	int i;
 
 	for(i = 0; i < ring->num_desc; i++){
-		ufp_dma_free(ring->bufs[i]);
+		ufp_dev_dma_free(ring->bufs[i]);
 	}
 	free(ring->bufs);
-	ufp_dma_free(ring->desc);
+	ufp_dev_dma_free(ring->desc);
 
 	return;
 }
@@ -316,7 +317,7 @@ void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_ring *ring = i40e_dev->aq.tx_ring;
 	struct i40e_aq_desc *desc;
-	struct ufp_dma_buf *buf;
+	struct ufp_dev_buf *buf;
 	uint16_t next_to_use;
 	uint16_t unused_count;
 
@@ -369,7 +370,7 @@ void i40e_aq_arq_assign(struct ufp_dev *dev)
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_ring *ring = i40e_dev->aq.rx_ring;
 	struct i40e_aq_desc *desc;
-	struct ufp_dma_buf *buf;
+	struct ufp_dev_buf *buf;
 	unsigned int total_allocated;
 	uint16_t max_allocation;
 	uint16_t next_to_use;
@@ -420,7 +421,7 @@ void i40e_aq_asq_clean(struct ufp_dev *dev)
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_ring *ring = i40e_dev->aq.tx_ring;
 	struct i40e_aq_desc *desc;
-	struct ufp_dma_buf *buf;
+	struct ufp_dev_buf *buf;
 	struct i40e_aq_session *_session, *session;
 	uint64_t cookie;
 	uint16_t next_to_clean;
@@ -460,7 +461,7 @@ void i40e_aq_arq_clean(struct ufp_dev *dev)
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_aq_ring *ring = i40e_dev->aq.rx_ring;
 	struct i40e_aq_desc *desc;
-	struct ufp_dma_buf *buf;
+	struct ufp_dev_buf *buf;
 	uint16_t next_to_clean;
 
 	while(ring->next_to_clean
@@ -481,7 +482,7 @@ void i40e_aq_arq_clean(struct ufp_dev *dev)
 }
 
 static void i40e_aq_asq_process(struct ufp_dev *dev,
-	struct i40e_aq_desc *desc, struct ufp_dma_buf *buf,
+	struct i40e_aq_desc *desc, struct ufp_dev_buf *buf,
 	struct i40e_aq_session *session)
 {
 	uint16_t retval;
@@ -530,7 +531,7 @@ err_retval:
 }
 
 static void i40e_aq_arq_process(struct ufp_dev *dev,
-	struct i40e_aq_desc *desc, struct ufp_dma_buf *buf)
+	struct i40e_aq_desc *desc, struct ufp_dev_buf *buf)
 {
 	uint16_t opcode;
 	uint16_t flags;

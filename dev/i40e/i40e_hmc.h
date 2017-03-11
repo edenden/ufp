@@ -13,8 +13,8 @@ struct i40e_hmc_obj {
 };
 
 struct i40e_hmc_sd_entry {
-	struct ufp_dma_buf *pd_addrs;
-	struct ufp_dma_buf *pd[I40E_HMC_MAX_BP_COUNT];
+	struct ufp_dev_buf *pd_addrs;
+	struct ufp_dev_buf *pd[I40E_HMC_MAX_BP_COUNT];
 };
 
 struct i40e_hmc_sd_table {

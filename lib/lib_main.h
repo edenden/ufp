@@ -64,12 +64,6 @@
 #define UFP_WRITE32(dev, reg, value) \
 	ufp_writel((value), (dev)->bar + (reg))
 
-struct ufp_dma_buf {
-	void			*addr_virt;
-	unsigned long		addr_dma;
-	uint64_t		size;
-};
-
 struct ufp_mpool {
 	struct ufp_mnode	*node;
 	void			*addr_virt;
@@ -219,7 +213,5 @@ enum ufp_irq_type {
 
 inline uint32_t ufp_readl(const volatile void *addr);
 inline void ufp_writel(uint32_t b, volatile void *addr);
-struct ufp_dma_buf *ufp_dma_alloc(size_t size);
-void ufp_dma_free(struct ufp_dma_buf *buf);
 
 #endif /* _LIBUFP_MAIN_H */
