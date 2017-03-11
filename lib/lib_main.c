@@ -99,6 +99,44 @@ err_parse:
 	return -1;
 }
 
+struct ufp_dma_buf *ufp_dma_alloc(size_t size)
+{
+	struct ufp_dma_buf *buf;
+	int err;
+
+	buf = malloc(sizeof(struct ufp_dma_buf));
+	if(!buf)
+		goto err_alloc_buf;
+
+	buf->size = size;
+	buf->addr_virt = mmap(NULL, buf->size,
+		PROT_READ | PROT_WRITE,
+		MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+	if(buf->addr_virt == MAP_FAILED){
+		goto err_mmap;
+	}
+
+	err = ufp_vfio_dma_map(buf->addr_virt, &buf->addr_dma, buf->size);
+	if(err < 0){
+		goto err_dma_map;
+	}
+	return buf;
+
+err_dma_map:
+	munmap(buf->addr_virt, buf->size);
+err_mmap:
+	free(buf);
+err_alloc_buf:
+	return NULL;
+}
+
+void ufp_dma_free(struct ufp_dma_buf *buf)
+{
+	ufp_vfio_dma_unmap(buf->addr_dma, buf->size);
+	munmap(buf->addr_virt, buf->size);
+	return;
+}
+
 struct ufp_plane *ufp_plane_alloc(struct ufp_dev **devs, int num_devs,
 	struct ufp_buf *buf, unsigned int thread_id, unsigned int core_id)
 {

@@ -364,54 +364,6 @@ err_fetch:
 	return -1;
 }
 
-struct i40e_page *i40e_page_alloc()
-{
-	struct i40e_page *page;
-	unsigned long addr_dma;
-	size_t size;
-	void *addr_virt;
-	int err;
-
-	page = malloc(sizeof(struct i40e_page));
-	if(!page)
-		goto err_alloc_page;
-
-	size = getpagesize();
-	addr_virt = mmap(NULL, size, PROT_READ | PROT_WRITE,
-		MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-	if(addr_virt == MAP_FAILED){
-		goto err_mmap;
-	}
-
-	page->addr_virt = addr_virt;
-
-	err = ufp_vfio_dma_map(addr_virt, &addr_dma, size);
-	if(err < 0){
-		goto err_dma_map;
-	}
-
-	page->addr_dma = addr_dma;
-	return page;
-
-err_dma_map:
-	munmap(page->addr_virt, size);
-err_mmap:
-	free(page);
-err_alloc_page:
-	return NULL;
-}
-
-void i40e_page_release(struct i40e_page *page)
-{
-	size_t size;
-
-	size = getpagesize();
-	ufp_vfio_dma_unmap(page->addr_dma, size);
-	munmap(page->addr_virt, size);
-	free(page);
-	return;
-}
-
 static int i40e_reset_hw(struct ufp_dev *dev)
 {
 	uint32_t grst_del, reg;

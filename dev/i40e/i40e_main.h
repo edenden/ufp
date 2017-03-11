@@ -122,11 +122,6 @@ struct i40e_iface {
 	uint16_t		qs_handles[8];
 };
 
-struct i40e_page {
-	void			*addr_virt;
-	unsigned long		addr_dma;
-};
-
 #define i40e_flush(dev) \
 	UFP_READ32((dev), I40E_GLGEN_STAT)
 
@@ -134,8 +129,6 @@ int i40e_open(struct ufp_dev *dev);
 void i40e_close(struct ufp_dev *dev);
 int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface);
 int i40e_down(struct ufp_dev *dev, struct ufp_iface *iface);
-struct i40e_page *i40e_page_alloc();
-void i40e_page_release(struct i40e_page *page);
 void i40e_setup_misc_irq(struct ufp_dev *dev);
 void i40e_shutdown_misc_irq(struct ufp_dev *dev);
 void i40e_start_misc_irq(struct ufp_dev *dev);

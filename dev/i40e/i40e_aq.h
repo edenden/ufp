@@ -6,7 +6,7 @@
 #define I40E_ASQ_CMD_TIMEOUT		250  /* msecs */
 #define I40E_ADMINQ_DESC_ALIGNMENT	4096
 #define I40E_MAX_AQ_BUF_SIZE		4096
-#define I40E_AQ_LEN			256
+#define I40E_AQ_LEN			128
 
 /* command flags and offsets*/
 #define I40E_AQ_FLAG_DD_SHIFT	0
@@ -58,8 +58,8 @@ struct i40e_aq_desc {
 };
 
 struct i40e_aq_ring {
-	struct i40e_page *desc; /* descriptor ring memory */
-	struct i40e_page **bufs;
+	struct ufp_dma_buf *desc; /* descriptor ring memory */
+	struct ufp_dma_buf **bufs;
 	uint16_t num_desc;
 
 	uint16_t next_to_use;
