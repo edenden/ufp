@@ -524,6 +524,9 @@ static void i40e_aq_asq_process(struct ufp_dev *dev,
 		session->retval = 0;
 
 	switch(opcode){
+	case i40e_aq_opc_firmware_version:
+		i40e_aqc_resp_firmware_version(dev, &desc->params);
+		break;
 	case i40e_aq_opc_macaddr_read:
 		i40e_aqc_resp_macaddr_read(dev, &desc->params,
 			buf->addr_virt, session);

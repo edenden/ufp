@@ -34,6 +34,42 @@ err_timeout:
 	return -1;
 }
 
+void i40e_aqc_req_firmware_version(struct ufp_dev *dev,
+	struct i40e_aq_session *session)
+{
+	struct i40e_aq_cmd_firmware_version cmd;
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_firmware_version, 0,
+		&cmd, sizeof(struct i40e_aq_cmd_firmware_version),
+		NULL, 0, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_req_driver_version(struct ufp_dev *dev,
+	struct i40e_aq_session *session)
+{
+	struct i40e_aq_cmd_driver_version cmd;
+	char driver_string[32];
+	uint16_t flags;
+
+	cmd.driver_major_ver = I40E_DRV_VERSION_MAJOR;
+	cmd.driver_minor_ver = I40E_DRV_VERSION_MINOR;
+	cmd.driver_build_ver = I40E_DRV_VERSION_BUILD;
+	cmd.driver_subbuild_ver = 0;
+
+	snprintf(driver_string, sizeof(driver_string), "%d.%d.%d.%d",
+		cmd.driver_major_ver, cmd.driver_minor_ver,
+		cmd.driver_build_ver, cmd.driver_subbuild_ver);
+
+	flags = I40E_AQ_FLAG_BUF | I40E_AQ_FLAG_RD;
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_driver_version, flags,
+		&cmd, sizeof(struct i40e_aq_cmd_driver_version),
+		driver_string, strlen(driver_string),
+		(uint64_t)session);
+	return;
+}
+
 void i40e_aqc_req_queue_shutdown(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
@@ -252,6 +288,20 @@ void i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
 	i40e_aq_asq_assign(dev, i40e_aq_opc_set_rsslut, flags,
 		&cmd, sizeof(struct i40e_aq_cmd_set_rsslut),
 		lut, lut_size, (uint64_t)session);
+	return;
+}
+
+void i40e_aqc_resp_firmware_version(struct ufp_dev *dev,
+	void *cmd_ptr)
+{
+	struct i40e_dev *i40e_dev = dev->drv_data;
+	struct i40e_aq_cmd_firmware_version *cmd = cmd_ptr;
+
+	i40e_dev->version.fw_major = le16toh(cmd->fw_major);
+	i40e_dev->version.fw_minor = le16toh(cmd->fw_minor);
+	i40e_dev->version.fw_build = le32toh(cmd->fw_build);
+	i40e_dev->version.api_major = le16toh(cmd->api_major);
+	i40e_dev->version.api_minor = le16toh(cmd->api_minor);
 	return;
 }
 

@@ -7,6 +7,9 @@
 #define I40E_MAX_NUM_DESCRIPTORS	4096
 #define I40E_PF_RESET_WAIT_COUNT	200
 #define I40E_MAX_TRAFFIC_CLASS		8
+#define I40E_DRV_VERSION_MAJOR		1
+#define I40E_DRV_VERSION_MINOR		5
+#define I40E_DRV_VERSION_BUILD		16
 
 /* Filter context base size is 1K */
 #define I40E_HASH_FILTER_BASE_SIZE	1024
@@ -94,11 +97,20 @@ struct i40e_elem {
 	struct list_node	list;
 };
 
+struct i40e_version {
+	uint16_t		fw_major;
+	uint16_t		fw_minor;
+	uint32_t		fw_build;
+	uint16_t		api_major;
+	uint16_t		api_minor;
+};
+
 struct i40e_dev {
 	uint8_t			pf_id;
 	uint8_t			pf_lan_mac[6];
 	struct i40e_aq		aq;
 	struct i40e_hmc		hmc;
+	struct i40e_version	version;
 	struct list_head	elem;
 };
 

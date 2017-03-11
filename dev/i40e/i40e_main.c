@@ -24,6 +24,8 @@ static int i40e_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val);
 static int i40e_rxctl_read(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t *reg_val);
+static int i40e_firmware_version(struct ufp_dev *dev);
+static int i40e_driver_version(struct ufp_dev *dev);
 static int i40e_clear_pxemode(struct ufp_dev *dev);
 static int i40e_stop_lldp(struct ufp_dev *dev);
 static int i40e_macaddr_read(struct ufp_dev *dev);
@@ -196,7 +198,52 @@ err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
 	return -1;
+}
 
+static int i40e_firmware_version(struct ufp_dev *dev)
+{
+	struct i40e_aq_session *session;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_firmware_version(dev, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
+}
+
+static int i40e_driver_version(struct ufp_dev *dev)
+{
+	struct i40e_aq_session *session;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_driver_version(dev, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
 }
 
 static int i40e_clear_pxemode(struct ufp_dev *dev)
@@ -510,6 +557,14 @@ static int i40e_configure_pf(struct ufp_dev *dev)
 {
 	int err;
 
+	err = i40e_firmware_version(dev);
+	if(err < 0)
+		goto err_firmware_version;
+
+	err = i40e_driver_version(dev);
+	if(err < 0)
+		goto err_driver_version;
+
 	err = i40e_clear_pxemode(dev);
 	if(err < 0)
 		goto err_clear_pxemode;
@@ -542,6 +597,8 @@ err_set_phyintmask:
 err_macaddr_read:
 err_stop_lldp:
 err_clear_pxemode:
+err_driver_version:
+err_firmware_version:
 	return -1;
 }
 
