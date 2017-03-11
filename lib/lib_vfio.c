@@ -101,7 +101,7 @@ int ufp_vfio_dma_map(void *addr_virt, uint64_t *iova, size_t size)
 	if(err < 0)
 		goto err_dma_map;
 
-	*iova = (uint64_t)addr_virt;
+	*iova = (uint64_t)dma_map.iova;
 	return 0;
 
 err_dma_map:
