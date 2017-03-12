@@ -837,7 +837,7 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 
 	elem = NULL;
 	list_for_each(&i40e_dev->elem, _elem, list){
-		if(elem->type == I40E_AQ_SW_ELEM_TYPE_VSI){
+		if(_elem->type == I40E_AQ_SW_ELEM_TYPE_VSI){
 			elem = _elem;
 			break;
 		}
