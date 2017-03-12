@@ -201,7 +201,7 @@ struct ufp_mpool *ufp_mpool_init()
 #else
 		MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB,
 #endif
-		0, 0);
+		-1, 0);
 	if(mpool->addr_virt == MAP_FAILED){
 		goto err_mmap;
 	}

@@ -30,7 +30,7 @@ struct ufp_dev_buf *ufp_dev_dma_alloc(size_t size)
 	buf->size = size;
 	buf->addr_virt = mmap(NULL, buf->size,
 		PROT_READ | PROT_WRITE,
-		MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+		MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if(buf->addr_virt == MAP_FAILED){
 		goto err_mmap;
 	}
