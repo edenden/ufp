@@ -236,11 +236,11 @@ static int ufp_alloc_rings(struct ufp_dev *dev, struct ufp_iface *iface,
 	unsigned int qps_assigned = 0;
 
 	iface->tx_ring = malloc(sizeof(struct ufp_ring) * iface->num_qps);
-	if(!iface->rx_ring)
+	if(!iface->tx_ring)
 		goto err_alloc_tx_ring;
 
 	iface->rx_ring = malloc(sizeof(struct ufp_ring) * iface->num_qps);
-	if(!iface->tx_ring)
+	if(!iface->rx_ring)
 		goto err_alloc_rx_ring;
 
 	for(i = 0; i < iface->num_qps; i++, qps_assigned++){
