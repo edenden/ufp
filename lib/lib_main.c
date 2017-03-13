@@ -302,15 +302,17 @@ static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	void *addr_virt;
 	int err;
 	int *slot_index;
+	size_t size_desc_align;
 
-	addr_virt = ufp_mem_alloc(mpool, size_desc);
+	size_desc_align = ALIGN(size_desc, getpagesize());
+
+	addr_virt = ufp_mem_alloc(mpool, size_desc_align);
 	if(!addr_virt)
 		goto err_alloc;
 
-	err = ufp_vfio_dma_map(addr_virt, &addr_dma, size_desc);
-	if(err < 0){
+	err = ufp_vfio_dma_map(addr_virt, &addr_dma, size_desc_align);
+	if(err < 0)
 		goto err_dma_map;
-	}
 
 	ring->addr_dma = addr_dma;
 	ring->addr_virt = addr_virt;
@@ -326,7 +328,7 @@ static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	return 0;
 
 err_assign:
-	ufp_vfio_dma_unmap(ring->addr_dma, size_desc);
+	ufp_vfio_dma_unmap(ring->addr_dma, size_desc_align);
 err_dma_map:
 	ufp_mem_free(addr_virt);
 err_alloc:
@@ -336,10 +338,12 @@ err_alloc:
 static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	unsigned long size_desc)
 {
-	free(ring->slot_index);
-	ufp_vfio_dma_unmap(ring->addr_dma, size_desc);
-	ufp_mem_free(ring->addr_virt);
+	size_t size_desc_align;
 
+	size_desc_align = ALIGN(size_desc, getpagesize());
+	free(ring->slot_index);
+	ufp_vfio_dma_unmap(ring->addr_dma, size_desc_align);
+	ufp_mem_free(ring->addr_virt);
 	return;
 }
 
@@ -348,6 +352,7 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 {
 	struct ufp_buf *buf;
 	int err, i, num_bufs;
+	size_t size_buf_align;
 
 	buf = malloc(sizeof(struct ufp_buf));
 	if(!buf)
@@ -363,11 +368,14 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 		num_bufs += devs[i]->num_ifaces * buf->count;
 	}
 	buf->size = buf->slot_size * num_bufs;
-	buf->addr_virt = ufp_mem_alloc(mpool, buf->size);
+	size_buf_align = ALIGN(buf->size, getpagesize());
+
+	buf->addr_virt = ufp_mem_alloc(mpool, size_buf_align);
 	if(!buf->addr_virt)
 		goto err_mem_alloc;
 
-	err = ufp_vfio_dma_map(buf->addr_virt, &buf->addr_dma, buf->size);
+	err = ufp_vfio_dma_map(buf->addr_virt, &buf->addr_dma,
+		size_buf_align);
 	if(err < 0)
 		goto err_dma_map;
 
@@ -382,7 +390,7 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 	return buf;
 
 err_alloc_slots:
-	ufp_vfio_dma_unmap(buf->addr_dma, buf->size);
+	ufp_vfio_dma_unmap(buf->addr_dma, size_buf_align);
 err_dma_map:
 	ufp_mem_free(buf->addr_virt);
 err_mem_alloc:
@@ -394,16 +402,17 @@ err_alloc_buf:
 void ufp_release_buf(struct ufp_buf *buf)
 {
 	int err;
+	size_t size_buf_align;
 
 	free(buf->slots);
+	size_buf_align = ALIGN(buf->size, getpagesize());
 
-	err = ufp_vfio_dma_unmap(buf->addr_dma, buf->size);
+	err = ufp_vfio_dma_unmap(buf->addr_dma, size_buf_align);
 	if(err < 0)
 		perror("failed to unmap buf");
 
 	ufp_mem_free(buf->addr_virt);
 	free(buf);
-
 	return;
 }
 

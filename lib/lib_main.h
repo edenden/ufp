@@ -48,11 +48,6 @@
 #define upper32(n) ((uint32_t)(((n) >> 16) >> 16))
 #define lower32(n) ((uint32_t)(n))
 
-#define CONFIG_X86_L1_CACHE_SHIFT \
-				(6)
-#define L1_CACHE_SHIFT		(CONFIG_X86_L1_CACHE_SHIFT)
-#define L1_CACHE_BYTES		(1 << L1_CACHE_SHIFT)
-
 #ifdef DEBUG
 #define ufp_print(args...) printf("ixgbe: " args)
 #else
