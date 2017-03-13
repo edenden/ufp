@@ -110,7 +110,7 @@ struct fib *fib_alloc(struct ufp_mpool *mpool)
 {
         struct fib *fib;
 
-	fib = ufp_mem_alloc(mpool, sizeof(struct fib));
+	fib = ufp_mem_alloc(mpool, sizeof(struct fib), 0);
 	if(!fib)
 		goto err_fib_alloc;
 
@@ -141,7 +141,7 @@ int fib_route_update(struct fib *fib, int family, enum fib_type type,
 	struct fib_entry *entry;
 	int ret;
 
-	entry = ufp_mem_alloc(mpool, sizeof(struct fib_entry));
+	entry = ufp_mem_alloc(mpool, sizeof(struct fib_entry), 0);
 	if(!entry)
 		goto err_alloc_entry;
 

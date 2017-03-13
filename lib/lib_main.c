@@ -306,7 +306,7 @@ static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 
 	size_desc_align = ALIGN(size_desc, getpagesize());
 
-	addr_virt = ufp_mem_alloc(mpool, size_desc_align);
+	addr_virt = ufp_mem_alloc(mpool, size_desc_align, getpagesize());
 	if(!addr_virt)
 		goto err_alloc;
 
@@ -370,7 +370,7 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 	buf->size = buf->slot_size * num_bufs;
 	size_buf_align = ALIGN(buf->size, getpagesize());
 
-	buf->addr_virt = ufp_mem_alloc(mpool, size_buf_align);
+	buf->addr_virt = ufp_mem_alloc(mpool, size_buf_align, getpagesize());
 	if(!buf->addr_virt)
 		goto err_mem_alloc;
 

@@ -43,7 +43,7 @@ int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
 void ufp_down(struct ufp_dev *dev);
 
 /* MEM */
-void *ufp_mem_alloc(struct ufp_mpool *mpool, unsigned int size);
+void *ufp_mem_alloc(struct ufp_mpool *mpool, size_t size, size_t align);
 void ufp_mem_free(void *addr_free);
 
 /* IO */

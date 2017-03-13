@@ -85,21 +85,23 @@ static void _ufp_mem_destroy(struct ufp_mnode *node)
 	return;
 }
 
-void *ufp_mem_alloc(struct ufp_mpool *mpool, size_t size)
+void *ufp_mem_alloc(struct ufp_mpool *mpool, size_t size, size_t align)
 {
 	struct ufp_mnode *node;
 	void **header;
-	size_t size_header;
+	size_t size_header, offset;
 
-	size_header = ALIGN(sizeof(void *), getpagesize());
-	node = _ufp_mem_alloc(mpool->node, size + size_header);
+	size_header = sizeof(void *);
+	align = max(align, getpagesize());
 
+	node = _ufp_mem_alloc(mpool->node, align + size_header + size);
 	if(!node)
 		goto err_alloc;
 
-	header = node->ptr;
+	offset = align - ((size_t)node->ptr + size_header) % align;
+	header = node->ptr + offset;
 	*header = node;
-	return node->ptr + size_header;
+	return node->ptr + offset + size_header;
 
 err_alloc:
 	return NULL;
@@ -160,7 +162,7 @@ void ufp_mem_free(void *addr_free)
 	void **header;
 	size_t size_header;
 
-	size_header = ALIGN(sizeof(void *), getpagesize());
+	size_header = sizeof(void *);
 	header = addr_free - size_header;
 	node = (struct ufp_mnode *)*header;
 	_ufp_mem_free(node);
