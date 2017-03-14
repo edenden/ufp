@@ -90,7 +90,7 @@ struct neigh_table *neigh_alloc(struct ufp_mpool *mpool, int family)
 {
 	struct neigh_table *neigh;
 
-	neigh = ufp_mem_alloc(mpool, sizeof(struct neigh_table), 0);
+	neigh = ufp_mem_alloc(mpool, sizeof(struct neigh_table));
 	if(!neigh)
 		goto err_neigh_alloc;
 
@@ -175,7 +175,7 @@ int neigh_add(struct neigh_table *neigh, int family,
 	struct neigh_entry *neigh_entry;
 	int ret;
 
-	neigh_entry = ufp_mem_alloc(mpool, sizeof(struct neigh_entry), 0);
+	neigh_entry = ufp_mem_alloc(mpool, sizeof(struct neigh_entry));
 	if(!neigh_entry)
 		goto err_alloc_entry;
 

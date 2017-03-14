@@ -63,12 +63,12 @@ void *thread_process_interrupt(void *data)
 
 	/* Prepare Neighbor table */
 	thread->neigh_inet = ufp_mem_alloc(thread->mpool,
-		sizeof(struct neigh *) * thread->num_ports, 0);
+		sizeof(struct neigh *) * thread->num_ports);
 	if(!thread->neigh_inet)
 		goto err_neigh_table_inet;
 
 	thread->neigh_inet6 = ufp_mem_alloc(thread->mpool,
-		sizeof(struct neigh *) * thread->num_ports, 0);
+		sizeof(struct neigh *) * thread->num_ports);
 	if(!thread->neigh_inet6)
 		goto err_neigh_table_inet6;
 

@@ -85,7 +85,28 @@ static void _ufp_mem_destroy(struct ufp_mnode *node)
 	return;
 }
 
-void *ufp_mem_alloc(struct ufp_mpool *mpool, size_t size, size_t align)
+void *ufp_mem_alloc(struct ufp_mpool *mpool, size_t size)
+{
+	struct ufp_mnode *node;
+	void **header;
+	size_t size_header;
+
+	size_header = sizeof(void *);
+
+	node = _ufp_mem_alloc(mpool->node, size_header + size);
+	if(!node)
+		goto err_alloc;
+
+	header = node->ptr;
+	*header = node;
+	return node->ptr + size_header;
+
+err_alloc:
+	return NULL;
+}
+
+void *ufp_mem_alloc_align(struct ufp_mpool *mpool, size_t size,
+	size_t align)
 {
 	struct ufp_mnode *node;
 	void **header;

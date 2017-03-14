@@ -140,7 +140,7 @@ int lpm_add(struct lpm_table *table, void *prefix,
 			node = &table->node[index | i];
 
 			entry = ufp_mem_alloc(mpool,
-				sizeof(struct lpm_entry), 0);
+				sizeof(struct lpm_entry));
 			if(!entry)
 				goto err_lpm_add_self;
 
@@ -182,7 +182,7 @@ static int _lpm_add(struct lpm_table *table, void *prefix,
 
 	if(!parent->next_table){
 		parent->next_table = ufp_mem_alloc(mpool,
-			sizeof(struct lpm_node) * TABLE_SIZE_8, 0);
+			sizeof(struct lpm_node) * TABLE_SIZE_8);
 		if(!parent->next_table)
 			goto err_table_alloc;
 
@@ -209,7 +209,7 @@ static int _lpm_add(struct lpm_table *table, void *prefix,
 			node = &parent->next_table[index | i];
 
 			entry = ufp_mem_alloc(mpool,
-				sizeof(struct lpm_entry), 0);
+				sizeof(struct lpm_entry));
 			if(!entry)
 				goto err_lpm_add_self;
 
