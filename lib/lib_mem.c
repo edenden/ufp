@@ -113,7 +113,7 @@ void *ufp_mem_alloc_align(struct ufp_mpool *mpool, size_t size,
 	size_t size_header, offset;
 
 	size_header = sizeof(void *);
-	align = max(align, getpagesize());
+	align = max(align, (size_t)getpagesize());
 
 	node = _ufp_mem_alloc(mpool->node, align + size_header + size);
 	if(!node)
