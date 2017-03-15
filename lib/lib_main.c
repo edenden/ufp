@@ -476,6 +476,7 @@ struct ufp_dev *ufp_open(const char *name)
 	if(!iface)
 		goto err_alloc_iface;
 	list_add_last(&dev->iface, &iface->list);
+	dev->num_ifaces = 1;
 
 	err = ufp_ifname_base(dev, iface);
 	if(err < 0)
