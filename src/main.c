@@ -221,7 +221,6 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 	int err;
 
 	thread->id		= thread_id;
-	thread->num_ports	= ufp_portnum(thread->plane);
 	thread->ptid		= pthread_self();
 	thread->mpool		= ufpd->mpools[thread->id];
 
@@ -240,6 +239,7 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 			"failed to ufp_plane_alloc, idx = %d", thread->id);
 		goto err_plane_alloc;
 	}
+	thread->num_ports = ufp_portnum(thread->plane);
 
 	err = pthread_create(&thread->tid,
 		NULL, thread_process_interrupt, thread);
