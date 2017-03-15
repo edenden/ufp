@@ -94,6 +94,14 @@ int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	int err;
 
+	err = i40e_vsi_update(dev, iface);
+	if(err < 0)
+		goto err_vsi_update;
+
+	err = i40e_vsi_rss_config(dev, iface);
+	if(err < 0)
+		goto err_vsi_rss_config;
+
 	err = i40e_vsi_promisc_mode(dev, iface);
 	if(err < 0)
 		goto err_configure_filter;
@@ -121,10 +129,14 @@ int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface)
 	return 0;
 
 err_start_tx:
+	i40e_vsi_stop_rx(dev, iface);
 err_start_rx:
+	i40e_vsi_shutdown_irq(dev, iface);
 err_configure_tx:
 err_configure_rx:
 err_configure_filter:
+err_vsi_rss_config:
+err_vsi_update:
 	return -1;
 }
 
@@ -867,20 +879,8 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	iface->num_tx_desc	= I40E_MAX_NUM_DESCRIPTORS;
 	iface->size_tx_desc	=
 		iface->num_tx_desc * sizeof(struct i40e_tx_desc);
-
-	err = i40e_vsi_update(dev, iface);
-	if(err < 0)
-		goto err_vsi_update;
-
-	err = i40e_vsi_rss_config(dev, iface);
-	if(err < 0)
-		goto err_vsi_rss_config;
-
 	return 0;
 
-err_vsi_rss_config:
-err_vsi_update:
-	free(i40e_iface);
 err_alloc_iface:
 err_first_vsi:
 	i40e_clear_swconf(dev);
