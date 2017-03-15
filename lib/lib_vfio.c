@@ -119,6 +119,7 @@ int ufp_vfio_dma_unmap(uint64_t iova, size_t size)
 	dma_unmap.argsz = sizeof(struct vfio_iommu_type1_dma_unmap);
 	dma_unmap.iova = iova;
 	dma_unmap.size = size;
+	dma_unmap.flags = 0;
 
 	err = ioctl(vfio.container, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
 	if(err < 0)
