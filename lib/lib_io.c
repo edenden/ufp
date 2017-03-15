@@ -194,7 +194,8 @@ unsigned int ufp_rx_clean(struct ufp_plane *plane, unsigned int port_idx,
 			&packet[total_rx_packets]);
 		if(unlikely(err < 0))
 			break;
-		ufp_print("Rx: packet received size = %d\n", slot_size);
+		ufp_print("Rx: packet received size = %d\n",
+			packet[total_rx_packets].slot_size);
 
 		/* retrieve a buffer address from the ring */
 		slot_index = ufp_slot_detach(rx_ring, rx_ring->next_to_clean);
