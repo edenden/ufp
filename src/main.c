@@ -69,9 +69,10 @@ int main(int argc, char **argv)
 	ufpd.num_threads	= 0;
 	ufpd.num_devices	= 0;
 	ufpd.promisc		= 0;
-	ufpd.mtu_frame		= 0; /* MTU=1522 is used by default. */
-	ufpd.buf_count		= 8192; /* number of per port packet buffer */
-	ufpd.buf_size		= 2048; /* must be larger than 2048 */
+	/* 1500 + ETH_HLEN(14) + ETH_FCS_LEN(4) = 1518 */
+	ufpd.mtu_frame		= 1518;
+	/* number of per port packet buffer */
+	ufpd.buf_count		= 8192;
 
 	for(i = 0; i < UFPD_MAX_IFS; i++, ifnames_done++){
 		ufpd.ifnames[i] = malloc(UFPD_MAX_ARGLEN);
@@ -222,7 +223,7 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 	thread->mpool		= ufpd->mpools[thread->id];
 
 	thread->buf = ufp_alloc_buf(ufpd->devs, ufpd->num_devices,
-			ufpd->buf_size, ufpd->buf_count, thread->mpool);
+		ufpd->buf_count, thread->mpool);
 	if(!thread->buf){
 		ufpd_log(LOG_ERR,
 			"failed to ufp_alloc_buf, idx = %d", thread->id);

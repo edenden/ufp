@@ -349,7 +349,7 @@ static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 }
 
 struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
-	uint32_t slot_size, uint32_t buf_count, struct ufp_mpool *mpool)
+	uint32_t buf_count, struct ufp_mpool *mpool)
 {
 	struct ufp_buf *buf;
 	int err, i, num_bufs;
@@ -363,7 +363,7 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 	 * XXX: Should we add buffer padding for memory interleaving?
 	 * DPDK does so in rte_mempool.c/optimize_object_size().
 	 */
-	buf->slot_size = slot_size;
+	buf->slot_size = UFP_RXBUF_SIZE;
 	buf->count = buf_count;
 	for(i = 0, num_bufs = 0; i < num_devs; i++){
 		num_bufs += devs[i]->num_ifaces * buf->count;

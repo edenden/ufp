@@ -32,7 +32,7 @@ void ufp_plane_release(struct ufp_plane *plane);
 struct ufp_mpool *ufp_mpool_init();
 void ufp_mpool_destroy(struct ufp_mpool *mpool);
 struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
-	uint32_t buf_size, uint32_t buf_count, struct ufp_mpool *mpool);
+	uint32_t buf_count, struct ufp_mpool *mpool);
 void ufp_release_buf(struct ufp_buf *buf);
 struct ufp_dev *ufp_open(const char *name);
 void ufp_close(struct ufp_dev *dev);

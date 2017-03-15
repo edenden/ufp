@@ -15,6 +15,7 @@
 
 #define FILENAME_SIZE 256
 #define SIZE_1GB (1ul << 30)
+#define UFP_RXBUF_SIZE 2048
 
 #define min(x, y) ({				\
 	typeof(x) _min1 = (x);			\

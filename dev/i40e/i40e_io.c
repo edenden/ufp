@@ -262,7 +262,7 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		/*
 		 * See 8.3.3.2.2 - Receive Queue Context in FPM
 		 */
-		ctx.dbuff = I40E_RXBUFFER_2048 >> I40E_RXQ_CTX_DBUFF_SHIFT;
+		ctx.dbuff = UFP_RXBUF_SIZE >> I40E_RXQ_CTX_DBUFF_SHIFT;
 		ctx.base = (ring->addr_dma / 128);
 		ctx.qlen = iface->num_rx_desc;
 		/* use 16 byte descriptors */
@@ -270,6 +270,15 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		/* descriptor type is always zero */
 		ctx.dtype = 0;
 		ctx.hsplit_0 = 0;
+
+		/*
+		 * The RXMAX must not be set to a larger value than
+		 * 5 x DBUFF (since receive packet must never span
+		 * on more than 5 buffers).
+		 */
+		if(iface->mtu_frame > min(I40E_MAX_MTU,
+			I40E_MAX_CHAINED_RX_BUFFERS * UFP_RXBUF_SIZE))
+			goto err_mtu_size;
 		ctx.rxmax = iface->mtu_frame;
 
 		/* XXX: Does it work? Is ctx.cpuid set by hardware correctly
@@ -310,6 +319,7 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 	return 0;
 
 err_set_ctx:
+err_mtu_size:
 	return -1;
 }
 
