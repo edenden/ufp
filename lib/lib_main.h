@@ -15,7 +15,6 @@
 
 #define FILENAME_SIZE 256
 #define SIZE_1GB (1ul << 30)
-#define UFP_RXBUF_SIZE 2048
 
 #define min(x, y) ({				\
 	typeof(x) _min1 = (x);			\
@@ -50,7 +49,7 @@
 #define lower32(n) ((uint32_t)(n))
 
 #ifdef DEBUG
-#define ufp_print(args...) printf("ixgbe: " args)
+#define ufp_print(args...) printf("ufp: " args)
 #else
 #define ufp_print(args...)
 #endif
@@ -104,6 +103,7 @@ struct ufp_iface {
 	uint32_t		num_qps;
 	uint32_t		irq_rate;
 	uint32_t		promisc;
+	uint32_t		buf_size;
 	uint32_t		mtu_frame;
 	uint8_t			mac_addr[ETH_ALEN];
 

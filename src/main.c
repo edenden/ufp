@@ -71,6 +71,8 @@ int main(int argc, char **argv)
 	ufpd.promisc		= 0;
 	/* 1500 + ETH_HLEN(14) + ETH_FCS_LEN(4) = 1518 */
 	ufpd.mtu_frame		= 1518;
+	/* size of packet buffer */
+	ufpd.buf_size		= 2048;
 	/* number of per port packet buffer */
 	ufpd.buf_count		= 8192;
 
@@ -189,7 +191,8 @@ static int ufpd_device_init(struct ufpd *ufpd, int dev_idx)
 	}
 
 	err = ufp_up(ufpd->devs[dev_idx], ufpd->mpools,
-		ufpd->num_threads, ufpd->mtu_frame, ufpd->promisc,
+		ufpd->num_threads, ufpd->buf_size,
+		ufpd->mtu_frame, ufpd->promisc,
 		UFPD_RX_BUDGET, UFPD_TX_BUDGET);
 	if(err < 0){
 		ufpd_log(LOG_ERR, "failed to ufp_up, idx = %d", dev_idx);
@@ -223,7 +226,7 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 	thread->mpool		= ufpd->mpools[thread->id];
 
 	thread->buf = ufp_alloc_buf(ufpd->devs, ufpd->num_devices,
-		ufpd->buf_count, thread->mpool);
+		ufpd->buf_size, ufpd->buf_count, thread->mpool);
 	if(!thread->buf){
 		ufpd_log(LOG_ERR,
 			"failed to ufp_alloc_buf, idx = %d", thread->id);

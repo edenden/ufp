@@ -1,6 +1,8 @@
 #ifndef _I40E_IO_H__
 #define _I40E_IO_H__
 
+#define I40E_MIN_RX_BUFFER		1024
+#define I40E_MAX_RX_BUFFER		(16 * 1024 - 128)
 #define I40E_MAX_CHAINED_RX_BUFFERS	5
 #define I40E_MAX_MTU			9728
 

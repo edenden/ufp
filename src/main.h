@@ -41,6 +41,7 @@ struct ufpd {
 	char			*ifnames[UFPD_MAX_IFS];
 	unsigned int		promisc;
 	unsigned int		mtu_frame;
+	unsigned int		buf_size;
 	unsigned int		buf_count;
 	unsigned int		numa_node;
 };

@@ -349,7 +349,7 @@ static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 }
 
 struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
-	uint32_t buf_count, struct ufp_mpool *mpool)
+	uint32_t slot_size, uint32_t buf_count, struct ufp_mpool *mpool)
 {
 	struct ufp_buf *buf;
 	int err, i, num_bufs;
@@ -363,7 +363,7 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 	 * XXX: Should we add buffer padding for memory interleaving?
 	 * DPDK does so in rte_mempool.c/optimize_object_size().
 	 */
-	buf->slot_size = UFP_RXBUF_SIZE;
+	buf->slot_size = slot_size;
 	buf->count = buf_count;
 	for(i = 0, num_bufs = 0; i < num_devs; i++){
 		num_bufs += devs[i]->num_ifaces * buf->count;
@@ -609,9 +609,9 @@ static void ufp_down_iface(struct ufp_dev *dev, struct ufp_iface *iface)
 }
 
 int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
-	unsigned int num_qps, unsigned int mtu_frame,
-	unsigned int promisc, unsigned int rx_budget,
-	unsigned int tx_budget)
+	unsigned int num_qps, unsigned int buf_size,
+	unsigned int mtu_frame, unsigned int promisc,
+	unsigned int rx_budget, unsigned int tx_budget)
 {
 	struct ufp_iface *iface;
 	unsigned int	irq_idx = 0,
@@ -631,6 +631,7 @@ int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
 	}
 
 	list_for_each(&dev->iface, iface, list){
+		iface->buf_size = buf_size;
 		iface->mtu_frame = mtu_frame;
 		iface->promisc = promisc;
 		iface->rx_budget = rx_budget;
