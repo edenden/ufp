@@ -364,8 +364,11 @@ void i40e_aq_asq_assign(struct ufp_dev *dev, uint16_t opcode, uint16_t flags,
 	if(flags & I40E_AQ_FLAG_BUF){
 		buf = ring->bufs[ring->next_to_use];
 
-		if(flags & I40E_AQ_FLAG_RD){
+		if((flags & I40E_AQ_FLAG_RD)
+		&& data && data_size)
 			memcpy(buf->addr_virt, data, data_size);
+
+		if(data_size){
 			desc->datalen = htole16(data_size);
 			if (data_size > I40E_AQ_LARGE_BUF)
 				desc->flags |= htole16(I40E_AQ_FLAG_LB);

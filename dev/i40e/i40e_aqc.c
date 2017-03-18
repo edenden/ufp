@@ -202,9 +202,15 @@ void i40e_aqc_req_get_vsi(struct ufp_dev *dev,
 	cmd.uplink_seid = htole16(i40e_iface->seid);
 	flags = I40E_AQ_FLAG_BUF;
 
+	/*
+	 * Get VSI params command (opcode: 0x0212) returns
+	 * "invalid arguments" when datalen value of descripter
+	 * is not exact same with sizeof(struct i40e_aq_buf_vsi_data).
+	 */
 	i40e_aq_asq_assign(dev, i40e_aq_opc_get_vsi, flags,
 		&cmd, sizeof(struct i40e_aq_cmd_get_vsi),
-		NULL, 0, (uint64_t)session);
+		NULL, sizeof(struct i40e_aq_buf_vsi_data),
+		(uint64_t)session);
 	return;
 }
 
