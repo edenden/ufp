@@ -238,6 +238,10 @@ void i40e_aq_destroy(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_session_create:
@@ -517,11 +521,11 @@ static void i40e_aq_asq_process(struct ufp_dev *dev,
 	retval = le16toh(desc->retval);
 	opcode = le16toh(desc->opcode);
 
-	if(retval != 0)
-		goto err_retval;
-
 	if(session)
-		session->retval = 0;
+		session->retval = retval;
+
+	if(retval != I40E_AQ_RC_OK)
+		goto err_retval;
 
 	switch(opcode){
 	case i40e_aq_opc_firmware_version:
@@ -554,8 +558,6 @@ static void i40e_aq_asq_process(struct ufp_dev *dev,
 
 err_opcode:
 err_retval:
-	if(session)
-		session->retval = -1;
 	return;
 }
 

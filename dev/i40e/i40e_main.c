@@ -182,9 +182,13 @@ static int i40e_rxctl_write(struct ufp_dev *dev,
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -207,10 +211,14 @@ static int i40e_rxctl_read(struct ufp_dev *dev,
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	*reg_val = session->data.read_val;
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -231,9 +239,13 @@ static int i40e_firmware_version(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -254,9 +266,13 @@ static int i40e_driver_version(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -277,9 +293,14 @@ static int i40e_clear_pxemode(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK
+	&& session->retval != I40E_AQ_RC_EEXIST)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -300,9 +321,14 @@ static int i40e_stop_lldp(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK
+	&& session->retval != I40E_AQ_RC_EPERM)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -323,9 +349,13 @@ static int i40e_macaddr_read(struct ufp_dev *dev)
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -347,9 +377,13 @@ static int i40e_set_phyintmask(struct ufp_dev *dev,
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -371,9 +405,13 @@ static int i40e_set_swconf(struct ufp_dev *dev,
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -411,10 +449,14 @@ static int i40e_get_swconf(struct ufp_dev *dev)
 		if(err < 0)
 			goto err_wait_cmd;
 
+		if(session->retval != I40E_AQ_RC_OK)
+			goto err_retval;
+
 		seid_offset = session->data.seid_offset;
 		i40e_aq_session_delete(session);
 		continue;
 
+err_retval:
 err_wait_cmd:
 		i40e_aq_session_delete(session);
 err_session_create:

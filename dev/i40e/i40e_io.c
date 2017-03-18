@@ -46,9 +46,18 @@ static int i40e_set_rsskey(struct ufp_dev *dev,
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK
+	&& session->retval != I40E_AQ_RC_ESRCH)
+		goto err_retval;
+
+	if(session->retval == I40E_AQ_RC_ESRCH){
+		/* XXX: set rsskey by register */
+	}
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -70,9 +79,18 @@ static int i40e_set_rsslut(struct ufp_dev *dev,
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK
+	&& session->retval != I40E_AQ_RC_ESRCH)
+		goto err_retval;
+
+	if(session->retval == I40E_AQ_RC_ESRCH){
+		/* XXX: set rsslut by register */
+	}
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -98,9 +116,14 @@ int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 	err = i40e_aqc_wait_cmd(dev, session);
 	if(err < 0)
 		goto err_wait_cmd;
+
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -120,9 +143,14 @@ int i40e_vsi_get(struct ufp_dev *dev, struct ufp_iface *iface)
 	err = i40e_aqc_wait_cmd(dev, session);
 	if(err < 0)
 		goto err_wait_cmd;
+
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -151,9 +179,13 @@ int i40e_vsi_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface)
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_session_create:

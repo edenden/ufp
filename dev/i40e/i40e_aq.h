@@ -57,6 +57,33 @@ struct i40e_aq_desc {
 	} params;
 };
 
+/* error codes */
+enum i40e_admin_queue_err {
+	I40E_AQ_RC_OK		= 0,  /* success */
+	I40E_AQ_RC_EPERM	= 1,  /* Operation not permitted */
+	I40E_AQ_RC_ENOENT	= 2,  /* No such element */
+	I40E_AQ_RC_ESRCH	= 3,  /* Bad opcode */
+	I40E_AQ_RC_EINTR	= 4,  /* operation interrupted */
+	I40E_AQ_RC_EIO		= 5,  /* I/O error */
+	I40E_AQ_RC_ENXIO	= 6,  /* No such resource */
+	I40E_AQ_RC_E2BIG	= 7,  /* Arg too long */
+	I40E_AQ_RC_EAGAIN	= 8,  /* Try again */
+	I40E_AQ_RC_ENOMEM	= 9,  /* Out of memory */
+	I40E_AQ_RC_EACCES	= 10, /* Permission denied */
+	I40E_AQ_RC_EFAULT	= 11, /* Bad address */
+	I40E_AQ_RC_EBUSY	= 12, /* Device or resource busy */
+	I40E_AQ_RC_EEXIST	= 13, /* object already exists */
+	I40E_AQ_RC_EINVAL	= 14, /* Invalid argument */
+	I40E_AQ_RC_ENOTTY	= 15, /* Not a typewriter */
+	I40E_AQ_RC_ENOSPC	= 16, /* No space left or alloc failure */
+	I40E_AQ_RC_ENOSYS	= 17, /* Function not implemented */
+	I40E_AQ_RC_ERANGE	= 18, /* Parameter out of range */
+	I40E_AQ_RC_EFLUSHED	= 19, /* Cmd flushed due to prev cmd error */
+	I40E_AQ_RC_BAD_ADDR	= 20, /* Descriptor contains a bad pointer */
+	I40E_AQ_RC_EMODE	= 21, /* Op not allowed in current dev mode */
+	I40E_AQ_RC_EFBIG	= 22, /* File too large */
+};
+
 struct i40e_aq_ring {
 	struct ufp_dev_buf *desc; /* descriptor ring memory */
 	struct ufp_dev_buf **bufs;
