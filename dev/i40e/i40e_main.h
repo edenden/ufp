@@ -10,6 +10,7 @@
 #define I40E_DRV_VERSION_MAJOR		1
 #define I40E_DRV_VERSION_MINOR		5
 #define I40E_DRV_VERSION_BUILD		16
+#define I40E_NUM_MISC_IRQS		1
 
 /* Filter context base size is 1K */
 #define I40E_HASH_FILTER_BASE_SIZE	1024

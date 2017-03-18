@@ -390,17 +390,17 @@ static void i40e_vsi_configure_irq_rx(struct ufp_dev *dev,
 	 * because we use 1 IRQ per queue
 	 * (not queue-pair like vanilla driver).
 	 */
-	UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
+	UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx - 1),
 		ITR_TO_REG(I40E_ITR_20K));
 
-	UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx),
+	UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx - 1),
 		INTRL_USEC_TO_REG(iface->irq_rate));
 
 	/* Linked list for the queuepairs assigned to this IRQ */
 	val =	qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT
 		| I40E_QUEUE_TYPE_RX
 			<< I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
-	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1), val);
 
 	val =	I40E_QINT_RQCTL_CAUSE_ENA_MASK
 		| (I40E_IDX_ITR0 << I40E_QINT_RQCTL_ITR_INDX_SHIFT)
@@ -416,16 +416,16 @@ static void i40e_vsi_configure_irq_tx(struct ufp_dev *dev,
 {
 	uint32_t val;
 
-	UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
+	UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx - 1),
 		ITR_TO_REG(I40E_ITR_20K));
 
-	UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx),
+	UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx - 1),
 		INTRL_USEC_TO_REG(iface->irq_rate));
 
 	val =	qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT
 		| I40E_QUEUE_TYPE_TX
 			<< I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
-	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1), val);
 
 	val =	I40E_QINT_TQCTL_CAUSE_ENA_MASK
 		| (I40E_IDX_ITR0 << I40E_QINT_TQCTL_ITR_INDX_SHIFT)
@@ -441,10 +441,10 @@ static void i40e_vsi_shutdown_irq_rx(struct ufp_dev *dev,
 {
 	uint32_t val;
 
-	val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx));
+	val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1));
 	val |= I40E_QUEUE_END_OF_LIST
 		<< I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT;
-	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1), val);
 
 	val = UFP_READ32(dev, I40E_QINT_RQCTL(qp_idx));
 
@@ -465,10 +465,10 @@ static void i40e_vsi_shutdown_irq_tx(struct ufp_dev *dev,
 {
 	uint32_t val;
 
-	val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx));
+	val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1));
 	val |= I40E_QUEUE_END_OF_LIST
 		<< I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT;
-	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1), val);
 
 	val = UFP_READ32(dev, I40E_QINT_TQCTL(qp_idx));
 
@@ -490,12 +490,14 @@ void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	uint16_t qp_idx, irq_idx, rx_done = 0, tx_done = 0;
 	int i;
 
+	irq_idx = i40e_iface->base_qp * 2;
+	irq_idx += I40E_NUM_MISC_IRQS;
+
 	/*
 	 * The interrupt indexing is offset by 1 in the PFINT_ITRn
 	 * and PFINT_LNKLSTn registers.
 	 * e.g. PFINT_ITRn[0..n-1] gets msix1..msixn (qpair interrupts)
 	 */
-	irq_idx = i40e_iface->base_qp * 2;
 	for (i = 0; i < iface->num_qps; i++, irq_idx++, rx_done++){
 		qp_idx = i40e_iface->base_qp + i;
 		i40e_vsi_configure_irq_rx(dev,
@@ -519,6 +521,8 @@ void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	int i;
 
 	irq_idx = i40e_iface->base_qp * 2;
+	irq_idx += I40E_NUM_MISC_IRQS;
+
 	for (i = 0; i < iface->num_qps; i++, irq_idx++){
 		qp_idx = i40e_iface->base_qp + i;
 		i40e_vsi_shutdown_irq_rx(dev, qp_idx, irq_idx);
