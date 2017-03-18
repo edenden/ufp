@@ -191,6 +191,23 @@ void i40e_aqc_req_update_vsi(struct ufp_dev *dev,
 	return;
 }
 
+void i40e_aqc_req_get_vsi(struct ufp_dev *dev,
+	struct ufp_iface *iface,
+	struct i40e_aq_session *session)
+{
+	struct i40e_iface *i40e_iface = iface->drv_data;
+	struct i40e_aq_cmd_get_vsi cmd = {0};
+	uint16_t flags;
+
+	cmd.uplink_seid = htole16(i40e_iface->seid);
+	flags = I40E_AQ_FLAG_BUF;
+
+	i40e_aq_asq_assign(dev, i40e_aq_opc_get_vsi, flags,
+		&cmd, sizeof(struct i40e_aq_cmd_get_vsi),
+		NULL, 0, (uint64_t)session);
+	return;
+}
+
 void i40e_aqc_req_promisc_mode(struct ufp_dev *dev,
 	struct ufp_iface *iface, uint16_t promisc_flags,
 	struct i40e_aq_session *session)
@@ -383,13 +400,13 @@ void i40e_aqc_resp_rxctl_read(struct ufp_dev *dev,
 	return;
 }
 
-void i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
+void i40e_aqc_resp_get_vsi(struct ufp_dev *dev,
 	void *cmd_ptr, void *buf_ptr,
 	struct i40e_aq_session *session)
 {
 	struct ufp_iface *iface;
 	struct i40e_iface *i40e_iface, *_i40e_iface;
-	struct i40e_aq_cmd_update_vsi_resp *cmd = cmd_ptr;
+	struct i40e_aq_cmd_get_vsi_resp *cmd = cmd_ptr;
 	struct i40e_aq_buf_vsi_data *buf = buf_ptr;
 	int i;
 

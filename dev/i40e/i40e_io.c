@@ -107,6 +107,28 @@ err_alloc_session:
 	return -1;
 }
 
+int i40e_vsi_get(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	struct i40e_aq_session *session;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_get_vsi(dev, iface, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
+}
+
 int i40e_vsi_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_aq_session *session;

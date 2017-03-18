@@ -98,6 +98,10 @@ int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface)
 	if(err < 0)
 		goto err_vsi_update;
 
+	err = i40e_vsi_get(dev, iface);
+	if(err < 0)
+		goto err_vsi_get;
+
 	err = i40e_vsi_rss_config(dev, iface);
 	if(err < 0)
 		goto err_vsi_rss_config;
@@ -136,6 +140,7 @@ err_configure_tx:
 err_configure_rx:
 err_configure_filter:
 err_vsi_rss_config:
+err_vsi_get:
 err_vsi_update:
 	return -1;
 }

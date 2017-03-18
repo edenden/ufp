@@ -542,8 +542,8 @@ static void i40e_aq_asq_process(struct ufp_dev *dev,
 		i40e_aqc_resp_rxctl_read(dev, &desc->params,
 			session);
 		break;
-	case i40e_aq_opc_update_vsi:
-		i40e_aqc_resp_update_vsi(dev, &desc->params,
+	case i40e_aq_opc_get_vsi:
+		i40e_aqc_resp_get_vsi(dev, &desc->params,
 			buf->addr_virt, session);
 		break;
 	default:

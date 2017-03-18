@@ -19,6 +19,7 @@ enum i40e_admin_queue_opc {
 	i40e_aq_opc_rxctl_read		= 0x0206,
 	i40e_aq_opc_rxctl_write		= 0x0207,
 	i40e_aq_opc_update_vsi		= 0x0211,
+	i40e_aq_opc_get_vsi		= 0x0212,
 	i40e_aq_opc_promisc_mode	= 0x0254,
 
 	/* phy commands */
@@ -136,6 +137,7 @@ struct i40e_aq_cmd_rxctl_write {
 	uint32_t value;
 };
 
+#define i40e_aq_cmd_get_vsi i40e_aq_cmd_update_vsi
 struct i40e_aq_cmd_update_vsi {
 	uint16_t	uplink_seid;
 	uint8_t		connection_type;
@@ -157,6 +159,7 @@ struct i40e_aq_cmd_update_vsi {
 	uint32_t	addr_low;
 };
 
+#define i40e_aq_cmd_get_vsi_resp i40e_aq_cmd_update_vsi_resp
 struct i40e_aq_cmd_update_vsi_resp {
 	uint16_t	seid;
 	uint16_t	vsi_number;
@@ -368,6 +371,9 @@ void i40e_aqc_req_rxctl_read(struct ufp_dev *dev,
 void i40e_aqc_req_update_vsi(struct ufp_dev *dev,
 	struct ufp_iface *iface, struct i40e_aq_buf_vsi_data *buf,
 	struct i40e_aq_session *session);
+void i40e_aqc_req_get_vsi(struct ufp_dev *dev,
+	struct ufp_iface *iface,
+	struct i40e_aq_session *session);
 void i40e_aqc_req_promisc_mode(struct ufp_dev *dev,
 	struct ufp_iface *iface, uint16_t promisc_flags,
 	struct i40e_aq_session *session);
@@ -395,7 +401,7 @@ void i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
 void i40e_aqc_resp_rxctl_read(struct ufp_dev *dev,
 	void *cmd_ptr,
 	struct i40e_aq_session *session);
-void i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
+void i40e_aqc_resp_get_vsi(struct ufp_dev *dev,
 	void *cmd_ptr, void *buf_ptr,
 	struct i40e_aq_session *session);
 
