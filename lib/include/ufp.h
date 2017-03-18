@@ -11,14 +11,14 @@ struct ufp_buf;
 struct ufp_plane;
 
 struct ufp_packet {
-        void                    *slot_buf;
-        unsigned int            slot_size;
-        int                     slot_index;
-        unsigned int            flag;
+	void			*slot_buf;
+	unsigned int		slot_size;
+	int			slot_index;
+	unsigned int		flag;
 };
 
 #define UFP_PACKET_ERROR	0x00000001
-#define UFP_PACKET_NOTEOP	0x00000002
+#define UFP_PACKET_EOF		0x00000002
 
 enum ufp_irq_type {
 	UFP_IRQ_RX = 0,

@@ -37,7 +37,7 @@ err_timeout:
 void i40e_aqc_req_firmware_version(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
-	struct i40e_aq_cmd_firmware_version cmd;
+	struct i40e_aq_cmd_firmware_version cmd = {0};
 
 	i40e_aq_asq_assign(dev, i40e_aq_opc_firmware_version, 0,
 		&cmd, sizeof(struct i40e_aq_cmd_firmware_version),
@@ -48,7 +48,7 @@ void i40e_aqc_req_firmware_version(struct ufp_dev *dev,
 void i40e_aqc_req_driver_version(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
-	struct i40e_aq_cmd_driver_version cmd;
+	struct i40e_aq_cmd_driver_version cmd = {0};
 	char driver_string[32];
 	uint16_t flags;
 
@@ -73,7 +73,7 @@ void i40e_aqc_req_driver_version(struct ufp_dev *dev,
 void i40e_aqc_req_queue_shutdown(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
-	struct i40e_aq_cmd_queue_shutdown cmd;
+	struct i40e_aq_cmd_queue_shutdown cmd = {0};
 
 	cmd.driver_unloading = htole32(I40E_AQ_DRIVER_UNLOADING);
 
@@ -86,7 +86,7 @@ void i40e_aqc_req_queue_shutdown(struct ufp_dev *dev,
 void i40e_aqc_req_macaddr_read(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
-	struct i40e_aq_cmd_macaddr_read cmd;
+	struct i40e_aq_cmd_macaddr_read cmd = {0};
 	uint16_t flags;
 
 	flags = I40E_AQ_FLAG_BUF;
@@ -100,7 +100,7 @@ void i40e_aqc_req_macaddr_read(struct ufp_dev *dev,
 void i40e_aqc_req_clear_pxemode(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
-	struct i40e_aq_cmd_clear_pxemode cmd;
+	struct i40e_aq_cmd_clear_pxemode cmd = {0};
 
 	cmd.rx_cnt = 0x2;
 
@@ -113,7 +113,7 @@ void i40e_aqc_req_clear_pxemode(struct ufp_dev *dev,
 void i40e_aqc_req_get_swconf(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
-	struct i40e_aq_cmd_get_swconf cmd;
+	struct i40e_aq_cmd_get_swconf cmd = {0};
 	uint16_t flags;
 
 	if(session)
@@ -133,7 +133,7 @@ void i40e_aqc_req_set_swconf(struct ufp_dev *dev,
 	uint16_t flags, uint16_t valid_flags,
 	struct i40e_aq_session *session)
 {
-	struct i40e_aq_cmd_set_swconf cmd;
+	struct i40e_aq_cmd_set_swconf cmd = {0};
 
 	cmd.flags = htole16(flags);
 	cmd.valid_flags = htole16(valid_flags);
@@ -148,7 +148,7 @@ void i40e_aqc_req_rxctl_write(struct ufp_dev *dev,
 	uint32_t reg_addr, uint32_t reg_val,
 	struct i40e_aq_session *session)
 {
-	struct i40e_aq_cmd_rxctl_write cmd;
+	struct i40e_aq_cmd_rxctl_write cmd = {0};
 
 	cmd.address = htole32(reg_addr);
 	cmd.value = htole32(reg_val);
@@ -163,7 +163,7 @@ void i40e_aqc_req_rxctl_read(struct ufp_dev *dev,
 	uint32_t reg_addr,
 	struct i40e_aq_session *session)
 {
-	struct i40e_aq_cmd_rxctl_read cmd;
+	struct i40e_aq_cmd_rxctl_read cmd = {0};
 
 	cmd.address = htole32(reg_addr);
 
@@ -178,7 +178,7 @@ void i40e_aqc_req_update_vsi(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
 	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aq_cmd_update_vsi cmd;
+	struct i40e_aq_cmd_update_vsi cmd = {0};
 	uint16_t flags;
 
 	cmd.uplink_seid = htole16(i40e_iface->seid);
@@ -196,7 +196,7 @@ void i40e_aqc_req_promisc_mode(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
 	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aq_cmd_promisc_mode cmd;
+	struct i40e_aq_cmd_promisc_mode cmd = {0};
 
 	cmd.promiscuous_flags = htole16(promisc_flags);
 	cmd.valid_flags = htole16(
@@ -215,7 +215,7 @@ void i40e_aqc_req_set_phyintmask(struct ufp_dev *dev,
 	uint16_t mask,
 	struct i40e_aq_session *session)
 {
-	struct i40e_aq_cmd_set_phyintmask cmd;
+	struct i40e_aq_cmd_set_phyintmask cmd = {0};
 
 	cmd.event_mask = htole16(mask);
 
@@ -228,7 +228,7 @@ void i40e_aqc_req_set_phyintmask(struct ufp_dev *dev,
 void i40e_aqc_req_stop_lldp(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
-	struct i40e_aq_cmd_stop_lldp cmd;
+	struct i40e_aq_cmd_stop_lldp cmd = {0};
 
 	cmd.command = I40E_AQ_LLDP_AGENT_SHUTDOWN;
 
@@ -243,7 +243,7 @@ void i40e_aqc_req_set_rsskey(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
 	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aq_cmd_set_rsskey cmd;
+	struct i40e_aq_cmd_set_rsskey cmd = {0};
 	uint16_t flags;
 
 	cmd.vsi_id = htole16((uint16_t)
@@ -263,7 +263,7 @@ void i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
 	struct i40e_aq_session *session)
 {
 	struct i40e_iface *i40e_iface = iface->drv_data;
-	struct i40e_aq_cmd_set_rsslut cmd;
+	struct i40e_aq_cmd_set_rsslut cmd = {0};
 	uint16_t flags;
 
 	cmd.vsi_id = htole16((uint16_t)

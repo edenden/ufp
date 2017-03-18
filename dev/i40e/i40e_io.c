@@ -781,7 +781,7 @@ int i40e_rx_desc_fetch(struct ufp_ring *rx_ring, uint16_t index,
 	packet->flag = 0;
 
 	if(likely(qword1 & BIT(I40E_RX_DESC_STATUS_EOF_SHIFT)))
-		packet->flag |= UFP_PACKET_EOP;
+		packet->flag |= UFP_PACKET_EOF;
 
 	if(unlikely(qword1 & I40E_RXD_QW1_ERROR_MASK))
 		packet->flag |= UFP_PACKET_ERROR;
@@ -839,7 +839,7 @@ void i40e_tx_desc_fill(struct ufp_ring *tx_ring, uint16_t index,
 	tx_desc = I40E_TX_DESC(tx_ring, index);
 
 	tx_cmd |= I40E_TX_DESC_CMD_ICRC | I40E_TX_DESC_CMD_RS;
-	if(likely(packet->flag & UFP_PACKET_EOP)){
+	if(likely(packet->flag & UFP_PACKET_EOF)){
 		tx_cmd |= I40E_TX_DESC_CMD_EOP;
 	}
 
