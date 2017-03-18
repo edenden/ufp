@@ -857,8 +857,9 @@ static int i40e_setup_pf_switch(struct ufp_dev *dev)
 	if(!elem)
 		goto err_first_vsi;
 
-	/* Set up the PF VSI associated with the PF's main VSI
-	 * that is already in the HW switch
+	/*
+	 * Set up the iface associated with the default VSI
+	 * that is already in the PF HW switch (See A.3.4.6.2)
 	 */
 	i40e_iface = malloc(sizeof(struct i40e_iface));
 	if(!i40e_iface)
