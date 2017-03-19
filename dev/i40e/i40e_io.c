@@ -545,6 +545,8 @@ void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	int i;
 
 	irq_idx = i40e_iface->base_qp * 2;
+	irq_idx += I40E_NUM_MISC_IRQS;
+
 	for (i = 0; i < iface->num_qps * 2; i++, irq_idx++){
 		/* definitely clear the Pending Interrupt Array(PBA) here,
 		 * as this function is meant to clean out all previous interrupts
@@ -553,7 +555,7 @@ void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 		val = I40E_PFINT_DYN_CTLN_INTENA_MASK |
 			I40E_PFINT_DYN_CTLN_CLEARPBA_MASK |
 			(I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);
-		UFP_WRITE32(dev, I40E_PFINT_DYN_CTLN(irq_idx), val);
+		UFP_WRITE32(dev, I40E_PFINT_DYN_CTLN(irq_idx - 1), val);
 	}
 
 	i40e_flush(dev);
@@ -567,8 +569,10 @@ void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	int i;
 
 	irq_idx = i40e_iface->base_qp * 2;
+	irq_idx += I40E_NUM_MISC_IRQS;
+
 	for (i = 0; i < iface->num_qps * 2; i++, irq_idx++){
-		UFP_WRITE32(dev, I40E_PFINT_DYN_CTLN(irq_idx), 0);
+		UFP_WRITE32(dev, I40E_PFINT_DYN_CTLN(irq_idx - 1), 0);
 	}
 
 	i40e_flush(dev);
