@@ -88,6 +88,8 @@ enum i40e_filter_pctype {
 
 #define I40E_PFQF_HKEY_MAX_INDEX 12
 #define I40E_PFQF_HLUT_MAX_INDEX 127
+#define I40E_HKEY_ARRAY_SIZE ((I40E_PFQF_HKEY_MAX_INDEX + 1) * 4)
+#define I40E_HLUT_ARRAY_SIZE ((I40E_PFQF_HLUT_MAX_INDEX + 1) * 4)
 
 struct i40e_elem {
 	uint8_t			type;
