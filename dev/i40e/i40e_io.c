@@ -100,7 +100,7 @@ err_alloc_session:
 int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_aq_session *session;
-	struct i40e_aq_buf_vsi_data data = {0};
+	struct i40e_aq_buf_vsi_data data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint16_t tc_qps_offset;
 	int i, err;
