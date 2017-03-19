@@ -100,8 +100,10 @@ err_alloc_session:
 int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_aq_session *session;
-	struct i40e_aq_buf_vsi_data data;
-	int err;
+	struct i40e_aq_buf_vsi_data data = {0};
+	struct i40e_iface *i40e_iface = iface->drv_data;
+	uint16_t tc_qps_offset;
+	int i, err;
 
 	session = i40e_aq_session_create(dev);
 	if(!session)
@@ -111,6 +113,40 @@ int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 	data.valid_sections = htole16(I40E_AQ_VSI_PROP_VLAN_VALID);
 	data.port_vlan_flags = I40E_AQ_VSI_PVLAN_MODE_ALL
 		| I40E_AQ_VSI_PVLAN_EMOD_NOTHING;
+
+	/* Setup VSI queue mapping */
+	data.valid_sections |= htole16(I40E_AQ_VSI_PROP_QUEUE_MAP_VALID);
+	data.mapping_flags = htole16(I40E_AQ_VSI_QUE_MAP_CONTIG);
+	data.queue_mapping[0] = htole16(i40e_iface->base_qp);
+
+	tc_qps_offset = 0;
+	for(i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++){
+		uint16_t tc_map;
+		uint32_t num_qps_tc;
+		uint8_t num_qps_tc_pow;
+
+		/* XXX: Support multiple TCs */
+		if(i == 0){
+			num_qps_tc = iface->num_qps;
+		}else{
+			num_qps_tc = 0;
+		}
+
+		/* find the next higher power-of-2 of num_qps */
+		num_qps_tc_pow = 0;
+		while(BIT_ULL(num_qps_tc_pow) < num_qps_tc){
+			num_qps_tc_pow++;
+		}
+
+		tc_map =
+			(num_qps_tc ? tc_qps_offset : 0
+				<< I40E_AQ_VSI_TC_QUE_OFFSET_SHIFT) |
+			(num_qps_tc_pow
+				<< I40E_AQ_VSI_TC_QUE_NUMBER_SHIFT);
+		data.tc_mapping[i] = htole16(tc_map);
+
+		tc_qps_offset += num_qps_tc;
+	}
 
 	i40e_aqc_req_update_vsi(dev, iface, &data, session);
 	err = i40e_aqc_wait_cmd(dev, session);
@@ -545,6 +581,8 @@ void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	int i;
 
 	irq_idx = i40e_iface->base_qp * 2;
+	irq_idx += I40E_NUM_MISC_IRQS;
+
 	for (i = 0; i < iface->num_qps * 2; i++, irq_idx++){
 		/* definitely clear the Pending Interrupt Array(PBA) here,
 		 * as this function is meant to clean out all previous interrupts
@@ -553,7 +591,7 @@ void i40e_vsi_start_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 		val = I40E_PFINT_DYN_CTLN_INTENA_MASK |
 			I40E_PFINT_DYN_CTLN_CLEARPBA_MASK |
 			(I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);
-		UFP_WRITE32(dev, I40E_PFINT_DYN_CTLN(irq_idx), val);
+		UFP_WRITE32(dev, I40E_PFINT_DYN_CTLN(irq_idx - 1), val);
 	}
 
 	i40e_flush(dev);
@@ -567,8 +605,10 @@ void i40e_vsi_stop_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	int i;
 
 	irq_idx = i40e_iface->base_qp * 2;
+	irq_idx += I40E_NUM_MISC_IRQS;
+
 	for (i = 0; i < iface->num_qps * 2; i++, irq_idx++){
-		UFP_WRITE32(dev, I40E_PFINT_DYN_CTLN(irq_idx), 0);
+		UFP_WRITE32(dev, I40E_PFINT_DYN_CTLN(irq_idx - 1), 0);
 	}
 
 	i40e_flush(dev);
