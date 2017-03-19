@@ -88,6 +88,8 @@ enum i40e_filter_pctype {
 
 #define I40E_PFQF_HKEY_MAX_INDEX 12
 #define I40E_PFQF_HLUT_MAX_INDEX 127
+#define I40E_HKEY_ARRAY_SIZE ((I40E_PFQF_HKEY_MAX_INDEX + 1) * 4)
+#define I40E_HLUT_ARRAY_SIZE ((I40E_PFQF_HLUT_MAX_INDEX + 1) * 4)
 
 struct i40e_elem {
 	uint8_t			type;
@@ -146,5 +148,9 @@ void i40e_setup_misc_irq(struct ufp_dev *dev);
 void i40e_shutdown_misc_irq(struct ufp_dev *dev);
 void i40e_start_misc_irq(struct ufp_dev *dev);
 void i40e_stop_misc_irq(struct ufp_dev *dev);
+int i40e_set_rsskey_reg(struct ufp_dev *dev,
+	uint8_t *key, uint16_t key_size);
+int i40e_set_rsslut_reg(struct ufp_dev *dev,
+	uint8_t *lut, uint16_t lut_size);
 
 #endif /* _I40E_MAIN_H__ */

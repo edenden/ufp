@@ -50,13 +50,21 @@ static int i40e_set_rsskey(struct ufp_dev *dev,
 	&& session->retval != I40E_AQ_RC_ESRCH)
 		goto err_retval;
 
+	/*
+	 * XXX: set rsskey by register (X710/XL710 work around)
+	 * In X710/XL710, RSS KEY is shared on a PF. Therefore,
+	 * this routine may overwrite previous RSS KEY settings.
+	 */
 	if(session->retval == I40E_AQ_RC_ESRCH){
-		/* XXX: set rsskey by register */
+		err = i40e_set_rsskey_reg(dev, key, key_size);
+		if(err < 0)
+			goto err_set_reg;
 	}
 
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_set_reg:
 err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
@@ -83,13 +91,23 @@ static int i40e_set_rsslut(struct ufp_dev *dev,
 	&& session->retval != I40E_AQ_RC_ESRCH)
 		goto err_retval;
 
+	/*
+	 * XXX: set rsslut by register (X710/XL710 work around)
+	 * In X710/XL710, RSS LUT is shared on a PF. Therefore,
+	 * this routine may overwrite previous RSS LUT settings.
+	 * This results in the limit, that all RSS-enabled
+	 * VSIs in the same PF must have same number of QPs on X710/XL710.
+	 */
 	if(session->retval == I40E_AQ_RC_ESRCH){
-		/* XXX: set rsslut by register */
+		err = i40e_set_rsslut_reg(dev, lut, lut_size);
+		if(err < 0)
+			goto err_set_reg;
 	}
 
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_set_reg:
 err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
@@ -100,7 +118,7 @@ err_alloc_session:
 int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 {
 	struct i40e_aq_session *session;
-	struct i40e_aq_buf_vsi_data data = {0};
+	struct i40e_aq_buf_vsi_data data;
 	struct i40e_iface *i40e_iface = iface->drv_data;
 	uint16_t tc_qps_offset;
 	int i, err;

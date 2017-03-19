@@ -939,3 +939,41 @@ err_wait_cmd:
 	return -1;
 }
 
+int i40e_set_rsskey_reg(struct ufp_dev *dev,
+	uint8_t *key, uint16_t key_size)
+{
+	uint32_t *key32 = (uint32_t *)key;
+	int i, err;
+
+	if(key_size != I40E_HKEY_ARRAY_SIZE)
+		goto err_size_reg;
+
+	for (i = 0; i <= I40E_PFQF_HKEY_MAX_INDEX; i++){
+		err = i40e_rxctl_write(dev,
+			I40E_PFQF_HKEY(i), key32[i]);
+		if(err < 0)
+			goto err_write_reg;
+	}
+	return 0;
+
+err_write_reg:
+err_size_reg:
+	return -1;
+}
+
+int i40e_set_rsslut_reg(struct ufp_dev *dev,
+	uint8_t *lut, uint16_t lut_size)
+{
+	uint32_t *lut32 = (uint32_t *)lut;
+	int i;
+
+	if(lut_size != I40E_HLUT_ARRAY_SIZE)
+		goto err_size_reg;
+
+	for (i = 0; i <= I40E_PFQF_HLUT_MAX_INDEX; i++)
+		UFP_WRITE32(dev, I40E_PFQF_HLUT(i), lut32[i]);
+	return 0;
+
+err_size_reg:
+	return -1;
+}
