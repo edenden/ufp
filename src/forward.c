@@ -111,6 +111,7 @@ void forward_process_tun(struct ufpd_thread *thread, unsigned int port_index,
 	packet.slot_buf = ufp_slot_addr_virt(thread->buf, packet.slot_index);
 	memcpy(packet.slot_buf, read_buf, read_size);
 	packet.slot_size = read_size;
+	packet.flag = UFP_PACKET_EOF;
 
 #ifdef DEBUG
 	forward_dump(&packet);

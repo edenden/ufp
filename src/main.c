@@ -69,9 +69,12 @@ int main(int argc, char **argv)
 	ufpd.num_threads	= 0;
 	ufpd.num_devices	= 0;
 	ufpd.promisc		= 0;
-	ufpd.mtu_frame		= 0; /* MTU=1522 is used by default. */
-	ufpd.buf_count		= 8192; /* number of per port packet buffer */
-	ufpd.buf_size		= 2048; /* must be larger than 2048 */
+	/* 1500 + ETH_HLEN(14) + ETH_FCS_LEN(4) = 1518 */
+	ufpd.mtu_frame		= 1518;
+	/* size of packet buffer */
+	ufpd.buf_size		= 2048;
+	/* number of per port packet buffer */
+	ufpd.buf_count		= 8192;
 
 	for(i = 0; i < UFPD_MAX_IFS; i++, ifnames_done++){
 		ufpd.ifnames[i] = malloc(UFPD_MAX_ARGLEN);
@@ -188,7 +191,8 @@ static int ufpd_device_init(struct ufpd *ufpd, int dev_idx)
 	}
 
 	err = ufp_up(ufpd->devs[dev_idx], ufpd->mpools,
-		ufpd->num_threads, ufpd->mtu_frame, ufpd->promisc,
+		ufpd->num_threads, ufpd->buf_size,
+		ufpd->mtu_frame, ufpd->promisc,
 		UFPD_RX_BUDGET, UFPD_TX_BUDGET);
 	if(err < 0){
 		ufpd_log(LOG_ERR, "failed to ufp_up, idx = %d", dev_idx);
@@ -217,12 +221,11 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 	int err;
 
 	thread->id		= thread_id;
-	thread->num_ports	= ufp_portnum(thread->plane);
 	thread->ptid		= pthread_self();
 	thread->mpool		= ufpd->mpools[thread->id];
 
 	thread->buf = ufp_alloc_buf(ufpd->devs, ufpd->num_devices,
-			ufpd->buf_size, ufpd->buf_count, thread->mpool);
+		ufpd->buf_size, ufpd->buf_count, thread->mpool);
 	if(!thread->buf){
 		ufpd_log(LOG_ERR,
 			"failed to ufp_alloc_buf, idx = %d", thread->id);
@@ -236,6 +239,7 @@ static int ufpd_thread_create(struct ufpd *ufpd,
 			"failed to ufp_plane_alloc, idx = %d", thread->id);
 		goto err_plane_alloc;
 	}
+	thread->num_ports = ufp_portnum(thread->plane);
 
 	err = pthread_create(&thread->tid,
 		NULL, thread_process_interrupt, thread);

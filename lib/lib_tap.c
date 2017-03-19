@@ -242,8 +242,8 @@ static int ufp_tun_mtu_set(int sock, const char *if_name,
 
 	memset(&ifr, 0, sizeof(struct ifreq));
 	strncpy(ifr.ifr_name, if_name, IFNAMSIZ);
-
-	ifr.ifr_mtu = mtu_frame;
+	ifr.ifr_mtu = mtu_frame
+		- (ETH_HLEN + ETH_FCS_LEN);
 
 	err = ioctl(sock, SIOCSIFMTU, (void *)&ifr);
 	if(err < 0)

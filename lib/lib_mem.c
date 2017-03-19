@@ -89,17 +89,40 @@ void *ufp_mem_alloc(struct ufp_mpool *mpool, size_t size)
 {
 	struct ufp_mnode *node;
 	void **header;
+	size_t size_header;
 
-	node = _ufp_mem_alloc(mpool->node,
-		ALIGN(size, L1_CACHE_BYTES) +
-		ALIGN(sizeof(void *), L1_CACHE_BYTES));
+	size_header = sizeof(void *);
 
+	node = _ufp_mem_alloc(mpool->node, size_header + size);
 	if(!node)
 		goto err_alloc;
 
 	header = node->ptr;
 	*header = node;
-	return node->ptr + ALIGN(sizeof(void *), L1_CACHE_BYTES);
+	return node->ptr + size_header;
+
+err_alloc:
+	return NULL;
+}
+
+void *ufp_mem_alloc_align(struct ufp_mpool *mpool, size_t size,
+	size_t align)
+{
+	struct ufp_mnode *node;
+	void **header;
+	size_t size_header, offset;
+
+	size_header = sizeof(void *);
+	align = max(align, (size_t)getpagesize());
+
+	node = _ufp_mem_alloc(mpool->node, align + size_header + size);
+	if(!node)
+		goto err_alloc;
+
+	offset = align - ((size_t)node->ptr + size_header) % align;
+	header = node->ptr + offset;
+	*header = node;
+	return node->ptr + offset + size_header;
 
 err_alloc:
 	return NULL;
@@ -158,10 +181,13 @@ void ufp_mem_free(void *addr_free)
 {
 	struct ufp_mnode *node;
 	void **header;
+	size_t size_header;
 
-	header = addr_free - ALIGN(sizeof(void *), L1_CACHE_BYTES);
+	size_header = sizeof(void *);
+	header = addr_free - size_header;
 	node = (struct ufp_mnode *)*header;
 	_ufp_mem_free(node);
+	return;
 }
 
 static void _ufp_mem_free(struct ufp_mnode *node)

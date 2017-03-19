@@ -48,13 +48,8 @@
 #define upper32(n) ((uint32_t)(((n) >> 16) >> 16))
 #define lower32(n) ((uint32_t)(n))
 
-#define CONFIG_X86_L1_CACHE_SHIFT \
-				(6)
-#define L1_CACHE_SHIFT		(CONFIG_X86_L1_CACHE_SHIFT)
-#define L1_CACHE_BYTES		(1 << L1_CACHE_SHIFT)
-
 #ifdef DEBUG
-#define ufp_print(args...) printf("ixgbe: " args)
+#define ufp_print(args...) printf("ufp: " args)
 #else
 #define ufp_print(args...)
 #endif
@@ -108,6 +103,7 @@ struct ufp_iface {
 	uint32_t		num_qps;
 	uint32_t		irq_rate;
 	uint32_t		promisc;
+	uint32_t		buf_size;
 	uint32_t		mtu_frame;
 	uint8_t			mac_addr[ETH_ALEN];
 
@@ -186,7 +182,7 @@ struct ufp_packet {
 };
 
 #define UFP_PACKET_ERROR	0x00000001
-#define UFP_PACKET_EOP		0x00000002
+#define UFP_PACKET_EOF		0x00000002
 
 struct ufp_ops {
 	/* For configuration */

@@ -11,14 +11,14 @@ struct ufp_buf;
 struct ufp_plane;
 
 struct ufp_packet {
-        void                    *slot_buf;
-        unsigned int            slot_size;
-        int                     slot_index;
-        unsigned int            flag;
+	void			*slot_buf;
+	unsigned int		slot_size;
+	int			slot_index;
+	unsigned int		flag;
 };
 
 #define UFP_PACKET_ERROR	0x00000001
-#define UFP_PACKET_NOTEOP	0x00000002
+#define UFP_PACKET_EOF		0x00000002
 
 enum ufp_irq_type {
 	UFP_IRQ_RX = 0,
@@ -32,18 +32,20 @@ void ufp_plane_release(struct ufp_plane *plane);
 struct ufp_mpool *ufp_mpool_init();
 void ufp_mpool_destroy(struct ufp_mpool *mpool);
 struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
-	uint32_t buf_size, uint32_t buf_count, struct ufp_mpool *mpool);
+	uint32_t slot_size, uint32_t buf_count, struct ufp_mpool *mpool);
 void ufp_release_buf(struct ufp_buf *buf);
 struct ufp_dev *ufp_open(const char *name);
 void ufp_close(struct ufp_dev *dev);
 int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
-	unsigned int num_qps, unsigned int mtu_frame,
-	unsigned int promisc, unsigned int rx_budget,
-	unsigned int tx_budget);
+	unsigned int num_qps, unsigned int buf_size,
+	unsigned int mtu_frame, unsigned int promisc,
+	unsigned int rx_budget, unsigned int tx_budget);
 void ufp_down(struct ufp_dev *dev);
 
 /* MEM */
-void *ufp_mem_alloc(struct ufp_mpool *mpool, unsigned int size);
+void *ufp_mem_alloc(struct ufp_mpool *mpool, size_t size);
+void *ufp_mem_alloc_align(struct ufp_mpool *mpool, size_t size,
+	size_t align);
 void ufp_mem_free(void *addr_free);
 
 /* IO */

@@ -5,9 +5,11 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/mman.h>
 
 #include "lib_main.h"
 #include "lib_list.h"
+#include "lib_vfio.h"
 #include "lib_dev.h"
 
 static int ufp_dev_register_device(struct pci_driver *driver, int idx);
@@ -15,6 +17,44 @@ static void ufp_dev_unregister_device(struct pci_driver *driver, int idx);
 
 LIST_HEAD(dylibs);
 LIST_HEAD(pci_entries);
+
+struct ufp_dev_buf *ufp_dev_dma_alloc(size_t size)
+{
+	struct ufp_dev_buf *buf;
+	int err;
+
+	buf = malloc(sizeof(struct ufp_dev_buf));
+	if(!buf)
+		goto err_alloc_buf;
+
+	buf->size = size;
+	buf->addr_virt = mmap(NULL, buf->size,
+		PROT_READ | PROT_WRITE,
+		MAP_PRIVATE | MAP_ANONYMOUS | MAP_LOCKED, -1, 0);
+	if(buf->addr_virt == MAP_FAILED){
+		goto err_mmap;
+	}
+
+	err = ufp_vfio_dma_map(buf->addr_virt, &buf->addr_dma, buf->size);
+	if(err < 0){
+		goto err_dma_map;
+	}
+	return buf;
+
+err_dma_map:
+	munmap(buf->addr_virt, buf->size);
+err_mmap:
+	free(buf);
+err_alloc_buf:
+	return NULL;
+}
+
+void ufp_dev_dma_free(struct ufp_dev_buf *buf)
+{
+	ufp_vfio_dma_unmap(buf->addr_dma, buf->size);
+	munmap(buf->addr_virt, buf->size);
+	return;
+}
 
 int ufp_dev_init(struct ufp_dev *dev, struct ufp_ops *ops)
 {

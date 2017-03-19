@@ -46,9 +46,18 @@ static int i40e_set_rsskey(struct ufp_dev *dev,
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK
+	&& session->retval != I40E_AQ_RC_ESRCH)
+		goto err_retval;
+
+	if(session->retval == I40E_AQ_RC_ESRCH){
+		/* XXX: set rsskey by register */
+	}
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -70,9 +79,18 @@ static int i40e_set_rsslut(struct ufp_dev *dev,
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK
+	&& session->retval != I40E_AQ_RC_ESRCH)
+		goto err_retval;
+
+	if(session->retval == I40E_AQ_RC_ESRCH){
+		/* XXX: set rsslut by register */
+	}
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -98,9 +116,41 @@ int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface)
 	err = i40e_aqc_wait_cmd(dev, session);
 	if(err < 0)
 		goto err_wait_cmd;
+
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
+err_wait_cmd:
+	i40e_aq_session_delete(session);
+err_alloc_session:
+	return -1;
+}
+
+int i40e_vsi_get(struct ufp_dev *dev, struct ufp_iface *iface)
+{
+	struct i40e_aq_session *session;
+	int err;
+
+	session = i40e_aq_session_create(dev);
+	if(!session)
+		goto err_alloc_session;
+
+	i40e_aqc_req_get_vsi(dev, iface, session);
+	err = i40e_aqc_wait_cmd(dev, session);
+	if(err < 0)
+		goto err_wait_cmd;
+
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
+	i40e_aq_session_delete(session);
+	return 0;
+
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_alloc_session:
@@ -129,9 +179,13 @@ int i40e_vsi_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface)
 	if(err < 0)
 		goto err_wait_cmd;
 
+	if(session->retval != I40E_AQ_RC_OK)
+		goto err_retval;
+
 	i40e_aq_session_delete(session);
 	return 0;
 
+err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
 err_session_create:
@@ -262,7 +316,12 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		/*
 		 * See 8.3.3.2.2 - Receive Queue Context in FPM
 		 */
-		ctx.dbuff = I40E_RXBUFFER_2048 >> I40E_RXQ_CTX_DBUFF_SHIFT;
+		if((iface->buf_size % BIT(I40E_RXQ_CTX_DBUFF_SHIFT))
+		|| iface->buf_size < I40E_MIN_RX_BUFFER
+		|| iface->buf_size > I40E_MAX_RX_BUFFER)
+			goto err_buf_size;
+		ctx.dbuff = iface->buf_size >> I40E_RXQ_CTX_DBUFF_SHIFT;
+
 		ctx.base = (ring->addr_dma / 128);
 		ctx.qlen = iface->num_rx_desc;
 		/* use 16 byte descriptors */
@@ -270,6 +329,10 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 		/* descriptor type is always zero */
 		ctx.dtype = 0;
 		ctx.hsplit_0 = 0;
+
+		if(iface->mtu_frame > min((uint32_t)I40E_MAX_MTU,
+			I40E_MAX_CHAINED_RX_BUFFERS * iface->buf_size))
+			goto err_mtu_size;
 		ctx.rxmax = iface->mtu_frame;
 
 		/* XXX: Does it work? Is ctx.cpuid set by hardware correctly
@@ -310,6 +373,8 @@ int i40e_vsi_configure_rx(struct ufp_dev *dev, struct ufp_iface *iface)
 	return 0;
 
 err_set_ctx:
+err_mtu_size:
+err_buf_size:
 	return -1;
 }
 
@@ -325,17 +390,17 @@ static void i40e_vsi_configure_irq_rx(struct ufp_dev *dev,
 	 * because we use 1 IRQ per queue
 	 * (not queue-pair like vanilla driver).
 	 */
-	UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
+	UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx - 1),
 		ITR_TO_REG(I40E_ITR_20K));
 
-	UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx),
+	UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx - 1),
 		INTRL_USEC_TO_REG(iface->irq_rate));
 
 	/* Linked list for the queuepairs assigned to this IRQ */
 	val =	qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT
 		| I40E_QUEUE_TYPE_RX
 			<< I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
-	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1), val);
 
 	val =	I40E_QINT_RQCTL_CAUSE_ENA_MASK
 		| (I40E_IDX_ITR0 << I40E_QINT_RQCTL_ITR_INDX_SHIFT)
@@ -351,16 +416,16 @@ static void i40e_vsi_configure_irq_tx(struct ufp_dev *dev,
 {
 	uint32_t val;
 
-	UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx),
+	UFP_WRITE32(dev, I40E_PFINT_ITRN(I40E_IDX_ITR0, irq_idx - 1),
 		ITR_TO_REG(I40E_ITR_20K));
 
-	UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx),
+	UFP_WRITE32(dev, I40E_PFINT_RATEN(irq_idx - 1),
 		INTRL_USEC_TO_REG(iface->irq_rate));
 
 	val =	qp_idx << I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT
 		| I40E_QUEUE_TYPE_TX
 			<< I40E_PFINT_LNKLSTN_FIRSTQ_TYPE_SHIFT;
-	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1), val);
 
 	val =	I40E_QINT_TQCTL_CAUSE_ENA_MASK
 		| (I40E_IDX_ITR0 << I40E_QINT_TQCTL_ITR_INDX_SHIFT)
@@ -376,10 +441,10 @@ static void i40e_vsi_shutdown_irq_rx(struct ufp_dev *dev,
 {
 	uint32_t val;
 
-	val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx));
+	val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1));
 	val |= I40E_QUEUE_END_OF_LIST
 		<< I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT;
-	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1), val);
 
 	val = UFP_READ32(dev, I40E_QINT_RQCTL(qp_idx));
 
@@ -400,10 +465,10 @@ static void i40e_vsi_shutdown_irq_tx(struct ufp_dev *dev,
 {
 	uint32_t val;
 
-	val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx));
+	val = UFP_READ32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1));
 	val |= I40E_QUEUE_END_OF_LIST
 		<< I40E_PFINT_LNKLSTN_FIRSTQ_INDX_SHIFT;
-	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx), val);
+	UFP_WRITE32(dev, I40E_PFINT_LNKLSTN(irq_idx - 1), val);
 
 	val = UFP_READ32(dev, I40E_QINT_TQCTL(qp_idx));
 
@@ -425,12 +490,14 @@ void i40e_vsi_configure_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	uint16_t qp_idx, irq_idx, rx_done = 0, tx_done = 0;
 	int i;
 
+	irq_idx = i40e_iface->base_qp * 2;
+	irq_idx += I40E_NUM_MISC_IRQS;
+
 	/*
 	 * The interrupt indexing is offset by 1 in the PFINT_ITRn
 	 * and PFINT_LNKLSTn registers.
 	 * e.g. PFINT_ITRn[0..n-1] gets msix1..msixn (qpair interrupts)
 	 */
-	irq_idx = i40e_iface->base_qp * 2;
 	for (i = 0; i < iface->num_qps; i++, irq_idx++, rx_done++){
 		qp_idx = i40e_iface->base_qp + i;
 		i40e_vsi_configure_irq_rx(dev,
@@ -454,6 +521,8 @@ void i40e_vsi_shutdown_irq(struct ufp_dev *dev, struct ufp_iface *iface)
 	int i;
 
 	irq_idx = i40e_iface->base_qp * 2;
+	irq_idx += I40E_NUM_MISC_IRQS;
+
 	for (i = 0; i < iface->num_qps; i++, irq_idx++){
 		qp_idx = i40e_iface->base_qp + i;
 		i40e_vsi_shutdown_irq_rx(dev, qp_idx, irq_idx);
@@ -770,7 +839,7 @@ int i40e_rx_desc_fetch(struct ufp_ring *rx_ring, uint16_t index,
 	packet->flag = 0;
 
 	if(likely(qword1 & BIT(I40E_RX_DESC_STATUS_EOF_SHIFT)))
-		packet->flag |= UFP_PACKET_EOP;
+		packet->flag |= UFP_PACKET_EOF;
 
 	if(unlikely(qword1 & I40E_RXD_QW1_ERROR_MASK))
 		packet->flag |= UFP_PACKET_ERROR;
@@ -828,7 +897,7 @@ void i40e_tx_desc_fill(struct ufp_ring *tx_ring, uint16_t index,
 	tx_desc = I40E_TX_DESC(tx_ring, index);
 
 	tx_cmd |= I40E_TX_DESC_CMD_ICRC | I40E_TX_DESC_CMD_RS;
-	if(likely(packet->flag & UFP_PACKET_EOP)){
+	if(likely(packet->flag & UFP_PACKET_EOF)){
 		tx_cmd |= I40E_TX_DESC_CMD_EOP;
 	}
 

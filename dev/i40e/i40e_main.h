@@ -7,6 +7,10 @@
 #define I40E_MAX_NUM_DESCRIPTORS	4096
 #define I40E_PF_RESET_WAIT_COUNT	200
 #define I40E_MAX_TRAFFIC_CLASS		8
+#define I40E_DRV_VERSION_MAJOR		1
+#define I40E_DRV_VERSION_MINOR		5
+#define I40E_DRV_VERSION_BUILD		16
+#define I40E_NUM_MISC_IRQS		1
 
 /* Filter context base size is 1K */
 #define I40E_HASH_FILTER_BASE_SIZE	1024
@@ -94,11 +98,20 @@ struct i40e_elem {
 	struct list_node	list;
 };
 
+struct i40e_version {
+	uint16_t		fw_major;
+	uint16_t		fw_minor;
+	uint32_t		fw_build;
+	uint16_t		api_major;
+	uint16_t		api_minor;
+};
+
 struct i40e_dev {
 	uint8_t			pf_id;
 	uint8_t			pf_lan_mac[6];
 	struct i40e_aq		aq;
 	struct i40e_hmc		hmc;
+	struct i40e_version	version;
 	struct list_head	elem;
 };
 
@@ -122,11 +135,6 @@ struct i40e_iface {
 	uint16_t		qs_handles[8];
 };
 
-struct i40e_page {
-	void			*addr_virt;
-	unsigned long		addr_dma;
-};
-
 #define i40e_flush(dev) \
 	UFP_READ32((dev), I40E_GLGEN_STAT)
 
@@ -134,8 +142,6 @@ int i40e_open(struct ufp_dev *dev);
 void i40e_close(struct ufp_dev *dev);
 int i40e_up(struct ufp_dev *dev, struct ufp_iface *iface);
 int i40e_down(struct ufp_dev *dev, struct ufp_iface *iface);
-struct i40e_page *i40e_page_alloc();
-void i40e_page_release(struct i40e_page *page);
 void i40e_setup_misc_irq(struct ufp_dev *dev);
 void i40e_shutdown_misc_irq(struct ufp_dev *dev);
 void i40e_start_misc_irq(struct ufp_dev *dev);

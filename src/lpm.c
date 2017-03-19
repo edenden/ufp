@@ -139,7 +139,8 @@ int lpm_add(struct lpm_table *table, void *prefix,
 		for(i = 0; i < range; i++, entry_allocated++){
 			node = &table->node[index | i];
 
-			entry = ufp_mem_alloc(mpool, sizeof(struct lpm_entry));
+			entry = ufp_mem_alloc(mpool,
+				sizeof(struct lpm_entry));
 			if(!entry)
 				goto err_lpm_add_self;
 
@@ -207,7 +208,8 @@ static int _lpm_add(struct lpm_table *table, void *prefix,
 		for(i = 0; i < range; i++){
 			node = &parent->next_table[index | i];
 
-			entry = ufp_mem_alloc(mpool, sizeof(struct lpm_entry));
+			entry = ufp_mem_alloc(mpool,
+				sizeof(struct lpm_entry));
 			if(!entry)
 				goto err_lpm_add_self;
 

@@ -3,6 +3,8 @@
 
 enum i40e_admin_queue_opc {
 	/* aq commands */
+	i40e_aq_opc_firmware_version	= 0x0001,
+	i40e_aq_opc_driver_version	= 0x0002,
 	i40e_aq_opc_queue_shutdown	= 0x0003,
 
 	/* LAA */
@@ -17,6 +19,7 @@ enum i40e_admin_queue_opc {
 	i40e_aq_opc_rxctl_read		= 0x0206,
 	i40e_aq_opc_rxctl_write		= 0x0207,
 	i40e_aq_opc_update_vsi		= 0x0211,
+	i40e_aq_opc_get_vsi		= 0x0212,
 	i40e_aq_opc_promisc_mode	= 0x0254,
 
 	/* phy commands */
@@ -28,6 +31,25 @@ enum i40e_admin_queue_opc {
 	/* Tunnel commands */
 	i40e_aq_opc_set_rsskey		= 0x0B02,
 	i40e_aq_opc_set_rsslut		= 0x0B03,
+};
+
+struct i40e_aq_cmd_firmware_version {
+	uint32_t	rom_ver;
+	uint32_t	fw_build;
+	uint16_t	fw_major;
+	uint16_t	fw_minor;
+	uint16_t	api_major;
+	uint16_t	api_minor;
+};
+
+struct i40e_aq_cmd_driver_version {
+	uint8_t		driver_major_ver;
+	uint8_t		driver_minor_ver;
+	uint8_t		driver_build_ver;
+	uint8_t		driver_subbuild_ver;
+	uint8_t		reserved[4];
+	uint32_t	address_high;
+	uint32_t	address_low;
 };
 
 struct i40e_aq_cmd_queue_shutdown {
@@ -115,6 +137,7 @@ struct i40e_aq_cmd_rxctl_write {
 	uint32_t value;
 };
 
+#define i40e_aq_cmd_get_vsi i40e_aq_cmd_update_vsi
 struct i40e_aq_cmd_update_vsi {
 	uint16_t	uplink_seid;
 	uint8_t		connection_type;
@@ -136,6 +159,7 @@ struct i40e_aq_cmd_update_vsi {
 	uint32_t	addr_low;
 };
 
+#define i40e_aq_cmd_get_vsi_resp i40e_aq_cmd_update_vsi_resp
 struct i40e_aq_cmd_update_vsi_resp {
 	uint16_t	seid;
 	uint16_t	vsi_number;
@@ -323,6 +347,10 @@ struct  i40e_aq_cmd_set_rsslut {
 int i40e_aqc_wait_cmd(struct ufp_dev *dev,
 	struct i40e_aq_session *session);
 
+void i40e_aqc_req_firmware_version(struct ufp_dev *dev,
+	struct i40e_aq_session *session);
+void i40e_aqc_req_driver_version(struct ufp_dev *dev,
+	struct i40e_aq_session *session);
 void i40e_aqc_req_queue_shutdown(struct ufp_dev *dev,
 	struct i40e_aq_session *session);
 void i40e_aqc_req_macaddr_read(struct ufp_dev *dev,
@@ -343,6 +371,9 @@ void i40e_aqc_req_rxctl_read(struct ufp_dev *dev,
 void i40e_aqc_req_update_vsi(struct ufp_dev *dev,
 	struct ufp_iface *iface, struct i40e_aq_buf_vsi_data *buf,
 	struct i40e_aq_session *session);
+void i40e_aqc_req_get_vsi(struct ufp_dev *dev,
+	struct ufp_iface *iface,
+	struct i40e_aq_session *session);
 void i40e_aqc_req_promisc_mode(struct ufp_dev *dev,
 	struct ufp_iface *iface, uint16_t promisc_flags,
 	struct i40e_aq_session *session);
@@ -358,6 +389,8 @@ void i40e_aqc_req_set_rsslut(struct ufp_dev *dev,
 	struct ufp_iface *iface, uint8_t *lut, uint16_t lut_size,
 	struct i40e_aq_session *session);
 
+void i40e_aqc_resp_firmware_version(struct ufp_dev *dev,
+	void *cmd_ptr);
 void i40e_aqc_resp_macaddr_read(struct ufp_dev *dev,
 	void *cmd_ptr, void *buf_ptr,
 	struct i40e_aq_session *session);
@@ -368,7 +401,7 @@ void i40e_aqc_resp_get_swconf(struct ufp_dev *dev,
 void i40e_aqc_resp_rxctl_read(struct ufp_dev *dev,
 	void *cmd_ptr,
 	struct i40e_aq_session *session);
-void i40e_aqc_resp_update_vsi(struct ufp_dev *dev,
+void i40e_aqc_resp_get_vsi(struct ufp_dev *dev,
 	void *cmd_ptr, void *buf_ptr,
 	struct i40e_aq_session *session);
 

@@ -59,7 +59,7 @@ static int i40e_ops_init(struct ufp_dev *dev, struct ufp_ops *ops)
 
 	list_init(&i40e_dev->elem);
 	dev->drv_data = i40e_dev;
-	dev->num_misc_irqs = 1;
+	dev->num_misc_irqs = I40E_NUM_MISC_IRQS;
 
 	/* Configuration related functions*/
 	ops->open		= i40e_ops_open;

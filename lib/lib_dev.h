@@ -25,6 +25,15 @@ struct pci_entry {
 	struct list_node	list;
 };
 
+struct ufp_dev_buf {
+	void			*addr_virt;
+	unsigned long		addr_dma;
+	uint64_t		size;
+};
+
+
+struct ufp_dev_buf *ufp_dev_dma_alloc(size_t size);
+void ufp_dev_dma_free(struct ufp_dev_buf *buf);
 int ufp_dev_init(struct ufp_dev *dev, struct ufp_ops *ops);
 int ufp_dev_destroy(struct ufp_dev *dev, struct ufp_ops *ops);
 int ufp_dev_register(struct pci_driver *driver);

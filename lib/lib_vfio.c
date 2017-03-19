@@ -12,11 +12,14 @@
 #include <linux/vfio.h>
 #include <sys/eventfd.h>
 #include <dirent.h>
+#include <linux/pci_regs.h>
 
 #include "lib_main.h"
 #include "lib_vfio.h"
 
 static int ufp_vfio_iommu_type_set();
+static int ufp_vfio_map_bar0(struct ufp_dev *dev);
+static int ufp_vfio_bus_master_set(struct ufp_dev *dev);
 static int ufp_vfio_vendor_id(struct ufp_dev *dev);
 static int ufp_vfio_device_id(struct ufp_dev *dev);
 static int ufp_vfio_group_id(struct ufp_dev *dev);
@@ -101,7 +104,7 @@ int ufp_vfio_dma_map(void *addr_virt, uint64_t *iova, size_t size)
 	if(err < 0)
 		goto err_dma_map;
 
-	*iova = (uint64_t)addr_virt;
+	*iova = (uint64_t)dma_map.iova;
 	return 0;
 
 err_dma_map:
@@ -116,6 +119,7 @@ int ufp_vfio_dma_unmap(uint64_t iova, size_t size)
 	dma_unmap.argsz = sizeof(struct vfio_iommu_type1_dma_unmap);
 	dma_unmap.iova = iova;
 	dma_unmap.size = size;
+	dma_unmap.flags = 0;
 
 	err = ioctl(vfio.container, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
 	if(err < 0)
@@ -124,6 +128,71 @@ int ufp_vfio_dma_unmap(uint64_t iova, size_t size)
 	return 0;
 
 err_dma_unmap:
+	return -1;
+}
+
+static int ufp_vfio_map_bar0(struct ufp_dev *dev)
+{
+	struct vfio_region_info reg_info;
+	int err;
+
+	reg_info.argsz = sizeof(struct vfio_region_info);
+	reg_info.index = VFIO_PCI_BAR0_REGION_INDEX;
+	err = ioctl(dev->fd,
+		VFIO_DEVICE_GET_REGION_INFO, &reg_info);
+	if(err < 0)
+		goto err_reg_info;
+
+	/* Setup mappings... read/write offsets, mmaps
+	 * For PCI devices, config space is a region */
+	if (!(reg_info.flags & VFIO_REGION_INFO_FLAG_MMAP))
+		goto err_reg_flag;
+
+	dev->bar_size = reg_info.size;
+	dev->bar = mmap(NULL, reg_info.size, PROT_READ | PROT_WRITE,
+		MAP_SHARED, dev->fd, reg_info.offset);
+	if(dev->bar == MAP_FAILED)
+		goto err_bar_map;
+
+	return 0;
+
+err_bar_map:
+err_reg_flag:
+err_reg_info:
+	return -1;
+}
+
+static int ufp_vfio_bus_master_set(struct ufp_dev *dev)
+{
+	struct vfio_region_info reg_info;
+	uint16_t reg;
+	int ret, err;
+
+	reg_info.argsz = sizeof(struct vfio_region_info);
+	reg_info.index = VFIO_PCI_CONFIG_REGION_INDEX;
+	err = ioctl(dev->fd,
+		VFIO_DEVICE_GET_REGION_INFO, &reg_info);
+	if(err < 0)
+		goto err_reg_info;
+
+	ret = pread64(dev->fd, &reg, sizeof(reg),
+		reg_info.offset + PCI_COMMAND);
+	if(ret != sizeof(reg))
+		goto err_pread;
+
+	/* set the master bit */
+	reg |= PCI_COMMAND_MASTER;
+
+	ret = pwrite64(dev->fd, &reg, sizeof(reg),
+		reg_info.offset + PCI_COMMAND);
+	if(ret != sizeof(reg))
+		goto err_pwrite;
+
+	return 0;
+
+err_pwrite:
+err_pread:
+err_reg_info:
 	return -1;
 }
 
@@ -264,9 +333,8 @@ err_group_id:
 
 int ufp_vfio_device_open(struct ufp_dev *dev, int group_fd)
 {
-	int err;
 	struct vfio_device_info device_info;
-	struct vfio_region_info reg_info;
+	int err;
 
 	/* Get a file descriptor for the device */
 	dev->fd = ioctl(group_fd,
@@ -284,23 +352,13 @@ int ufp_vfio_device_open(struct ufp_dev *dev, int group_fd)
 	if(!device_info.num_regions)
 		goto err_device_info;
 
-	reg_info.argsz = sizeof(struct vfio_region_info);
-	reg_info.index = VFIO_PCI_BAR0_REGION_INDEX;
-	err = ioctl(dev->fd,
-		VFIO_DEVICE_GET_REGION_INFO, &reg_info);
+	err = ufp_vfio_map_bar0(dev);
 	if(err < 0)
-		goto err_reg_info;
+		goto err_map_bar0;
 
-	/* Setup mappings... read/write offsets, mmaps
-	 * For PCI devices, config space is a region */
-	if (!(reg_info.flags & VFIO_REGION_INFO_FLAG_MMAP))
-		goto err_reg_flag;
-
-	dev->bar_size = reg_info.size;
-	dev->bar = mmap(NULL, reg_info.size, PROT_READ | PROT_WRITE,
-		MAP_SHARED, dev->fd, reg_info.offset);
-	if(dev->bar == MAP_FAILED)
-		goto err_bar_map;
+	err = ufp_vfio_bus_master_set(dev);
+	if(err < 0)
+		goto err_bus_master;
 
 	err = ufp_vfio_vendor_id(dev);
 	if(err < 0)
@@ -320,10 +378,9 @@ int ufp_vfio_device_open(struct ufp_dev *dev, int group_fd)
 err_reset:
 err_device_id:
 err_vendor_id:
+err_bus_master:
 	munmap(dev->bar, dev->bar_size);
-err_bar_map:
-err_reg_flag:
-err_reg_info:
+err_map_bar0:
 err_device_info:
 err_get_info:
 	close(dev->fd);

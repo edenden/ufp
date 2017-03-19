@@ -201,7 +201,7 @@ struct ufp_mpool *ufp_mpool_init()
 #else
 		MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB,
 #endif
-		0, 0);
+		-1, 0);
 	if(mpool->addr_virt == MAP_FAILED){
 		goto err_mmap;
 	}
@@ -236,11 +236,11 @@ static int ufp_alloc_rings(struct ufp_dev *dev, struct ufp_iface *iface,
 	unsigned int qps_assigned = 0;
 
 	iface->tx_ring = malloc(sizeof(struct ufp_ring) * iface->num_qps);
-	if(!iface->rx_ring)
+	if(!iface->tx_ring)
 		goto err_alloc_tx_ring;
 
 	iface->rx_ring = malloc(sizeof(struct ufp_ring) * iface->num_qps);
-	if(!iface->tx_ring)
+	if(!iface->rx_ring)
 		goto err_alloc_rx_ring;
 
 	for(i = 0; i < iface->num_qps; i++, qps_assigned++){
@@ -302,15 +302,18 @@ static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	void *addr_virt;
 	int err;
 	int *slot_index;
+	size_t size_desc_align;
 
-	addr_virt = ufp_mem_alloc(mpool, size_desc);
+	size_desc_align = ALIGN(size_desc, getpagesize());
+
+	addr_virt = ufp_mem_alloc_align(mpool, size_desc_align,
+		getpagesize());
 	if(!addr_virt)
 		goto err_alloc;
 
-	err = ufp_vfio_dma_map(addr_virt, &addr_dma, size_desc);
-	if(err < 0){
+	err = ufp_vfio_dma_map(addr_virt, &addr_dma, size_desc_align);
+	if(err < 0)
 		goto err_dma_map;
-	}
 
 	ring->addr_dma = addr_dma;
 	ring->addr_virt = addr_virt;
@@ -326,7 +329,7 @@ static int ufp_alloc_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	return 0;
 
 err_assign:
-	ufp_vfio_dma_unmap(ring->addr_dma, size_desc);
+	ufp_vfio_dma_unmap(ring->addr_dma, size_desc_align);
 err_dma_map:
 	ufp_mem_free(addr_virt);
 err_alloc:
@@ -336,10 +339,12 @@ err_alloc:
 static void ufp_release_ring(struct ufp_dev *dev, struct ufp_ring *ring,
 	unsigned long size_desc)
 {
-	free(ring->slot_index);
-	ufp_vfio_dma_unmap(ring->addr_dma, size_desc);
-	ufp_mem_free(ring->addr_virt);
+	size_t size_desc_align;
 
+	size_desc_align = ALIGN(size_desc, getpagesize());
+	free(ring->slot_index);
+	ufp_vfio_dma_unmap(ring->addr_dma, size_desc_align);
+	ufp_mem_free(ring->addr_virt);
 	return;
 }
 
@@ -348,6 +353,7 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 {
 	struct ufp_buf *buf;
 	int err, i, num_bufs;
+	size_t size_buf_align;
 
 	buf = malloc(sizeof(struct ufp_buf));
 	if(!buf)
@@ -363,11 +369,15 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 		num_bufs += devs[i]->num_ifaces * buf->count;
 	}
 	buf->size = buf->slot_size * num_bufs;
-	buf->addr_virt = ufp_mem_alloc(mpool, buf->size);
+	size_buf_align = ALIGN(buf->size, getpagesize());
+
+	buf->addr_virt = ufp_mem_alloc_align(mpool, size_buf_align,
+		getpagesize());
 	if(!buf->addr_virt)
 		goto err_mem_alloc;
 
-	err = ufp_vfio_dma_map(buf->addr_virt, &buf->addr_dma, buf->size);
+	err = ufp_vfio_dma_map(buf->addr_virt, &buf->addr_dma,
+		size_buf_align);
 	if(err < 0)
 		goto err_dma_map;
 
@@ -382,7 +392,7 @@ struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 	return buf;
 
 err_alloc_slots:
-	ufp_vfio_dma_unmap(buf->addr_dma, buf->size);
+	ufp_vfio_dma_unmap(buf->addr_dma, size_buf_align);
 err_dma_map:
 	ufp_mem_free(buf->addr_virt);
 err_mem_alloc:
@@ -394,16 +404,17 @@ err_alloc_buf:
 void ufp_release_buf(struct ufp_buf *buf)
 {
 	int err;
+	size_t size_buf_align;
 
 	free(buf->slots);
+	size_buf_align = ALIGN(buf->size, getpagesize());
 
-	err = ufp_vfio_dma_unmap(buf->addr_dma, buf->size);
+	err = ufp_vfio_dma_unmap(buf->addr_dma, size_buf_align);
 	if(err < 0)
 		perror("failed to unmap buf");
 
 	ufp_mem_free(buf->addr_virt);
 	free(buf);
-
 	return;
 }
 
@@ -465,6 +476,7 @@ struct ufp_dev *ufp_open(const char *name)
 	if(!iface)
 		goto err_alloc_iface;
 	list_add_last(&dev->iface, &iface->list);
+	dev->num_ifaces = 1;
 
 	err = ufp_ifname_base(dev, iface);
 	if(err < 0)
@@ -598,9 +610,9 @@ static void ufp_down_iface(struct ufp_dev *dev, struct ufp_iface *iface)
 }
 
 int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
-	unsigned int num_qps, unsigned int mtu_frame,
-	unsigned int promisc, unsigned int rx_budget,
-	unsigned int tx_budget)
+	unsigned int num_qps, unsigned int buf_size,
+	unsigned int mtu_frame, unsigned int promisc,
+	unsigned int rx_budget, unsigned int tx_budget)
 {
 	struct ufp_iface *iface;
 	unsigned int	irq_idx = 0,
@@ -620,6 +632,7 @@ int ufp_up(struct ufp_dev *dev, struct ufp_mpool **mpools,
 	}
 
 	list_for_each(&dev->iface, iface, list){
+		iface->buf_size = buf_size;
 		iface->mtu_frame = mtu_frame;
 		iface->promisc = promisc;
 		iface->rx_budget = rx_budget;

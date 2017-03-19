@@ -170,7 +170,7 @@ static int neigh_key_compare_v6(void *key_tgt, void *key_ent)
 }
 
 int neigh_add(struct neigh_table *neigh, int family,
-	void *dst_addr, void *mac_addr, struct ufp_mpool *mpool) 
+	void *dst_addr, void *mac_addr, struct ufp_mpool *mpool)
 {
 	struct neigh_entry *neigh_entry;
 	int ret;

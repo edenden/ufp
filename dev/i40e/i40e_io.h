@@ -1,13 +1,10 @@
 #ifndef _I40E_IO_H__
 #define _I40E_IO_H__
 
-/* Supported Rx Buffer Sizes (a multiple of 128) */
-#define I40E_RXBUFFER_256	256
-#define I40E_RXBUFFER_2048	2048
-#define I40E_RXBUFFER_3072	3072 /* For FCoE MTU of 2158 */
-#define I40E_RXBUFFER_4096	4096
-#define I40E_RXBUFFER_8192	8192
-#define I40E_MAX_RXBUFFER	9728 /* largest size for single descriptor */
+#define I40E_MIN_RX_BUFFER		1024
+#define I40E_MAX_RX_BUFFER		(16 * 1024 - 128)
+#define I40E_MAX_CHAINED_RX_BUFFERS	5
+#define I40E_MAX_MTU			9728
 
 /* Interrupt Throttling and Rate Limiting Goodies */
 #define I40E_MAX_ITR		0x0FF0	/* reg uses 2 usec resolution */
@@ -191,6 +188,7 @@ enum i40e_tx_desc_cmd_bits {
 	(&(((struct i40e_tx_desc *)((R)->addr_virt))[i]))
 
 int i40e_vsi_update(struct ufp_dev *dev, struct ufp_iface *iface);
+int i40e_vsi_get(struct ufp_dev *dev, struct ufp_iface *iface);
 int i40e_vsi_promisc_mode(struct ufp_dev *dev, struct ufp_iface *iface);
 int i40e_vsi_rss_config(struct ufp_dev *dev, struct ufp_iface *iface);
 int i40e_vsi_configure_tx(struct ufp_dev *dev, struct ufp_iface *iface);

@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include <lib_main.h>
+#include <lib_dev.h>
 
 #include "i40e_main.h"
 #include "i40e_regs.h"
@@ -150,16 +151,16 @@ static int i40e_hmc_sd_allocate(struct ufp_dev *dev,
 	struct i40e_hmc_sd_entry *sd_entry, uint32_t sd_index)
 {
 	unsigned int pd_allocated = 0;
-	struct i40e_page *pd;
+	struct ufp_dev_buf *pd;
 	uint64_t *pd_addr;
 	int i;
 
-	sd_entry->pd_addrs = i40e_page_alloc();
+	sd_entry->pd_addrs = ufp_dev_dma_alloc(I40E_HMC_PAGED_BP_SIZE);
 	if(!sd_entry->pd_addrs)
 		goto err_alloc_pd_addrs;
 
 	for(i = 0; i < I40E_HMC_MAX_BP_COUNT; i++, pd_allocated++){
-		pd = i40e_page_alloc();
+		pd = ufp_dev_dma_alloc(I40E_HMC_PAGED_BP_SIZE);
 		if(!pd)
 			goto err_alloc_pd;
 
@@ -177,9 +178,9 @@ static int i40e_hmc_sd_allocate(struct ufp_dev *dev,
 
 err_alloc_pd:
 	for(i = 0; i < pd_allocated; i++){
-		i40e_page_release(sd_entry->pd[i]);
+		ufp_dev_dma_free(sd_entry->pd[i]);
 	}
-	i40e_page_release(sd_entry->pd_addrs);
+	ufp_dev_dma_free(sd_entry->pd_addrs);
 err_alloc_pd_addrs:
 	return -1;
 }
@@ -187,7 +188,7 @@ err_alloc_pd_addrs:
 static void i40e_hmc_sd_release(struct ufp_dev *dev,
 	struct i40e_hmc_sd_entry *sd_entry, uint32_t sd_index)
 {
-	struct i40e_page *pd;
+	struct ufp_dev_buf *pd;
 	int i;
 
 	i40e_clear_pf_sd_entry(dev, sd_index, I40E_SD_TYPE_PAGED);
@@ -199,10 +200,10 @@ static void i40e_hmc_sd_release(struct ufp_dev *dev,
 			(sd_index << I40E_PFHMC_PDINV_PMSDIDX_SHIFT)
 			| (i << I40E_PFHMC_PDINV_PMPDIDX_SHIFT));
 
-		i40e_page_release(pd);
+		ufp_dev_dma_free(pd);
 	}
 
-	i40e_page_release(sd_entry->pd_addrs);
+	ufp_dev_dma_free(sd_entry->pd_addrs);
 	return;
 }
 
@@ -252,7 +253,7 @@ static void *i40e_hmc_va(struct ufp_dev *dev, struct i40e_hmc_obj *obj,
 	struct i40e_dev *i40e_dev = dev->drv_data;
 	struct i40e_hmc *hmc = &i40e_dev->hmc;
 	struct i40e_hmc_sd_entry *sd_entry;
-	struct i40e_page *pd;
+	struct ufp_dev_buf *pd;
 	uint32_t page_idx, sd_idx, pd_idx;
 	uint64_t addr_fpm, offset;
 	void *hmc_va;
