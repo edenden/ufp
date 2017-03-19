@@ -148,5 +148,9 @@ void i40e_setup_misc_irq(struct ufp_dev *dev);
 void i40e_shutdown_misc_irq(struct ufp_dev *dev);
 void i40e_start_misc_irq(struct ufp_dev *dev);
 void i40e_stop_misc_irq(struct ufp_dev *dev);
+int i40e_set_rsskey_reg(struct ufp_dev *dev,
+	uint8_t *key, uint16_t key_size);
+int i40e_set_rsslut_reg(struct ufp_dev *dev,
+	uint8_t *lut, uint16_t lut_size);
 
 #endif /* _I40E_MAIN_H__ */

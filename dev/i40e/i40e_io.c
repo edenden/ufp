@@ -35,7 +35,7 @@ static int i40e_set_rsskey(struct ufp_dev *dev,
 	struct ufp_iface *iface, uint8_t *key, uint16_t key_size)
 {
 	struct i40e_aq_session *session;
-	int i, err;
+	int err;
 
 	session = i40e_aq_session_create(dev);
 	if(!session)
@@ -56,24 +56,15 @@ static int i40e_set_rsskey(struct ufp_dev *dev,
 	 * this routine may overwrite previous RSS KEY settings.
 	 */
 	if(session->retval == I40E_AQ_RC_ESRCH){
-		uint32_t *key32 = (uint32_t *)key;
-
-		if(key_size != I40E_HKEY_ARRAY_SIZE)
-			goto err_size_reg;
-
-		for (i = 0; i <= I40E_PFQF_HKEY_MAX_INDEX; i++){
-			err = i40e_rxctl_write(dev,
-				I40E_PFQF_HKEY(i), key32[i]);
-			if(err < 0)
-				goto err_write_reg;
-		}
+		err = i40e_set_rsskey_reg(dev, key, key_size);
+		if(err < 0)
+			goto err_set_reg;
 	}
 
 	i40e_aq_session_delete(session);
 	return 0;
 
-err_write_reg:
-err_size_reg:
+err_set_reg:
 err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
@@ -85,7 +76,7 @@ static int i40e_set_rsslut(struct ufp_dev *dev,
 	struct ufp_iface *iface, uint8_t *lut, uint16_t lut_size)
 {
 	struct i40e_aq_session *session;
-	int i, err;
+	int err;
 
 	session = i40e_aq_session_create(dev);
 	if(!session)
@@ -108,19 +99,15 @@ static int i40e_set_rsslut(struct ufp_dev *dev,
 	 * VSIs in the same PF must have same number of QPs on X710/XL710.
 	 */
 	if(session->retval == I40E_AQ_RC_ESRCH){
-		uint32_t *lut32 = (uint32_t *)lut;
-
-		if(lut_size != I40E_HLUT_ARRAY_SIZE)
-			goto err_size_reg;
-
-		for (i = 0; i <= I40E_PFQF_HLUT_MAX_INDEX; i++)
-			UFP_WRITE32(dev, I40E_PFQF_HLUT(i), lut32[i]);
+		err = i40e_set_rsslut_reg(dev, lut, lut_size);
+		if(err < 0)
+			goto err_set_reg;
 	}
 
 	i40e_aq_session_delete(session);
 	return 0;
 
-err_size_reg:
+err_set_reg:
 err_retval:
 err_wait_cmd:
 	i40e_aq_session_delete(session);
