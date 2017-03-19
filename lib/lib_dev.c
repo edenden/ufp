@@ -21,6 +21,7 @@ LIST_HEAD(pci_entries);
 struct ufp_dev_buf *ufp_dev_dma_alloc(size_t size)
 {
 	struct ufp_dev_buf *buf;
+	size_t size_align;
 	int err;
 
 	buf = malloc(sizeof(struct ufp_dev_buf));
@@ -28,21 +29,23 @@ struct ufp_dev_buf *ufp_dev_dma_alloc(size_t size)
 		goto err_alloc_buf;
 
 	buf->size = size;
-	buf->addr_virt = mmap(NULL, buf->size,
+	size_align = ALIGN(size, getpagesize());
+
+	buf->addr_virt = mmap(NULL, size_align,
 		PROT_READ | PROT_WRITE,
 		MAP_PRIVATE | MAP_ANONYMOUS | MAP_LOCKED, -1, 0);
 	if(buf->addr_virt == MAP_FAILED){
 		goto err_mmap;
 	}
 
-	err = ufp_vfio_dma_map(buf->addr_virt, &buf->addr_dma, buf->size);
+	err = ufp_vfio_dma_map(buf->addr_virt, &buf->addr_dma, size_align);
 	if(err < 0){
 		goto err_dma_map;
 	}
 	return buf;
 
 err_dma_map:
-	munmap(buf->addr_virt, buf->size);
+	munmap(buf->addr_virt, size_align);
 err_mmap:
 	free(buf);
 err_alloc_buf:
@@ -51,8 +54,11 @@ err_alloc_buf:
 
 void ufp_dev_dma_free(struct ufp_dev_buf *buf)
 {
-	ufp_vfio_dma_unmap(buf->addr_dma, buf->size);
-	munmap(buf->addr_virt, buf->size);
+	size_t size_align;
+
+	size_align = ALIGN(buf->size, getpagesize());
+	ufp_vfio_dma_unmap(buf->addr_dma, size_align);
+	munmap(buf->addr_virt, size_align);
 	return;
 }
 
