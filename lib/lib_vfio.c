@@ -531,7 +531,7 @@ int ufp_vfio_irq_vector_get(struct ufp_dev *dev)
 			if(!irq_entry)
 				goto err_no_rest_irq;
 
-			iface->rx_irq[i]->vector = vector;
+			iface->rx_irq[i]->vector = irq_entry->vector;
 			list_del(&irq_entry->list);
 		}
 		for(i = 0; i < iface->num_qps; i++){
@@ -540,7 +540,7 @@ int ufp_vfio_irq_vector_get(struct ufp_dev *dev)
 			if(!irq_entry)
 				goto err_no_rest_irq;
 
-			iface->tx_irq[i]->vector = vector;
+			iface->tx_irq[i]->vector = irq_entry->vector;
 			list_del(&irq_entry->list);
 		}
 	}
