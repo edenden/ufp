@@ -890,7 +890,7 @@ int i40e_rx_desc_fetch(struct ufp_ring *rx_ring, uint16_t index,
 	 * any other fields out of the rx_desc until we know the
 	 * RXD_STAT_DD bit is set
 	 */
-	rmb();
+	dma_rmb();
 
 	packet->slot_size = (qword1 & I40E_RXD_QW1_LENGTH_PBUF_MASK) >>
 		I40E_RXD_QW1_LENGTH_PBUF_SHIFT;
