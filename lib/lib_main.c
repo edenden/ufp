@@ -210,6 +210,8 @@ struct ufp_mpool *ufp_mpool_init()
 	if(!mpool->node)
 		goto err_mem_init;
 
+	list_init(&mpool->head);
+
 	return mpool;
 
 err_mem_init:
@@ -220,8 +222,18 @@ err_alloc_mpool:
 	return NULL;
 }
 
+void ufp_mpool_flush(struct ufp_mpool *mpool)
+{
+	struct ufp_mnode *node, *temp;
+	list_for_each_safe(&mpool->head, node, list, temp){
+		list_del(&node->list);
+		ufp_mem_free(node->ptr);
+	}
+}
+
 void ufp_mpool_destroy(struct ufp_mpool *mpool)
 {
+	ufp_mpool_flush(mpool);
 	ufp_mem_destroy(mpool->node);
 	munmap(mpool->addr_virt, SIZE_1GB);
 	free(mpool);

@@ -7,6 +7,7 @@
 
 #include "lib_main.h"
 #include "lib_mem.h"
+#include "lib_list.h"
 
 static struct ufp_mnode *ufp_mnode_alloc(struct ufp_mnode *parent,
 	void *ptr, size_t size, unsigned int index);
@@ -211,5 +212,18 @@ static void _ufp_mem_free(struct ufp_mnode *node)
 	return;
 
 out:
+	return;
+}
+
+void ufp_mem_free_delay(struct ufp_mpool *mpool, void *addr_free)
+{
+	struct ufp_mnode *node;
+	void **header;
+	size_t size_header;
+
+	size_header = sizeof(void *);
+	header = addr_free - size_header;
+	node = (struct ufp_mnode *)*header;
+	list_add_last(&mpool->head, &node->list);
 	return;
 }

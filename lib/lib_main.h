@@ -62,6 +62,7 @@
 struct ufp_mpool {
 	struct ufp_mnode	*node;
 	void			*addr_virt;
+	struct list_head	head; /* for delayed release */
 };
 
 struct ufp_ring {

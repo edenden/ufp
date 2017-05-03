@@ -31,6 +31,7 @@ struct ufp_plane *ufp_plane_alloc(struct ufp_dev **devs, int num_devs,
 void ufp_plane_release(struct ufp_plane *plane);
 struct ufp_mpool *ufp_mpool_init();
 void ufp_mpool_destroy(struct ufp_mpool *mpool);
+void ufp_mpool_flush(struct ufp_mpool *mpool);
 struct ufp_buf *ufp_alloc_buf(struct ufp_dev **devs, int num_devs,
 	uint32_t slot_size, uint32_t buf_count, struct ufp_mpool *mpool);
 void ufp_release_buf(struct ufp_buf *buf);
@@ -47,6 +48,7 @@ void *ufp_mem_alloc(struct ufp_mpool *mpool, size_t size);
 void *ufp_mem_alloc_align(struct ufp_mpool *mpool, size_t size,
 	size_t align);
 void ufp_mem_free(void *addr_free);
+void ufp_mem_free_delay(struct ufp_mpool *mpool, void *addr_free);
 
 /* IO */
 void ufp_irq_unmask_queues(struct ufp_plane *plane,

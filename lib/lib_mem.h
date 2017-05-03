@@ -8,6 +8,7 @@ struct ufp_mnode {
 	unsigned int		index;
 	size_t			size;
 	void			*ptr;
+	struct list_node	list; /* for delayed release */
 };
 
 struct ufp_mnode *ufp_mem_init(void *ptr, size_t size);
