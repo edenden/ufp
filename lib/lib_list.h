@@ -72,12 +72,16 @@ static inline void list_del(struct list_node *node)
 
 static inline void list_del_first(struct list_head *head)
 {
-	list_del(head->node.next);
+	if(head->node.next != &(head->node))
+		list_del(head->node.next);
+	return;
 }
 
 static inline void list_del_last(struct list_head *head)
 {
-	list_del(head->node.prev);
+	if(head->node.prev != &(head->node))
+		list_del(head->node.prev);
+	return;
 }
 
 static inline void list_init(struct list_head *head)
@@ -166,15 +170,16 @@ static inline void hlist_add_first(struct hlist_head *head,
 
 static inline void hlist_del(struct hlist_node *node)
 {
+	*(node->prev) = node->next;
 	if(node->next)
 		node->next->prev = node->prev;
-	*(node->prev) = node->next;
 	return;
 }
 
 static inline void hlist_del_first(struct hlist_head *head)
 {
-	hlist_del(head->first);
+	if(head->first)
+		hlist_del(head->first);
 	return;
 }
 
