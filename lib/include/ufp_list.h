@@ -27,23 +27,27 @@ struct hlist_head {
 	struct hlist_node	*first;
 };
 
+static inline void list_add(struct list_node *next, struct list_node *prev,
+	struct list_node *new)
+{
+	new->next = next;
+	new->prev = prev;
+	prev->next = new;
+	next->prev = new;
+	return;
+}
+
 static inline void list_add_before(struct list_node *node,
 	struct list_node *new)
 {
-	new->next = node;
-	new->prev = node->prev;
-	node->prev->next = new;
-	node->prev = new;
+	list_add(node, node->prev, new);
 	return;
 }
 
 static inline void list_add_after(struct list_node *node,
 	struct list_node *new)
 {
-	new->next = node->next;
-	new->prev = node;
-	node->next->prev = new;
-	node->next = new;
+	list_add(node->next, node, new);
 	return;
 }
 
@@ -128,35 +132,34 @@ static inline void list_init(struct list_head *head)
 		(temp) = list_entry((data)->member.dir,			\
 			typeof(*(data)), member))
 
+static inline void hlist_add(struct hlist_node *next, struct hlist_node **prev,
+	struct hlist_node *new)
+{
+	new->next = next;
+	new->prev = prev;
+	if(next)
+		next->prev = &new->next;
+	*prev = new;
+}
+
 static inline void hlist_add_before(struct hlist_node *node,
 	struct hlist_node *new)
 {
-	new->next = node;
-	new->prev = node->prev;
-	node->prev = &new->next;
-	*(new->prev) = new;
+	hlist_add(node, node->prev, new);
 	return;
 }
 
 static inline void hlist_add_after(struct hlist_node *node,
 	struct hlist_node *new)
 {
-	new->next = node->next;
-	new->prev = &node->next;
-	if(new->next)
-		new->next->prev = &new->next;
-	node->next = new;
+	hlist_add(node->next, &node->next, new);
 	return;
 }
 
 static inline void hlist_add_first(struct hlist_head *head,
 	struct hlist_node *new)
 {
-	new->next = head->first;
-	new->prev = &head->first;
-	if(head->first)
-		head->first->prev = &new->next;
-	head->first = new;
+	hlist_add(head->first, &head->first, new);
 	return;
 }
 
