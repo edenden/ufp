@@ -137,9 +137,10 @@ static inline void hlist_add(struct hlist_node *new,
 {
 	new->next = next;
 	new->prev = prev;
+	*prev = new;
 	if(next)
 		next->prev = &new->next;
-	*prev = new;
+	return;
 }
 
 static inline void hlist_add_before(struct hlist_node *node,
