@@ -80,11 +80,6 @@ static inline void list_del_last(struct list_head *head)
 	list_del(head->node.prev);
 }
 
-static inline int list_empty(struct list_head *head)
-{
-	return head->node.next == &head->node;
-}
-
 static inline void list_init(struct list_head *head)
 {
 	head->node.next = &head->node;
@@ -96,12 +91,17 @@ static inline void list_init(struct list_head *head)
 #define LIST_HEAD(name) \
 	struct list_head name = LIST_HEAD_INIT(name)
 
+#define list_empty(head)						\
+	((head)->node.next == &((head)->node))
+
 #define list_entry(ptr, type, member)					\
 	container_of(ptr, type, member)
 
+#define list_entry_safe(head, ptr, type, member)			\
+	(ptr != &((head)->node)) ? list_entry(ptr, type, member) : NULL
+
 #define list_first_entry(head, type, member)				\
-	!list_empty(head) ? list_entry((head)->node.next, type, member)	\
-	: NULL
+	list_entry_safe(head, (head)->node.next, type, member)
 
 #define list_for_each(head, data, member)				\
 	list_for_each_dir(head, data, member, next)
@@ -178,11 +178,6 @@ static inline void hlist_del_first(struct hlist_head *head)
 	return;
 }
 
-static inline int hlist_empty(struct hlist_head *head)
-{
-	return !head->first;
-}
-
 static inline void hlist_init(struct hlist_head *head)
 {
 	head->first = NULL;
@@ -193,6 +188,9 @@ static inline void hlist_init(struct hlist_head *head)
 #define HLIST_HEAD(name) \
 	struct hlist_head name = HLIST_HEAD_INIT(name)
 
+#define hlist_empty(head)						\
+	(!(head)->first)
+
 #define hlist_entry(ptr, type, member)					\
 	container_of(ptr, type, member)
 
@@ -200,8 +198,7 @@ static inline void hlist_init(struct hlist_head *head)
 	(ptr) ? hlist_entry(ptr, type, member) : NULL
 
 #define hlist_first_entry(head, type, member)				\
-	!hlist_empty(head) ? hlist_entry((head)->first, type, member)	\
-	: NULL
+	hlist_entry_safe((head)->first, type, member)
 
 #define hlist_for_each(head, data, member)				\
 	for(	(data) = hlist_entry_safe((head)->first,		\
