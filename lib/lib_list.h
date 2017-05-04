@@ -6,7 +6,7 @@
 #define container_of(ptr, type, member) ({			\
 	const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
 	(type *)((char *)__mptr - offsetof(type,member));	\
-	})
+})
 
 struct list_node {
 	struct list_node	*next;
@@ -65,22 +65,26 @@ static inline void list_add_last(struct list_head *head,
 
 static inline void list_del(struct list_node *node)
 {
-	node->prev->next = node->next;
-	node->next->prev = node->prev;
+	struct list_node *next = node->next;
+	struct list_node *prev = node->prev;
+	prev->next = next;
+	next->prev = prev;
 	return;
 }
 
 static inline void list_del_first(struct list_head *head)
 {
-	if(head->node.next != &(head->node))
-		list_del(head->node.next);
+	struct list_node *next = head->node.next;
+	if(next != &(head->node))
+		list_del(next);
 	return;
 }
 
 static inline void list_del_last(struct list_head *head)
 {
-	if(head->node.prev != &(head->node))
-		list_del(head->node.prev);
+	struct list_node *prev = head->node.prev;
+	if(prev != &(head->node))
+		list_del(prev);
 	return;
 }
 
@@ -101,8 +105,10 @@ static inline void list_init(struct list_head *head)
 #define list_entry(ptr, type, member)					\
 	container_of(ptr, type, member)
 
-#define list_entry_safe(head, ptr, type, member)			\
-	(ptr != &((head)->node)) ? list_entry(ptr, type, member) : NULL
+#define list_entry_safe(head, ptr, type, member) ({			\
+	typeof(ptr) p = (ptr);						\
+	(p != &((head)->node)) ? list_entry(p, type, member) : NULL;	\
+})
 
 #define list_first_entry(head, type, member)				\
 	list_entry_safe(head, (head)->node.next, type, member)
@@ -170,16 +176,19 @@ static inline void hlist_add_first(struct hlist_head *head,
 
 static inline void hlist_del(struct hlist_node *node)
 {
-	*(node->prev) = node->next;
-	if(node->next)
-		node->next->prev = node->prev;
+	struct hlist_node *next = node->next;
+	struct hlist_node **prev = node->prev;
+	*prev = next;
+	if(next)
+		next->prev = prev;
 	return;
 }
 
 static inline void hlist_del_first(struct hlist_head *head)
 {
-	if(head->first)
-		hlist_del(head->first);
+	struct hlist_node *first = head->first;
+	if(first)
+		hlist_del(first);
 	return;
 }
 
@@ -199,8 +208,10 @@ static inline void hlist_init(struct hlist_head *head)
 #define hlist_entry(ptr, type, member)					\
 	container_of(ptr, type, member)
 
-#define hlist_entry_safe(ptr, type, member)				\
-	(ptr) ? hlist_entry(ptr, type, member) : NULL
+#define hlist_entry_safe(ptr, type, member) ({				\
+	typeof(ptr) p = (ptr);						\
+	p ? hlist_entry(p, type, member) : NULL;			\
+})
 
 #define hlist_first_entry(head, type, member)				\
 	hlist_entry_safe((head)->first, type, member)
