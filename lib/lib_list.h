@@ -27,8 +27,8 @@ struct hlist_head {
 	struct hlist_node	*first;
 };
 
-static inline void list_add(struct list_node *next, struct list_node *prev,
-	struct list_node *new)
+static inline void list_add(struct list_node *new,
+	struct list_node *next, struct list_node *prev)
 {
 	new->next = next;
 	new->prev = prev;
@@ -40,14 +40,14 @@ static inline void list_add(struct list_node *next, struct list_node *prev,
 static inline void list_add_before(struct list_node *node,
 	struct list_node *new)
 {
-	list_add(node, node->prev, new);
+	list_add(new, node, node->prev);
 	return;
 }
 
 static inline void list_add_after(struct list_node *node,
 	struct list_node *new)
 {
-	list_add(node->next, node, new);
+	list_add(new, node->next, node);
 	return;
 }
 
@@ -132,8 +132,8 @@ static inline void list_init(struct list_head *head)
 		(temp) = list_entry((data)->member.dir,			\
 			typeof(*(data)), member))
 
-static inline void hlist_add(struct hlist_node *next, struct hlist_node **prev,
-	struct hlist_node *new)
+static inline void hlist_add(struct hlist_node *new,
+	struct hlist_node *next, struct hlist_node **prev)
 {
 	new->next = next;
 	new->prev = prev;
@@ -145,21 +145,21 @@ static inline void hlist_add(struct hlist_node *next, struct hlist_node **prev,
 static inline void hlist_add_before(struct hlist_node *node,
 	struct hlist_node *new)
 {
-	hlist_add(node, node->prev, new);
+	hlist_add(new, node, node->prev);
 	return;
 }
 
 static inline void hlist_add_after(struct hlist_node *node,
 	struct hlist_node *new)
 {
-	hlist_add(node->next, &node->next, new);
+	hlist_add(new, node->next, &node->next);
 	return;
 }
 
 static inline void hlist_add_first(struct hlist_head *head,
 	struct hlist_node *new)
 {
-	hlist_add(head->first, &head->first, new);
+	hlist_add(new, head->first, &head->first);
 	return;
 }
 
