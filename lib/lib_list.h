@@ -200,7 +200,7 @@ static inline void hlist_init(struct hlist_head *head)
 
 #define HLIST_HEAD_INIT { .first = NULL }
 #define HLIST_HEAD(name) \
-	struct hlist_head name = HLIST_HEAD_INIT(name)
+	struct hlist_head name = HLIST_HEAD_INIT
 
 #define hlist_empty(head)						\
 	(!(head)->first)
