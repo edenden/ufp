@@ -15,7 +15,6 @@ static void ufp_mnode_release(struct ufp_mnode *node);
 static void _ufp_mem_destroy(struct ufp_mnode *node);
 static struct ufp_mnode *_ufp_mem_alloc(struct ufp_mnode *node,
 	size_t size);
-static void _ufp_mem_free(struct ufp_mnode *node);
 
 static struct ufp_mnode *ufp_mnode_alloc(struct ufp_mnode *parent,
 	void *ptr, size_t size, unsigned int index)
