@@ -191,7 +191,7 @@ void ufp_mem_free(void *addr_free)
 	return;
 }
 
-static void _ufp_mem_free(struct ufp_mnode *node)
+void _ufp_mem_free(struct ufp_mnode *node)
 {
 	struct ufp_mnode *parent, *buddy;
 

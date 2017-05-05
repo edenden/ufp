@@ -227,7 +227,7 @@ void ufp_mpool_flush(struct ufp_mpool *mpool)
 	struct ufp_mnode *node, *temp;
 	list_for_each_safe(&mpool->head, node, list, temp){
 		list_del(&node->list);
-		ufp_mem_free(node->ptr);
+		_ufp_mem_free(node);
 	}
 }
 

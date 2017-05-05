@@ -17,5 +17,6 @@ void *ufp_mem_alloc(struct ufp_mpool *mpool, size_t size);
 void *ufp_mem_alloc_align(struct ufp_mpool *mpool, size_t size,
 	size_t align);
 void ufp_mem_free(void *addr_free);
+void _ufp_mem_free(struct ufp_mnode *node);
 
 #endif /* _LIBUFP_MEM_H */
