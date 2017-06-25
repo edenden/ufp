@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <net/ethernet.h>
 
 #include "lib_main.h"
@@ -28,7 +29,7 @@ static struct ufp_mnode *ufp_mnode_alloc(struct ufp_mnode *parent,
 	node->parent	= parent;
 	node->child[0]	= NULL;
 	node->child[1]	= NULL;
-	node->allocated	= 0;
+	node->flag	= 0;
 	node->index	= index;
 	node->size	= size;
 	node->ptr	= ptr;
@@ -41,12 +42,6 @@ err_alloc_node:
 
 static void ufp_mnode_release(struct ufp_mnode *node)
 {
-	struct ufp_mnode *parent;
-
-	parent = node->parent;
-	if(parent)
-		parent->child[node->index] = NULL;
-
 	free(node);
 	return;
 }
@@ -137,17 +132,17 @@ static struct ufp_mnode *_ufp_mem_alloc(struct ufp_mnode *node,
 	int i, buddy_allocated;
 
 	ret = NULL;
-
-	if(!node)
-		goto ign_node;
+	if(node->flag & UFP_MNODE_FULL)
+		goto out;
 
 	if((node->size >> 1) < size){
-		if(!node->allocated
+		if(!(node->flag & UFP_MNODE_ALLOCATED)
 		&& node->size >= size){
+			node->flag |= UFP_MNODE_FULL;
 			ret = node;
 		}
 	}else{
-		if(!node->allocated){
+		if(!(node->flag & UFP_MNODE_ALLOCATED)){
 			size_new = node->size >> 1;
 			for(i = 0, buddy_allocated = 0; i < 2; i++, buddy_allocated++){
 				ptr_new = node->ptr + (size_new * i);
@@ -160,20 +155,26 @@ static struct ufp_mnode *_ufp_mem_alloc(struct ufp_mnode *node,
 
 		for(i = 0; i < 2; i++){
 			ret = _ufp_mem_alloc(node->child[i], size);
-			if(ret)
+			if(ret){
+				if(node->child[0]->flag & UFP_MNODE_FULL
+				&& node->child[1]->flag & UFP_MNODE_FULL)
+					node->flag |= UFP_MNODE_FULL;
 				break;
+			}
 		}
 	}
 
 	if(ret)
-		node->allocated = 1;
+		node->flag |= UFP_MNODE_ALLOCATED;
 
-ign_node:
+out:
 	return ret;
 
 err_alloc_child:
-	for(i = 0; i < buddy_allocated; i++)
+	for(i = 0; i < buddy_allocated; i++){
 		ufp_mnode_release(node->child[i]);
+		node->child[i] = NULL;
+	}
 	return NULL;
 }
 
@@ -194,21 +195,22 @@ void _ufp_mem_free(struct ufp_mnode *node)
 {
 	struct ufp_mnode *parent, *buddy;
 
-	node->allocated = 0;
+	node->flag = 0;
 
 	parent = node->parent;
 	if(!parent)
 		goto out;
+	parent->flag &= ~UFP_MNODE_FULL;
 
 	buddy = parent->child[!node->index];
-	if(buddy->allocated)
+	if(buddy->flag & UFP_MNODE_ALLOCATED)
 		goto out;
 
 	ufp_mnode_release(buddy);
 	ufp_mnode_release(node);
+	parent->child[0] = NULL;
+	parent->child[1] = NULL;
 	_ufp_mem_free(parent);
-
-	return;
 
 out:
 	return;
